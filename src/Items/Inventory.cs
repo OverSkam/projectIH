@@ -11,12 +11,14 @@ public class Inventory
     public List<string> Steins = new();
     public string[] Utils = new string[UtilSlots];
     public int Selected = 0;
+    /// <summary>Highlighted stein slot: the one dropped when a new stein is picked up with full slots.</summary>
+    public int SteinSel = 0;
 
     public string Held => Utils[Selected] ?? "";
 
     public void Clear()
     {
-        Sack.Clear(); Steins.Clear(); Utils = new string[UtilSlots]; Selected = 0;
+        Sack.Clear(); Steins.Clear(); Utils = new string[UtilSlots]; Selected = 0; SteinSel = 0;
     }
 
     public void GiveStartKit()
@@ -37,9 +39,9 @@ public class Inventory
         return -1;
     }
 
-    /// <summary>Wire format: sack|steins|util0,util1|selected</summary>
+    /// <summary>Wire format: sack|steins|util0,util1|selected|steinSel</summary>
     public string Encode() =>
-        string.Join(",", Sack) + "|" + string.Join(",", Steins) + "|" + (Utils[0] ?? "") + "," + (Utils[1] ?? "") + "|" + Selected;
+        string.Join(",", Sack) + "|" + string.Join(",", Steins) + "|" + (Utils[0] ?? "") + "," + (Utils[1] ?? "") + "|" + Selected + "|" + SteinSel;
 
     public static Inventory Decode(string s)
     {
@@ -51,6 +53,7 @@ public class Inventory
         var u = p[2].Split(',');
         for (int i = 0; i < u.Length && i < UtilSlots; i++) inv.Utils[i] = u[i];
         int.TryParse(p[3], out inv.Selected);
+        if (p.Length > 4) int.TryParse(p[4], out inv.SteinSel);
         return inv;
     }
 

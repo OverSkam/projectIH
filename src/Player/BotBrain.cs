@@ -23,7 +23,7 @@ public class BotBrain : IMinerController
 
     public BotBrain(string routine) { _routine = routine; }
 
-    public MinerInput Poll(float dt, Miner m)
+    public virtual MinerInput Poll(float dt, Miner m)
     {
         var inp = new MinerInput { UtilSlot = -1, Yaw = _yaw, Pitch = _pitch };
         var g = Game.I;
