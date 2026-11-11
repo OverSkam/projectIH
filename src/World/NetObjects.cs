@@ -61,6 +61,7 @@ public partial class VeinObj : NetObject
 {
     MeshInstance3D _rock;
     string _ore = "coal"; float _hp = 3, _max = 3;
+    public string OreId => _ore;
 
     static string F(float v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     public static string MakeData(string ore, float hp, float max) => $"ore={ore};hp={F(hp)};max={F(max)}";
@@ -107,6 +108,7 @@ public partial class VeinObj : NetObject
     {
         if (!pickaxe) return;
         Parse();
+        Game.ServerNoise(GlobalPosition, 12f, p);
         _hp -= mining;
         if (_hp > 0.001f)
         {
@@ -116,7 +118,7 @@ public partial class VeinObj : NetObject
         Game.I.ServerDespawnObject(Id);
         var dir = (p.Pos - GlobalPosition) with { Y = 0 };
         dir = dir.LengthSquared() < 0.01f ? Vector3.Right : dir.Normalized();
-        Game.I.ServerSpawnObject("pickup", GlobalPosition + dir * 1.3f + new Vector3(0, 0.45f, 0), "ore:" + _ore);
+        Game.I.ServerSpawnObject("pickup", GlobalPosition + dir * 1.3f + new Vector3(0, 0.45f, 0), "ore:" + Loot.LuckyOre(_ore, p));
         p.Fire(new SteinEvent { Kind = SteinEventKind.Mined, Amount = Ores.ValueOf(_ore) });
         Util.Pass("ore_mined", $"ore={_ore} by={p.Name}");
     }
@@ -141,7 +143,7 @@ public partial class PickupObj : NetObject
         int c = Data.IndexOf(':'); string kind = Data.Substring(0, c), id = Data.Substring(c + 1);
         MeshInstance3D m;
         if (kind == "ore") { var d = Ores.Get(id); m = Util.BoxMesh(new Vector3(0.3f, 0.3f, 0.3f), d.Color, Math.Max(0.5f, d.Glow)); m.Rotation = new Vector3(0.6f, 0.7f, 0.2f); }
-        else if (kind == "stein") m = Util.SphereMesh(0.18f, Steins.Get(id)?.Color ?? Colors.White, 1.0f);
+        else if (kind == "stein") { m = Util.SphereMesh(0.01f, Steins.Get(id)?.Color ?? Colors.White); AddChild(ItemVisuals.Stein(id)); }
         else m = Util.BoxMesh(new Vector3(0.3f, 0.2f, 0.5f), Utilities.Get(id)?.Color ?? Colors.Gray);
         AddChild(m);
         AddChild(Util.BoxShape(new Vector3(0.7f, 0.7f, 0.7f), Vector3.Zero));
@@ -152,7 +154,7 @@ public partial class PickupObj : NetObject
 
     public override void ServerInteract(ServerPlayer p)
     {
-        if (!p.TryAdd(Data)) return;
+        if (!p.TryAdd(Data) && !ItemsServer.TrySwap(p, Data)) return;
         Game.I.ServerDespawnObject(Id);
     }
 }

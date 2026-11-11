@@ -6,7 +6,7 @@ namespace AppStein;
 public struct MinerInput
 {
     public Vector2 Move;      // x = right, y = forward
-    public bool Jump, Sprint, Crouch, Attack, Interact, Drop, DropOre;
+    public bool Jump, Sprint, Crouch, Attack, Interact, Drop, DropOre, UseUtility, Ability, SteinCycle;
     public int UtilSlot;      // -1 none
     public float Yaw, Pitch;  // absolute look angles (radians)
 }
@@ -44,6 +44,9 @@ public class HumanController : IMinerController
         i.Interact = Input.IsActionJustPressed("interact");
         i.Drop = Input.IsActionJustPressed("drop");
         i.DropOre = Input.IsActionJustPressed("drop_ore");
+        i.UseUtility = Input.IsActionJustPressed("use_utility");
+        i.Ability = Input.IsActionJustPressed("stein_ability");
+        i.SteinCycle = Input.IsActionJustPressed("stein_cycle");
         if (Input.IsActionJustPressed("utility_1")) i.UtilSlot = 0;
         if (Input.IsActionJustPressed("utility_2")) i.UtilSlot = 1;
         return i;
@@ -61,6 +64,10 @@ public partial class Miner : CharacterBody3D
     // Local-only stats pushed from the server (private OwnState)
     public float SpeedMul = 1f, JumpMul = 1f;
     public bool NoFall;
+    public bool HasMask, LanternOut;
+    float _rootLeft, _ropeDetach;
+    bool _ethereal;
+    Node3D _mask;
 
     public string PromptText = "";
     public NetObject Target;
@@ -83,7 +90,7 @@ public partial class Miner : CharacterBody3D
 
     public override void _Ready()
     {
-        CollisionLayer = 2; CollisionMask = 1;
+        CollisionLayer = 2; CollisionMask = 1 | Layers.ThinWall;
         _shape = new CollisionShape3D { Shape = new CapsuleShape3D { Radius = 0.4f, Height = 1.8f }, Position = new Vector3(0, 0.9f, 0) };
         AddChild(_shape);
         _head = new Node3D { Position = new Vector3(0, 1.6f, 0) };
@@ -125,6 +132,7 @@ public partial class Miner : CharacterBody3D
         if (_tool == null) return;
         foreach (var c in _tool.GetChildren()) c.QueueFree();
         _light = null;
+        if (_mask != null && HasMask) { }
         var def = Utilities.Get(_held);
         if (def == null) return;
         if (def.IsPickaxe)
@@ -135,13 +143,49 @@ public partial class Miner : CharacterBody3D
         else if (def.IsLight)
         {
             var box = Util.BoxMesh(new Vector3(0.15f, 0.2f, 0.15f), def.Color, 4f); _tool.AddChild(box);
-            _light = new OmniLight3D { LightColor = new Color(1f, 0.85f, 0.55f), LightEnergy = 2.2f, OmniRange = 14f, OmniAttenuation = 1.2f, ShadowEnabled = false, Position = new Vector3(0, 0.3f, 0) };
+            _light = new OmniLight3D { LightColor = new Color(1f, 0.85f, 0.55f), LightEnergy = 2.2f, OmniRange = 14f, OmniAttenuation = 1.2f, ShadowEnabled = false, Position = new Vector3(0, 0.3f, 0), Visible = !LanternOut };
             _tool.AddChild(_light);
         }
         else
         {
-            _tool.AddChild(Util.BoxMesh(new Vector3(0.2f, 0.2f, 0.3f), def.Color));
+            _tool.AddChild(ItemVisuals.Held(def.Id, def.Color));
         }
+    }
+
+    public void SetMask(bool on)
+    {
+        HasMask = on;
+        _mask?.QueueFree(); _mask = null;
+        if (on && _body != null) { _mask = ItemVisuals.Mask(); _body.AddChild(_mask); }
+    }
+
+    public void SetLanternOut(bool o) { LanternOut = o; if (_light != null) _light.Visible = !o; }
+
+    public float RootLeft => _rootLeft;
+    public void Root(float seconds) { _rootLeft = seconds; }
+
+    public void Teleport(Vector3 pos, float yaw) { GlobalPosition = pos; Velocity = Vector3.Zero; }
+
+    bool InsideThinWall()
+    {
+        var q = new PhysicsShapeQueryParameters3D { Shape = _shape.Shape, Transform = _shape.GlobalTransform, CollisionMask = Layers.ThinWall };
+        return GetWorld3D().DirectSpaceState.IntersectShape(q, 1).Count > 0;
+    }
+
+    void UpdateEthereal()
+    {
+        bool want = Game.I.OwnEtherealUntil > Time.GetTicksMsec() / 1000.0;
+        if (!want && _ethereal && InsideThinWall()) want = true; // never get stuck inside a thin wall
+        if (want == _ethereal) return;
+        _ethereal = want;
+        CollisionMask = want ? 1u : (1u | Layers.ThinWall);
+    }
+
+    RopeObj FindRope()
+    {
+        var w = Game.I.World; if (w == null) return null;
+        foreach (var o in w.Objects.Values) if (o is RopeObj r && r.Contains(GlobalPosition)) return r;
+        return null;
     }
 
     public void PlaySwing()
@@ -194,13 +238,33 @@ public partial class Miner : CharacterBody3D
         float speed = (_crouching ? CrouchSpeed : (c.Sprint ? SprintSpeed : WalkSpeed)) * SpeedMul;
         var wish = Transform.Basis * new Vector3(c.Move.X, 0, -c.Move.Y);
         wish = wish.LengthSquared() > 1f ? wish.Normalized() : wish;
+        UpdateEthereal();
         var v = Velocity;
         bool onFloor = IsOnFloor();
+        _rootLeft -= dt; _ropeDetach -= dt;
+        var rope = _ropeDetach > 0 ? null : FindRope();
         float accel = onFloor ? 40f : 8f;
         var hv = new Vector3(v.X, 0, v.Z).MoveToward(wish * speed, accel * dt);
         v.X = hv.X; v.Z = hv.Z;
-        if (!onFloor) v.Y -= Gravity * dt; else if (v.Y < 0) v.Y = 0;
-        if (c.Jump && onFloor && !_crouching) v.Y = JumpVel * JumpMul;
+        if (_rootLeft > 0) { v.X = 0; v.Z = 0; }
+        if (rope != null)
+        {
+            if (c.Jump) { _ropeDetach = 0.5f; v.Y = JumpVel * JumpMul; }
+            else
+            {
+                if (c.Move.Y > 0.1f) v.Y = GlobalPosition.Y > rope.TopY + 0.3f ? 0f : 3.5f;
+                else if (c.Move.Y < -0.1f || c.Crouch) v.Y = -3f;
+                else v.Y = 0f;
+                var to = rope.GlobalPosition - GlobalPosition;
+                v.X = Mathf.Clamp(to.X * 6f, -3f, 3f); v.Z = Mathf.Clamp(to.Z * 6f, -3f, 3f);
+            }
+            _fallPeak = 0;
+        }
+        else
+        {
+            if (!onFloor) v.Y -= Gravity * dt; else if (v.Y < 0) v.Y = 0;
+            if (c.Jump && onFloor && !_crouching && _rootLeft <= 0) v.Y = JumpVel * JumpMul;
+        }
         if (!onFloor) _fallPeak = Math.Max(_fallPeak, -v.Y);
         Velocity = v;
         MoveAndSlide();
@@ -226,6 +290,9 @@ public partial class Miner : CharacterBody3D
             Game.I.SendAttack(EyePos, LookDir);
         }
         if (c.UtilSlot >= 0) Game.I.SendSelectUtil(c.UtilSlot);
+        if (c.UseUtility) Game.I.SendUseUtility();
+        if (c.Ability) Game.I.SendAbility();
+        if (c.SteinCycle) Game.I.SendSteinSel((Game.I.OwnInv.SteinSel + 1) % Inventory.SteinSlots);
         if (c.Drop) Game.I.SendDrop("util", Game.I.OwnInv.Selected);
         if (c.DropOre) Game.I.SendDrop("ore", Game.I.OwnInv.Sack.Count - 1);
 

@@ -249,15 +249,14 @@ public static class ItemsServer
 
     public static void InfinityEvent(ServerPlayer p, SteinEvent e)
     {
-        var t = InfinityTracker;
-        if (e.Kind == SteinEventKind.Death) { if (t.Holder == p.Peer) t.Reset(); return; }
+                if (e.Kind == SteinEventKind.Death) { if (InfinityTracker.Holder == p.Peer) InfinityTracker.Reset(); return; }
         if (e.Kind != SteinEventKind.RoundEnd) return;
         int round = Game.I.Round;
-        if (t.Holder == p.Peer && t.LastRound == round - 1) t.Count++; else { t.Holder = p.Peer; t.Count = 1; }
-        t.LastRound = round;
-        Game.I.ServerAnnounce($"The Infinity Stein has been carried for {t.Count} round{(t.Count == 1 ? "" : "s")}.");
-        Util.Pass("infinity_count", $"n={t.Count} holder={p.Name}");
-        if (t.Count >= InfinityRoundsToWin)
+        if (InfinityTracker.Holder == p.Peer && InfinityTracker.LastRound == round - 1) InfinityTracker.Count++; else { InfinityTracker.Holder = p.Peer; InfinityTracker.Count = 1; }
+        InfinityTracker.LastRound = round;
+        Game.I.ServerAnnounce($"The Infinity Stein has been carried for {InfinityTracker.Count} round{(InfinityTracker.Count == 1 ? "" : "s")}.");
+        Util.Pass("infinity_count", $"n={InfinityTracker.Count} holder={p.Name}");
+        if (InfinityTracker.Count >= InfinityRoundsToWin)
         {
             Game.I.ForcedWinner = p.Name;
             Game.I.ServerAnnounce("The Infinity Stein has found its master. The mine is theirs.");

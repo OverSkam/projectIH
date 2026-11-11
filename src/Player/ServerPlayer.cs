@@ -25,6 +25,7 @@ public class ServerPlayer
     public bool Dirty;              // own-state needs resending to the owner
     public double LastOwnSend;
     public double NextMeddle;
+    public ItemState Items = new();
     float _regenAcc;
 
     public int SackCap => Inventory.BaseSack + Stats.SackBonus;
@@ -33,6 +34,8 @@ public class ServerPlayer
     {
         var s = new StatBlock();
         foreach (var id in Inv.Steins) Steins.Get(id)?.Modify?.Invoke(s);
+        foreach (var id in Inv.Steins) Steins.Get(id)?.ModifyFor?.Invoke(this, s);
+        ItemsServer.ApplyUtilityStats(this, s);
         Stats = s;
         Dirty = true;
     }
@@ -47,6 +50,7 @@ public class ServerPlayer
         if (!Alive) return;
         foreach (var id in Inv.Steins.ToArray()) Steins.Get(id)?.OnTick?.Invoke(this, dt);
         if (Stats.RegenPerSec > 0) Regen(Stats.RegenPerSec * dt);
+        ItemsServer.Tick(this, dt);
     }
 
     /// <summary>Fractional healing accumulator (so tiny per-tick amounts still count).</summary>

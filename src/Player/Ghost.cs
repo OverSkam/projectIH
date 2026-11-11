@@ -37,6 +37,10 @@ public partial class Ghost : Node3D
         var dir = GlobalTransform.Basis * new Vector3(v.X, 0, -v.Y) + Vector3.Up * up;
         GlobalPosition += dir * speed * (float)delta;
         _meddleCd -= delta;
-        if (Input.IsActionJustPressed("use_utility") && _meddleCd <= 0) { _meddleCd = 1; Game.I.SendMeddle(); }
+        if (_meddleCd <= 0)
+        {
+            if (Input.IsActionJustPressed("use_utility")) { _meddleCd = 1; Game.I.SendGhostMeddle(GlobalPosition, 0); }
+            else if (Input.IsActionJustPressed("interact")) { _meddleCd = 1; Game.I.SendGhostMeddle(GlobalPosition, 1); }
+        }
     }
 }

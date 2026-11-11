@@ -86,7 +86,12 @@ public partial class Game : Node
 
     public bool CanStart => Net.I.IsServer && Phase == GamePhase.Lobby && (Net.I.Names.Count >= 2 || PresetConfig().AllowSolo);
 
-    MatchConfig PresetConfig() => MatchConfig.FromName(Util.Arg("preset", "default"));
+    MatchConfig PresetConfig()
+    {
+        var c = MatchConfig.FromName(Util.Arg("preset", "default"));
+        if (int.TryParse(Util.Arg("rounds", ""), out var r) && r > 0) c.Rounds = r; // debug override
+        return c;
+    }
 
     public void ServerStartMatch()
     {
@@ -99,7 +104,7 @@ public partial class Game : Node
             var p = GetPlayer(id);
             p.Money = 0; p.Cursed = false; p.Initialized = false;
         }
-        Round = 0;
+        Round = 0; ForcedWinner = null; InfinityTracker.NewMatch();
         Rpc(nameof(ClientMatchStart), Config.Rounds);
         ServerStartRound();
     }
@@ -185,12 +190,12 @@ public partial class Game : Node
         {
             p.Fire(new SteinEvent { Kind = SteinEventKind.RoundEnd });
             p.DiedLastRound = !p.Alive;
-            if (!p.Alive) { p.Inv.Clear(); p.Inv.GiveStartKit(); p.RecalcStats(); }
+            if (!p.Alive) { p.Inv.Clear(); p.Inv.GiveStartKit(); p.Inv.Steins.Add(Steins.RandomCommon(_rng)); p.RecalcStats(); }
             p.Dirty = true;
         }
         _phaseTimer = Config.SummarySeconds;
         Util.Log($"ROUND: {Round} end quotaMet={met} delivered={Delivered}/{Quota} poorest={poorest} survivor={survivor}");
-        Rpc(nameof(ClientRoundSummary), Round, met, Delivered, Quota, poorest, survivor, bonus, Round >= Config.Rounds);
+        Rpc(nameof(ClientRoundSummary), Round, met, Delivered, Quota, poorest, survivor, bonus, Round >= Config.Rounds || ForcedWinner != null);
         foreach (var p in parts) SendOwnState(p);
     }
 
@@ -198,10 +203,11 @@ public partial class Game : Node
     {
         Phase = GamePhase.MatchEnd;
         var list = Players.Values.Where(p => Net.I.Names.ContainsKey(p.Peer)).OrderByDescending(p => p.Money).ThenBy(p => p.Peer).ToList();
-        string winner = list.Count > 0 ? list[0].Name : "";
+        string winner = ForcedWinner ?? (list.Count > 0 ? list[0].Name : "");
         foreach (var p in list) Util.Log($"FINAL: peer={p.Peer} name={p.Name} money={p.Money}");
         Util.Log($"WINNER={winner}");
-        if (list.Count > 0 && list.All(p => p.Money <= list[0].Money)) Util.Pass("winner_correct", $"winner={winner} money={list[0].Money}");
+        if (ForcedWinner != null) Util.Pass("infinity_match_end", $"winner={winner}");
+        else if (list.Count > 0 && list.All(p => p.Money <= list[0].Money)) Util.Pass("winner_correct", $"winner={winner} money={list[0].Money}");
         _phaseTimer = Config.MatchEndSeconds;
         Rpc(nameof(ClientMatchEnd), list.Select(p => p.Name).ToArray(), list.Select(p => p.Money).ToArray(), winner);
     }
@@ -234,7 +240,7 @@ public partial class Game : Node
             case GamePhase.Summary:
                 _phaseTimer -= dt;
                 foreach (var p in Players.Values) if (p.Dirty && Now - p.LastOwnSend > 0.1) SendOwnState(p);
-                if (_phaseTimer <= 0) { if (Round >= Config.Rounds) ServerEndMatch(); else ServerStartRound(); }
+                if (_phaseTimer <= 0) { if (Round >= Config.Rounds || ForcedWinner != null) ServerEndMatch(); else ServerStartRound(); }
                 break;
             case GamePhase.MatchEnd:
                 _phaseTimer -= dt;
@@ -364,7 +370,6 @@ public partial class Game : Node
     public void SendSelectUtil(int slot) => RpcId(1, nameof(RequestSelectUtil), slot);
     public void SendDrop(string kind, int idx) => RpcId(1, nameof(RequestDrop), kind, idx);
     public void ReportFall(float speed) => RpcId(1, nameof(ReportFallRpc), speed);
-    public void SendMeddle() => RpcId(1, nameof(RequestMeddle));
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
     void ReportState(Vector3 pos, float yaw, float pitch, int flags)
@@ -373,6 +378,7 @@ public partial class Game : Node
         var p = Sender();
         if (p == null || !p.Alive || Phase != GamePhase.Round) return;
         p.Pos = pos; p.Yaw = yaw; p.Pitch = pitch;
+        ItemsServer.OnState(p, flags);
         foreach (var other in Net.I.Names.Keys)
         {
             if (other == p.Peer) continue;
@@ -465,18 +471,6 @@ public partial class Game : Node
         p.TakeDamage((speed - Miner.FallSafeSpeed) * 6f, null, "fall");
     }
 
-    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void RequestMeddle()
-    {
-        if (!Net.I.IsServer) return;
-        var p = Sender();
-        if (p == null || p.Alive || !p.Participant || Now < p.NextMeddle) return;
-        p.NextMeddle = Now + 8;
-        // STUB: real ghost meddling (blow out a lantern, knock a pebble) belongs to a later workstream.
-        Util.Log($"MEDDLE (stub) by {p.Name}");
-        Rpc(nameof(ClientAnnounce), "Something rattles in the dark...");
-    }
-
     // ============================================================ server -> client
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void ClientMatchStart(int rounds)
@@ -512,7 +506,7 @@ public partial class Game : Node
         m.SetMultiplayerAuthority(peer);
         if (local)
         {
-            m.Controller = Util.HasArg("bot") ? new BotBrain(Util.Arg("bot")) : new HumanController();
+            m.Controller = Util.HasArg("bot") ? ItemsDebug.MakeBot(Util.Arg("bot")) : new HumanController();
         }
         m.Position = pos;
         World.MinersRoot.AddChild(m);
