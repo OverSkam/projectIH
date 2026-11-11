@@ -20,7 +20,7 @@ godot --headless --path . --import > "$LOGDIR/import.log" 2>&1
 
 echo "== run (logs in $LOGDIR)"
 PIDS=()
-godot --headless --path . -- --host --name=Host --port="$PORT" --autostart=3 --preset=debug --bot=idle --timeout="$TIMEOUT" > "$LOGDIR/host.log" 2>&1 &
+godot --headless --path . -- --host --name=Host --port="$PORT" --autostart=3 --preset=debug --bot=idle --nomonsters --timeout="$TIMEOUT" > "$LOGDIR/host.log" 2>&1 &
 PIDS+=($!)
 sleep 4
 godot --headless --path . -- --join=127.0.0.1 --port="$PORT" --name=Alice --bot=miner --timeout="$TIMEOUT" > "$LOGDIR/alice.log" 2>&1 &

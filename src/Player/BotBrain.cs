@@ -21,10 +21,12 @@ public class BotBrain : IMinerController
     int _lastSack;
     bool _statedMine;
 
-    public BotBrain(string routine) { _routine = routine; }
+    readonly IMinerController _ext; // monsters workstream test bot (--bot=mon)
+    public BotBrain(string routine) { _routine = routine; if (routine == "mon") _ext = new MonsterBot(); }
 
     public virtual MinerInput Poll(float dt, Miner m)
     {
+        if (_ext != null) return _ext.Poll(dt, m);
         var inp = new MinerInput { UtilSlot = -1, Yaw = _yaw, Pitch = _pitch };
         var g = Game.I;
         if (g.Phase != GamePhase.Round || g.World == null) return inp;

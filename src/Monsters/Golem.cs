@@ -1,0 +1,194 @@
+using System;
+using Godot;
+
+namespace AppStein;
+
+/// <summary>Stone Golem: slow, armoured from the front, telegraphed overhead slam, glowing crystal on its back.</summary>
+public partial class GolemObj : MonsterObj
+{
+    Node3D _legL, _legR, _armL, _armR, _torso, _head;
+    MeshInstance3D _crystal;
+    OmniLight3D _light;
+    float _armX, _slamDone;
+    bool _impacted;
+
+    public GolemObj()
+    {
+        WalkSpeed = MonsterTuning.GolemWalk; InvestigateSpeed = MonsterTuning.GolemInvestigate; ChaseSpeed = MonsterTuning.GolemChase;
+        TurnRate = MonsterTuning.GolemTurn; MoveAlign = 0.7f; SightCos = MonsterTuning.GolemSightCos;
+        AttackRange = MonsterTuning.GolemSlamReach - 0.4f; AttackAlign = 0.35f; BodyRadius = 1.0f; EyeH = 3.0f; WanderRadius = 8f;
+    }
+
+    protected override void BuildModel()
+    {
+        var stone = new Color(0.42f, 0.41f, 0.45f);
+        var dark = new Color(0.26f, 0.25f, 0.29f);
+        var light = new Color(0.52f, 0.5f, 0.52f);
+        _legL = Pivot(Rig, new Vector3(-0.55f, 1.1f, 0));
+        _legR = Pivot(Rig, new Vector3(0.55f, 1.1f, 0));
+        foreach (var l in new[] { _legL, _legR })
+        {
+            Box(l, new Vector3(0.85f, 1.2f, 0.9f), stone, new Vector3(0, -0.55f, 0));
+            Box(l, new Vector3(1.0f, 0.3f, 1.2f), dark, new Vector3(0, -1.0f, -0.1f));
+        }
+        _torso = Pivot(Rig, new Vector3(0, 2.0f, 0));
+        Box(_torso, new Vector3(2.0f, 1.6f, 1.3f), stone, Vector3.Zero);
+        Box(_torso, new Vector3(1.6f, 0.5f, 1.1f), dark, new Vector3(0, -0.85f, 0));
+        // front armour plates (the side that hits do nothing against)
+        Box(_torso, new Vector3(1.7f, 1.3f, 0.18f), dark, new Vector3(0, 0.0f, -0.72f));
+        Box(_torso, new Vector3(1.9f, 0.22f, 0.3f), light, new Vector3(0, 0.62f, -0.7f));
+        Box(_torso, new Vector3(0.22f, 1.2f, 0.3f), light, new Vector3(-0.6f, 0, -0.74f));
+        Box(_torso, new Vector3(0.22f, 1.2f, 0.3f), light, new Vector3(0.6f, 0, -0.74f));
+        // rocky shoulders
+        Box(_torso, new Vector3(0.9f, 0.7f, 0.9f), light, new Vector3(-1.35f, 0.7f, 0), 0, new Vector3(0.3f, 0.4f, 0.2f));
+        Box(_torso, new Vector3(0.9f, 0.7f, 0.9f), light, new Vector3(1.35f, 0.7f, 0), 0, new Vector3(-0.2f, 0.3f, -0.3f));
+        // head
+        _head = Pivot(_torso, new Vector3(0, 1.25f, -0.1f));
+        Box(_head, new Vector3(0.9f, 0.8f, 0.9f), stone, Vector3.Zero);
+        Box(_head, new Vector3(1.0f, 0.25f, 0.5f), dark, new Vector3(0, 0.22f, -0.35f)); // brow
+        Box(_head, new Vector3(0.18f, 0.12f, 0.1f), new Color(1f, 0.55f, 0.1f), new Vector3(-0.22f, 0.08f, -0.46f), 3f);
+        Box(_head, new Vector3(0.18f, 0.12f, 0.1f), new Color(1f, 0.55f, 0.1f), new Vector3(0.22f, 0.08f, -0.46f), 3f);
+        // arms (pivot at the shoulder, hang down)
+        _armL = Pivot(_torso, new Vector3(-1.45f, 0.5f, 0));
+        _armR = Pivot(_torso, new Vector3(1.45f, 0.5f, 0));
+        foreach (var a in new[] { _armL, _armR })
+        {
+            Box(a, new Vector3(0.7f, 1.9f, 0.7f), stone, new Vector3(0, -0.95f, 0));
+            Box(a, new Vector3(1.05f, 0.95f, 1.05f), light, new Vector3(0, -2.0f, 0));
+        }
+        // glowing crystal on the back = weak point
+        var cyan = new Color(0.3f, 0.95f, 1f);
+        _crystal = Box(_torso, new Vector3(0.5f, 1.0f, 0.5f), cyan, new Vector3(0, 0.1f, 0.85f), 2.5f, new Vector3(0.5f, 0, 0.6f));
+        Box(_torso, new Vector3(0.3f, 0.6f, 0.3f), cyan, new Vector3(0.45f, -0.3f, 0.75f), 2.5f, new Vector3(0.2f, 0.4f, -0.5f));
+        Box(_torso, new Vector3(0.3f, 0.55f, 0.3f), cyan, new Vector3(-0.42f, 0.45f, 0.75f), 2.5f, new Vector3(0.1f, -0.3f, 0.7f));
+        _light = new OmniLight3D { Position = new Vector3(0, 2.3f, 1.4f), LightColor = cyan, LightEnergy = 1.4f, OmniRange = 6f, ShadowEnabled = false };
+        Rig.AddChild(_light);
+    }
+
+    protected override void BuildBody()
+    {
+        AddBox(new Vector3(2.4f, 3.6f, 1.8f), new Vector3(0, 1.8f, 0));
+    }
+
+    // ------------------------------------------------------------------ server: armour + weak point
+    protected override float ModifyMelee(ServerPlayer p, float dmg)
+    {
+        var toAtt = Flat(p.Pos - GlobalPosition);
+        if (toAtt.LengthSquared() < 0.01f) return dmg * MonsterTuning.GolemFrontMul;
+        float dot = Forward.Dot(toAtt.Normalized());
+        // facing the golem (front or flank) = armour; behind = crystal
+        return dot < MonsterTuning.GolemRearDot ? dmg * MonsterTuning.GolemBackMul : dmg * MonsterTuning.GolemFrontMul;
+    }
+
+    protected override void DropLoot()
+    {
+        var rng = new RandomNumberGenerator { Seed = (ulong)(Id * 31 + 7) };
+        string[] ores = { "gold", "gold", "ruby", Ores.Pick(rng, 3, Game.I.Round) };
+        for (int i = 0; i < ores.Length; i++)
+        {
+            float a = i * Mathf.Tau / ores.Length + 0.5f;
+            SpawnLoot(ores[i], new Vector3(Mathf.Cos(a) * 1.6f, 0, Mathf.Sin(a) * 1.6f));
+        }
+    }
+
+    // ------------------------------------------------------------------ server: slam
+    protected override bool TryStartAttack(ServerPlayer t)
+    {
+        _impacted = false;
+        SetState(MonsterState.Windup);
+        return true;
+    }
+
+    protected override void AttackTick(float dt)
+    {
+        float age = StateAge;
+        switch (State)
+        {
+            case MonsterState.Windup:
+                // slowly keeps turning toward the target; the telegraph is long enough to sidestep
+                if (Target != null && Target.Alive)
+                {
+                    var pos = GlobalPosition;
+                    float want = Mathf.Atan2(-(Target.Pos.X - pos.X), -(Target.Pos.Z - pos.Z));
+                    Yaw = RotateToward(Yaw, want, TurnRate * 0.35f * dt);
+                }
+                if (age >= MonsterTuning.GolemWindup) { _impacted = false; SetState(MonsterState.Attack); Impact(); }
+                break;
+            case MonsterState.Attack:
+                if (age >= MonsterTuning.GolemSlamTime) SetState(MonsterState.Recover);
+                break;
+            case MonsterState.Recover:
+                if (age >= MonsterTuning.GolemRecover) { LostT = 0; SetState(MonsterState.Chase); }
+                break;
+        }
+    }
+
+    void Impact()
+    {
+        if (_impacted) return;
+        _impacted = true;
+        var pos = GlobalPosition; var fwd = Forward;
+        foreach (var p in Game.I.Players.Values)
+        {
+            if (!p.Alive || !p.Participant || Cave.InCamp(p.Pos)) continue;
+            var rel = Flat(p.Pos - pos);
+            float d = rel.Length();
+            if (d > MonsterTuning.GolemSlamReach) continue;
+            if (d > 1.0f && Mathf.Acos(Mathf.Clamp(fwd.Dot(rel / d), -1f, 1f)) > MonsterTuning.GolemSlamArc) continue;
+            float dealt = p.TakeDamage(MonsterTuning.GolemSlamDamage, null, "monster");
+            var kb = (d > 0.1f ? rel / d : fwd) * 9f + new Vector3(0, 4f, 0);
+            Game.I.ServerKnockback(p.Peer, kb);
+            Util.Pass("monster_hit_miner", $"kind=golem victim={p.Name} dmg={dealt:0.#} hp={p.Health:0.#}");
+        }
+    }
+
+    // ------------------------------------------------------------------ animation
+    protected override void Animate(float dt)
+    {
+        float sw = Mathf.Clamp(AnimSpeed / 2.2f, 0f, 1.2f);
+        AnimPhase += AnimSpeed * dt * 1.7f;
+        float age = StateAge;
+        float breathe = Mathf.Sin(Time.GetTicksMsec() / 700f) * 0.015f;
+        float legSwing = Mathf.Sin(AnimPhase) * 0.5f * sw;
+        _legL.Rotation = new Vector3(legSwing, 0, 0);
+        _legR.Rotation = new Vector3(-legSwing, 0, 0);
+        Rig.Position = new Vector3(0, Mathf.Abs(Mathf.Cos(AnimPhase)) * 0.11f * sw, 0);
+        _torso.Rotation = new Vector3(0, Mathf.Sin(AnimPhase) * 0.07f * sw, 0);
+        _torso.Scale = Vector3.One * (1f + breathe + (Flash > 0 ? 0.05f : 0f));
+
+        float armTarget; float rate = 10f; float lean = 0f;
+        float swing = Mathf.Sin(AnimPhase) * 0.35f * sw;
+        switch (State)
+        {
+            case MonsterState.Windup:
+                {
+                    float t = Mathf.Clamp(age / MonsterTuning.GolemWindup, 0f, 1f);
+                    armTarget = 2.9f * (1f - Mathf.Pow(1f - t, 2f)); rate = 6f; lean = -0.3f * t;
+                    // glow brighter as the slam nears: readable warning
+                    _crystal.Scale = Vector3.One * (1f + 0.15f * Mathf.Sin(age * 18f));
+                    break;
+                }
+            case MonsterState.Attack: armTarget = 0.5f; rate = 30f; lean = 0.25f; break;
+            case MonsterState.Recover: armTarget = age < 0.9f ? 0.5f : 0.0f; rate = 4f; lean = 0.15f * Mathf.Clamp(1f - age, 0f, 1f); break;
+            case MonsterState.Dead: armTarget = 0.2f; rate = 3f; lean = 0.6f; break;
+            default: armTarget = 0f; break;
+        }
+        if (State != MonsterState.Windup) _crystal.Scale = Vector3.One;
+        _armX = Mathf.Lerp(_armX, armTarget, 1f - Mathf.Exp(-rate * dt));
+        // arms swing in opposition to legs when walking; slam overrides
+        bool slam = State == MonsterState.Windup || State == MonsterState.Attack || State == MonsterState.Recover || State == MonsterState.Dead;
+        _armL.Rotation = new Vector3(slam ? _armX : -legSwing * 0.7f + swing * 0f, 0, 0.08f);
+        _armR.Rotation = new Vector3(slam ? _armX : legSwing * 0.7f, 0, -0.08f);
+        _torso.Rotation += new Vector3(lean, 0, 0);
+        _head.Rotation = new Vector3(State == MonsterState.Dead ? 0.5f : 0f, State == MonsterState.Investigate ? Mathf.Sin(age * 2f) * 0.5f : 0f, 0);
+        float pulse = 1.2f + 0.5f * Mathf.Sin(Time.GetTicksMsec() / 300f);
+        _light.LightEnergy = State == MonsterState.Windup ? 3f : pulse;
+        if (State == MonsterState.Dead)
+        {
+            float t = Mathf.Clamp(age / MonsterTuning.DeadLinger, 0f, 1f);
+            Rig.Scale = new Vector3(1f, 1f - 0.5f * t, 1f);
+            _light.LightEnergy = 0f;
+        }
+        else Rig.Scale = Vector3.One;
+    }
+}
