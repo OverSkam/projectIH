@@ -26,14 +26,14 @@ public partial class EmberObj : MonsterObj
         var orange = new Color(1f, 0.45f, 0.08f);
         var yellow = new Color(1f, 0.85f, 0.25f);
         _core = Pivot(Rig, new Vector3(0, 0.75f, 0));
-        var body = Util.SphereMesh(0.32f, orange, 3.0f); _core.AddChild(body);
-        var inner = Util.SphereMesh(0.2f, yellow, 4.0f); _core.AddChild(inner);
+        var body = Util.SphereMesh(0.42f, orange, 1.2f); _core.AddChild(body);
+        var inner = Util.SphereMesh(0.26f, yellow, 1.6f); _core.AddChild(inner);
         _flames = Pivot(_core, Vector3.Zero);
         _spikes = new MeshInstance3D[7];
         for (int i = 0; i < _spikes.Length; i++)
         {
             float a = i * Mathf.Tau / _spikes.Length;
-            var cone = new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 0f, BottomRadius = 0.13f, Height = 0.55f, RadialSegments = 5, Rings = 1 }, MaterialOverride = Util.Mat(i % 2 == 0 ? orange : yellow, 3.0f) };
+            var cone = new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 0f, BottomRadius = 0.17f, Height = 0.7f, RadialSegments = 5, Rings = 1 }, MaterialOverride = Util.Mat(i % 2 == 0 ? orange : yellow, 1.3f) };
             cone.Position = new Vector3(Mathf.Cos(a) * 0.18f, 0.38f + (i % 3) * 0.08f, Mathf.Sin(a) * 0.18f);
             cone.Rotation = new Vector3(Mathf.Sin(a) * 0.5f, 0, -Mathf.Cos(a) * 0.5f);
             _flames.AddChild(cone);
@@ -44,7 +44,7 @@ public partial class EmberObj : MonsterObj
         Box(_core, new Vector3(0.1f, 0.12f, 0.06f), new Color(0.15f, 0.02f, 0.0f), new Vector3(0.12f, 0.05f, -0.3f));
         _armL = Pivot(_core, new Vector3(-0.34f, -0.05f, 0));
         _armR = Pivot(_core, new Vector3(0.34f, -0.05f, 0));
-        foreach (var a in new[] { _armL, _armR }) Box(a, new Vector3(0.12f, 0.45f, 0.12f), orange, new Vector3(0, -0.2f, 0), 2.5f);
+        foreach (var a in new[] { _armL, _armR }) Box(a, new Vector3(0.12f, 0.45f, 0.12f), orange, new Vector3(0, -0.2f, 0), 1.2f);
         _light = new OmniLight3D { Position = new Vector3(0, 0.9f, 0), LightColor = new Color(1f, 0.55f, 0.2f), LightEnergy = 2.4f, OmniRange = 8f, OmniAttenuation = 1.1f, ShadowEnabled = false };
         Rig.AddChild(_light);
     }

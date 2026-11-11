@@ -47,7 +47,7 @@ public abstract partial class MonsterObj : NetObject
     protected Vector3 LastSeen, Goal;
     protected bool VisibleNow, Arrived;
     protected float LostT, Timer, StuckT, DeadT;
-    float _senseT, _syncT, _pathT;
+    float _senseT, _syncT, _pathT, _dbgT;
     List<Vector3> _path;
     Vector3 _pathGoal;
     bool _hadData;
@@ -124,6 +124,7 @@ public abstract partial class MonsterObj : NetObject
         if (IsSrv)
         {
             ServerThink(dt);
+            if (Util.HasArg("mondebug") && (_dbgT -= dt) <= 0) { _dbgT = 1f; Util.Log($"MONDEBUG {Kind}#{Id} st={State} pos={GlobalPosition} yaw={Yaw:0.00} stuck={StuckT:0.0} goal={Goal}"); }
             Rotation = new Vector3(0, Yaw, 0);
             _syncT -= dt;
             if (_syncT <= 0) { _syncT = MonsterTuning.SyncInterval; Game.I.ServerMonsterSync(Id, GlobalPosition, Yaw); }
@@ -351,7 +352,7 @@ public abstract partial class MonsterObj : NetObject
     // ---------------------------------------------------------------- movement
     protected static Vector3 Flat(Vector3 v) => new Vector3(v.X, 0, v.Z);
     protected static float Wrap(float a) => Mathf.PosMod(a + Mathf.Pi, Mathf.Tau) - Mathf.Pi;
-    protected static float RotateToward(float from, float to, float step) => from + Mathf.Clamp(Wrap(to - from), -step, step);
+    protected static float RotateToward(float from, float to, float step) => Wrap(from + Mathf.Clamp(Wrap(to - from), -step, step));
     public float StuckSeconds => StuckT;
 
     protected bool Ray(Vector3 a, Vector3 b, uint mask = Layers.World)
@@ -410,6 +411,8 @@ public abstract partial class MonsterObj : NetObject
             if (_path == null || _pathT <= 0f || Flat(_pathGoal - goal).Length() > 2f)
             {
                 _path = Cave.FindPath(pos, goal); _pathGoal = goal; _pathT = 2.5f;
+                // FindPath starts at the nearest node, which may lie behind us: skip nodes we are already past.
+                while (_path.Count > 2 && Flat(_path[1] - pos).Length() < Flat(_path[1] - _path[0]).Length()) _path.RemoveAt(0);
             }
             while (_path.Count > 1 && Flat(_path[0] - pos).Length() < 1.8f) _path.RemoveAt(0);
             wp = _path[0];

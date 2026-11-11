@@ -64,8 +64,8 @@ public static class MonsterTest
         float hp0 = a.Health;
         yield return Until(() => a.Health < hp0 || !a.Alive, 40, "golem_damages_miner");
         gol.Frozen = true;
+        yield return Sleep(1.0f); // let the client see the damage before healing
         Heal(a);
-        yield return Sleep(0.5f);
         var fake = Fake();
         // front: hits barely scratch it
         fake.Pos = gol.GlobalPosition + gol.Forward * 2f;
@@ -136,6 +136,7 @@ public static class MonsterTest
         yield return Until(() => a.Alive && b.Alive && a.Pos.DistanceTo(V(36, -2)) < 3f && b.Pos.DistanceTo(V(40, -2)) < 3f, 40, "bots_in_position");
         b.Stats.GasImmune = true; // stands in for a gas mask (not implemented yet)
         var w2 = MonsterModule.Spawn<WispObj>("wisp", V(26, -8));
+        w2.Blind = true;
         var s2 = w2.GlobalPosition;
         yield return Sleep(0.5f);
         Game.ServerNoise(V(36, -2), 30f, a);
