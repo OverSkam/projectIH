@@ -20,7 +20,8 @@ public interface IMinerController
 public class HumanController : IMinerController
 {
     float _yaw, _pitch;
-    public float Sensitivity = 0.0025f;
+    /// <summary>Radians per mouse pixel; comes from UserSettings (UI settings screen).</summary>
+    public float Sensitivity => UserSettings.SensitivityRad;
 
     public void OnInput(InputEvent e)
     {
@@ -65,7 +66,13 @@ public partial class Miner : CharacterBody3D
     public string PromptText = "";
     public NetObject Target;
 
-    Node3D _head, _body, _tool;
+    Node3D _head, _body, _tool, _leftHand;
+    MinerRig _rig;
+    Label3D _tag;
+    Vector3 _toolRest;
+    Vector3 _lastPos; float _vel;
+    /// <summary>Raised on the local miner when the server knocks it back (HUD damage direction).</summary>
+    public static event Action<Vector3> Knocked;
     Camera3D _cam;
     OmniLight3D _light;
     CollisionShape3D _shape;
@@ -88,24 +95,36 @@ public partial class Miner : CharacterBody3D
         AddChild(_shape);
         _head = new Node3D { Position = new Vector3(0, 1.6f, 0) };
         AddChild(_head);
-        _tool = new Node3D { Position = new Vector3(0.35f, -0.3f, -0.55f) };
-        _head.AddChild(_tool);
-
         _body = new Node3D();
         AddChild(_body);
-        var body = Util.CapsuleMesh(0.35f, 1.4f, new Color(0.7f, 0.3f, 0.2f)); body.Position = new Vector3(0, 0.8f, 0); _body.AddChild(body);
-        var head = Util.SphereMesh(0.22f, new Color(0.9f, 0.7f, 0.55f)); head.Position = new Vector3(0, 1.62f, 0); _body.AddChild(head);
-        var helmet = Util.BoxMesh(new Vector3(0.5f, 0.18f, 0.5f), new Color(0.9f, 0.8f, 0.1f)); helmet.Position = new Vector3(0, 1.82f, 0); _body.AddChild(helmet);
-        if (!IsLocal)
+        var helmetColor = PlayerColors.Of(PeerId);
+        _rig = new MinerRig(helmetColor);
+        _body.AddChild(_rig);
+        _tool = new Node3D();
+        if (IsLocal)
         {
-            var label = new Label3D { Text = PlayerName, Position = new Vector3(0, 2.3f, 0), Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, PixelSize = 0.006f, NoDepthTest = false, Modulate = new Color(1, 1, 1, 0.8f) };
-            AddChild(label);
+            _tool.Position = new Vector3(0.33f, -0.3f, -0.55f);
+            _head.AddChild(_tool);
+            HeldVisuals.RightHandFp(_tool);
+            _leftHand = HeldVisuals.LeftHandFp();
+            _head.AddChild(_leftHand);
+        }
+        else
+        {
+            _rig.RightHand.AddChild(_tool);
+            _tag = new Label3D
+            {
+                Text = PlayerName, Position = new Vector3(0, 2.25f, 0), Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, PixelSize = 0.0042f, FontSize = 64,
+                OutlineSize = 14, OutlineModulate = new Color(0, 0, 0, 0.9f), Modulate = helmetColor.Lightened(0.35f), NoDepthTest = false, Visible = false,
+                Font = UiTheme.Chunky, TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmaps,
+            };
+            AddChild(_tag);
         }
 
         if (IsLocal)
         {
             _body.Visible = false;
-            _cam = new Camera3D { Current = true, Fov = 80f, Near = 0.05f };
+            _cam = new Camera3D { Current = true, Fov = UserSettings.Fov, Near = 0.05f };
             _head.AddChild(_cam);
             if (DisplayServer.GetName() != "headless") Input.MouseMode = Input.MouseModeEnum.Captured;
         }
@@ -123,36 +142,52 @@ public partial class Miner : CharacterBody3D
     {
         _held = id ?? "";
         if (_tool == null) return;
-        foreach (var c in _tool.GetChildren()) c.QueueFree();
+        foreach (var c in _tool.GetChildren()) if (c.Name != "Hand") c.QueueFree();
         _light = null;
         var def = Utilities.Get(_held);
-        if (def == null) return;
-        if (def.IsPickaxe)
+        _toolRest = Vector3.Zero;
+        if (def != null)
         {
-            var handle = Util.BoxMesh(new Vector3(0.06f, 0.06f, 0.7f), def.Color); _tool.AddChild(handle);
-            var h = Util.BoxMesh(new Vector3(0.5f, 0.08f, 0.08f), new Color(0.6f, 0.6f, 0.65f)); h.Position = new Vector3(0, 0, -0.35f); _tool.AddChild(h);
+            if (def.IsPickaxe)
+            {
+                HeldVisuals.Pickaxe(_tool, def.Color);
+                _toolRest = IsLocal ? new Vector3(0.55f, -0.1f, 0) : new Vector3(Mathf.Pi / 2f, 0, 0);
+            }
+            else if (def.IsLight)
+            {
+                _light = HeldVisuals.Lantern(_tool);
+            }
+            else
+            {
+                _tool.AddChild(Util.BoxMesh(new Vector3(0.2f, 0.2f, 0.3f), def.Color));
+            }
         }
-        else if (def.IsLight)
-        {
-            var box = Util.BoxMesh(new Vector3(0.15f, 0.2f, 0.15f), def.Color, 4f); _tool.AddChild(box);
-            _light = new OmniLight3D { LightColor = new Color(1f, 0.85f, 0.55f), LightEnergy = 2.2f, OmniRange = 14f, OmniAttenuation = 1.2f, ShadowEnabled = false, Position = new Vector3(0, 0.3f, 0) };
-            _tool.AddChild(_light);
-        }
-        else
-        {
-            _tool.AddChild(Util.BoxMesh(new Vector3(0.2f, 0.2f, 0.3f), def.Color));
-        }
+        _swing?.Kill();
+        _tool.Rotation = _toolRest;
     }
 
     public void PlaySwing()
     {
+        if (_tool == null) return;
+        _rig?.Swing();
+        if (!IsLocal) return;
         _swing?.Kill();
         _swing = CreateTween();
-        _tool.Rotation = new Vector3(-0.9f, 0, 0);
-        _swing.TweenProperty(_tool, "rotation", Vector3.Zero, 0.3f);
+        bool pick = Utilities.Get(_held)?.IsPickaxe == true;
+        if (pick)
+        {
+            _tool.Rotation = _toolRest + new Vector3(1.0f, 0, 0);
+            _swing.TweenProperty(_tool, "rotation", _toolRest + new Vector3(-0.9f, 0.1f, 0), 0.13f).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
+            _swing.TweenProperty(_tool, "rotation", _toolRest, 0.25f).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        }
+        else
+        {
+            _tool.Rotation = _toolRest + new Vector3(-0.6f, 0, 0);
+            _swing.TweenProperty(_tool, "rotation", _toolRest, 0.3f);
+        }
     }
 
-    public void ApplyKnockback(Vector3 v) { Velocity += v; }
+    public void ApplyKnockback(Vector3 v) { Velocity += v; Knocked?.Invoke(v); }
 
     // ------------------------------------------------------------------ remote state
     public void ApplyNetState(Vector3 pos, float yaw, float pitch, int flags)
@@ -173,9 +208,12 @@ public partial class Miner : CharacterBody3D
             _pitch = Mathf.Lerp(_pitch, _netPitch, Mathf.Min(1f, dt * 15f));
             Rotation = new Vector3(0, _yaw, 0);
             _head.Rotation = new Vector3(_pitch, 0, 0);
+            AnimateRemote(dt);
             return;
         }
         if (Controller == null) return;
+        if (_cam != null) _cam.Fov = UserSettings.Fov;
+        AnimateLocalHands(dt);
         var c = Controller.Poll(dt, this);
         _yaw = c.Yaw; _pitch = c.Pitch;
         Rotation = new Vector3(0, _yaw, 0);
@@ -239,6 +277,50 @@ public partial class Miner : CharacterBody3D
             _sendTimer = 0.05;
             int flags = (_crouching ? 1 : 0) | (c.Sprint ? 2 : 0) | (IsOnFloor() ? 4 : 0);
             Game.I.SendState(GlobalPosition, _yaw, _pitch, flags);
+        }
+    }
+
+    // ------------------------------------------------------------------ visuals: remote miners and first-person hands
+    const float TagRange = 16f;
+
+    void AnimateRemote(float dt)
+    {
+        var d = GlobalPosition - _lastPos; _lastPos = GlobalPosition;
+        float spd = dt > 0 ? new Vector2(d.X, d.Z).Length() / dt : 0f;
+        _vel = Mathf.Lerp(_vel, Mathf.Min(spd, 10f), Mathf.Min(1f, dt * 12f));
+        _rig.Animate(dt, _vel < 0.15f ? 0f : _vel, (_flags & 1) != 0, (_flags & 2) != 0, (_flags & 4) == 0);
+        if (_tool != null) _tool.Rotation = _toolRest;
+        UpdateTag();
+    }
+
+    /// <summary>Name tag only at short range and only when there is a clear line from the local camera (hidden through walls).</summary>
+    void UpdateTag()
+    {
+        if (_tag == null) return;
+        var cam = GetViewport()?.GetCamera3D();
+        if (cam == null) { _tag.Visible = false; return; }
+        var from = cam.GlobalPosition; var to = GlobalPosition + new Vector3(0, 1.6f, 0);
+        float dist = from.DistanceTo(to);
+        if (dist > TagRange) { _tag.Visible = false; return; }
+        var q = PhysicsRayQueryParameters3D.Create(from, to, 1 | 4);
+        q.CollideWithAreas = false;
+        bool blocked = GetWorld3D().DirectSpaceState.IntersectRay(q).Count > 0;
+        _tag.Visible = !blocked;
+        _tag.Modulate = _tag.Modulate with { A = Mathf.Clamp((TagRange - dist) / 5f, 0.25f, 1f) };
+    }
+
+    double _handT;
+    void AnimateLocalHands(float dt)
+    {
+        _handT += dt;
+        float move = new Vector2(Velocity.X, Velocity.Z).Length();
+        float bob = IsOnFloor() ? Mathf.Sin((float)_handT * 9f) * 0.012f * Mathf.Min(1f, move / 4f) : 0f;
+        if (_leftHand != null) _leftHand.Position = new Vector3(-0.27f, -0.3f + bob, -0.5f);
+        if (_tool != null && (_swing == null || !_swing.IsRunning()))
+        {
+            bool lantern = Utilities.Get(_held)?.IsLight == true;
+            _tool.Position = new Vector3(0.33f, -0.3f + bob, -0.55f);
+            _tool.Rotation = _toolRest + (lantern ? new Vector3(Mathf.Sin((float)_handT * 1.7f) * 0.05f + move * 0.006f, 0, Mathf.Sin((float)_handT * 1.3f) * 0.04f) : Vector3.Zero);
         }
     }
 
