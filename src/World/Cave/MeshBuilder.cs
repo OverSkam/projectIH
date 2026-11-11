@@ -16,7 +16,8 @@ public class MeshBuilder
         var n = (b - a).Cross(c - a);
         if (n.LengthSquared() < 1e-9f) return;
         n = n.Normalized();
-        if (n.Dot(hint) < 0) { (b, c) = (c, b); n = -n; }
+        // Godot front faces are clockwise: make the geometric (CCW) normal point away from the visible side, store the visible-side normal
+        if (n.Dot(hint) > 0) (b, c) = (c, b); else n = -n;
         _v.Add(a); _v.Add(b); _v.Add(c);
         _n.Add(n); _n.Add(n); _n.Add(n);
         _c.Add(col); _c.Add(col); _c.Add(col);

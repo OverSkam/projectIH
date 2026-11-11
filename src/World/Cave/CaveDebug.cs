@@ -150,6 +150,18 @@ public partial class DebugCam : Camera3D
             pos = cave.Rooms[n].Center + new Vector3(0, 1.6f, 0) + V3(Util.Arg("camoff", "0,0,0"), Vector3.Zero);
         }
         float yaw = float.TryParse(Util.Arg("camyaw", "0"), out var y) ? y : 0, pitch = float.TryParse(Util.Arg("campitch", "0"), out var p) ? p : 0;
+        if (Util.HasArg("camat") && !Util.HasArg("cam"))
+        {
+            int n = int.TryParse(Util.Arg("camroom", "0"), out var nn) ? nn : 0;
+            var mk = cave.Rooms[Mathf.Clamp(n, 0, cave.Rooms.Count - 1)].Markers.FirstOrDefault(m => m.Kind == Util.Arg("camat"));
+            if (mk != null)
+            {
+                var d = (mk.Pos - pos) with { Y = 0 };
+                yaw = Mathf.RadToDeg(Mathf.Atan2(-d.X, -d.Z));
+                float back = float.TryParse(Util.Arg("camback", "5"), out var bk) ? bk : 5f;
+                pos = mk.Pos - d.Normalized() * (d.Length() < 0.1f ? 0f : Mathf.Min(back, d.Length() + back)) + new Vector3(0, 1.6f, 0);
+            }
+        }
         var cam = new DebugCam { Name = "DebugCam", Position = pos, Rotation = new Vector3(Mathf.DegToRad(pitch), Mathf.DegToRad(yaw), 0) };
         return cam;
     }

@@ -121,8 +121,8 @@ public static class CaveVisuals
         {
             var (col, em) = kv.Key switch
             {
-                "fire" => (new Color(1f, 0.55f, 0.15f), 3.5f), "crystal" => (new Color(0.6f, 0.3f, 1f), 2.5f),
-                "lantern" => (new Color(1f, 0.75f, 0.35f), 3f), "gold" => (new Color(1f, 0.8f, 0.2f), 1.0f), _ => (Colors.White, 1f),
+                "fire" => (new Color(1f, 0.5f, 0.12f), 1.6f), "crystal" => (new Color(0.6f, 0.3f, 1f), 2.5f),
+                "lantern" => (new Color(1f, 0.75f, 0.35f), 3f), "gold" => (new Color(1f, 0.8f, 0.2f), 0.45f), _ => (Colors.White, 1f),
             };
             root.AddChild(new MeshInstance3D { Name = "Glow_" + kv.Key, Mesh = kv.Value.Build(), MaterialOverride = Util.Mat(col, em), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
         }
@@ -350,7 +350,7 @@ public static class CaveVisuals
                             float a = r.F() * Mathf.Tau, d = r.Range(1.5f, 5f);
                             cx.Gl("gold").Cone(p + new Vector3(Mathf.Cos(a) * d, -0.1f, Mathf.Sin(a) * d), r.Range(0.6f, 1.3f), r.Range(0.4f, 1.0f), Colors.White, 6, a);
                         }
-                        cx.Light(p + new Vector3(0, 3f, 0), new Color(1f, 0.45f, 0.2f), 1.2f, 16f, true, 0.2f);
+                        cx.Light(p + new Vector3(0, 3f, 0), new Color(1f, 0.45f, 0.2f), 2.2f, 18f, true, 0.2f);
                     }
                 break;
             case "flooded":

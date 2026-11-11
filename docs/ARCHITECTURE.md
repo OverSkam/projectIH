@@ -103,3 +103,8 @@ To avoid merge conflicts in `Game.cs`, put new gameplay RPCs in a `partial class
 ## Seeing the game
 `tools/screenshot.sh <outdir> <frames> <game args>` renders off-screen and writes PNG frames (10 frames = 1 s). Open a PNG with your image-reading tool to check
 visuals. Software rendering is slow: keep it to a few hundred frames.
+
+## Modular cave (src/World/Cave)
+Default builder `ModularCave` (`--cave=greybox` selects the old one). 14x14-cell (2 m) hand-built modules in `CaveModules.cs` (ASCII legend in the file), rotated and joined on an 18-cell slot grid.
+Debug: `-- --cavecheck` (headless self-check, seeds 1-20 x rounds 1-5), `--caveseed=N --caveround=N`, `--cavelist`, screenshots with `--camroom=N [--camat=<marker kind>] [--camoff=x,y,z --camyaw=deg --campitch=deg]` or `--cam=x,y,z`.
+Nav graph = one node per walkable cell (crawl and thin-wall cells excluded); `FindPath` is A*. Miners collide with layer 16 (thin walls).
