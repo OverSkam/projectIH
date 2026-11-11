@@ -77,6 +77,7 @@ public class ServerPlayer
         float dmg = amount * Stats.DamageTakenMul;
         Health -= dmg;
         Dirty = true;
+        if (Util.HasArg("soak")) Util.Log($"SOAKDMG cause={cause} victim={Name} dmg={dmg:0.#} hp={Health:0.#} by={source?.Name ?? "-"}");
         Fire(new SteinEvent { Kind = SteinEventKind.DamageTaken, Amount = dmg, Other = source });
         source?.Fire(new SteinEvent { Kind = SteinEventKind.DamageDealt, Amount = dmg, Other = this });
         if (Health <= 0f) Game.I.KillMiner(this, source, cause);

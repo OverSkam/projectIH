@@ -76,7 +76,8 @@ public partial class Miner : CharacterBody3D
     Node3D _head, _body, _tool, _leftHand;
     MinerRig _rig;
     Label3D _tag;
-    Vector3 _toolRest;
+    Vector3 _toolRest, _toolBase = new Vector3(0.3f, -0.34f, -0.5f);
+    float _retract;
     Vector3 _lastPos; float _vel;
     /// <summary>Raised on the local miner when the server knocks it back (HUD damage direction).</summary>
     public static event Action<Vector3> Knocked;
@@ -154,6 +155,19 @@ public partial class Miner : CharacterBody3D
         if (_mask != null && HasMask) { }
         var def = Utilities.Get(_held);
         _toolRest = Vector3.Zero;
+        if (IsLocal)
+        {
+            // first person: a clean right hand holding only the selected item
+            if (def != null)
+            {
+                _light = HeldVisuals.BuildFp(_tool, def.Id, def.Color, out _toolBase, out _toolRest);
+                if (_light != null) _light.Visible = !LanternOut;
+            }
+            else { _toolBase = new Vector3(0.3f, -0.34f, -0.5f); _toolRest = Vector3.Zero; }
+            _swing?.Kill();
+            _tool.Position = _toolBase; _tool.Rotation = _toolRest;
+            return;
+        }
         if (def != null)
         {
             if (def.IsPickaxe)
@@ -383,11 +397,22 @@ public partial class Miner : CharacterBody3D
         _handT += dt;
         float move = new Vector2(Velocity.X, Velocity.Z).Length();
         float bob = IsOnFloor() ? Mathf.Sin((float)_handT * 9f) * 0.012f * Mathf.Min(1f, move / 4f) : 0f;
-        if (_leftHand != null) _leftHand.Position = new Vector3(-0.3f, -0.32f + bob, -0.5f);
+        if (_leftHand != null) _leftHand.Position = new Vector3(-0.3f, -0.38f + bob, -0.5f + _retract);
+        // pull the viewmodel back towards the camera when a wall is close, so it never pokes through
+        float want = 0f;
+        if (_cam != null)
+        {
+            var from = _cam.GlobalPosition; var dir = -_cam.GlobalTransform.Basis.Z;
+            var q = PhysicsRayQueryParameters3D.Create(from, from + dir * 1.0f, 1 | 4);
+            q.CollideWithAreas = false; q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
+            var hit = GetWorld3D().DirectSpaceState.IntersectRay(q);
+            if (hit.Count > 0) want = Mathf.Clamp(0.95f - from.DistanceTo(hit["position"].AsVector3()), 0f, 0.5f);
+        }
+        _retract = Mathf.Lerp(_retract, want, Mathf.Min(1f, dt * 14f));
         if (_tool != null && (_swing == null || !_swing.IsRunning()))
         {
             bool lantern = Utilities.Get(_held)?.IsLight == true;
-            _tool.Position = lantern ? new Vector3(0.3f, -0.12f + bob, -0.6f) : new Vector3(0.33f, -0.3f + bob, -0.55f);
+            _tool.Position = _toolBase + new Vector3(0.05f * _retract, -0.22f * _retract + bob, _retract);
             _tool.Rotation = _toolRest + (lantern ? new Vector3(Mathf.Sin((float)_handT * 1.7f) * 0.05f + move * 0.006f, 0, Mathf.Sin((float)_handT * 1.3f) * 0.04f) : Vector3.Zero);
         }
     }

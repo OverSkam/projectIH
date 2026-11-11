@@ -26,8 +26,6 @@ public static class ItemsModule
         Game.MarkerSpawners["shrine"] = SpawnShrine;
         Game.RoundPopulated += OnRoundPopulated;
 
-        // UI overlay (own CanvasLayer so Hud.cs stays untouched)
-        Game.I.CallDeferred(Node.MethodName.AddChild, new ItemsHud { Name = "ItemsHud" });
         ItemsDebug.Register();
     }
 
@@ -49,11 +47,19 @@ public static class ItemsModule
         g.ServerSpawnObject("pickup", m.Pos + new Vector3(0, 0.4f, 0), Loot.RollLoose(rng, room.Depth, g.Round));
     }
 
+    static World _shrineWorld;
+    static int _shrines;
+
     static void SpawnShrine(Game g, RoomInfo room, SpawnMarker m, RandomNumberGenerator rng)
     {
         float r = rng.Randf();
+        // pacing: at most one stein shrine per ~4 rooms
+        if (_shrineWorld != g.World) { _shrineWorld = g.World; _shrines = 0; }
+        if (_shrines >= Math.Max(1, g.World.Cave.Rooms.Count / 4)) return;
+        _shrines++;
         string type = r < 0.4f ? "plate" : r < 0.65f ? "blood" : "timed";
-        SpawnShrineOfType(g, m.Pos, type, rng);
+        // the cave collision is not in the physics space yet: the plate/switch placement needs raycasts, so wait two physics frames
+        TrapSpawner.Defer(g, () => SpawnShrineOfType(g, m.Pos, type, rng));
     }
 
     /// <summary>Also used by the debug spawner. Picks the free direction for the plate/switch, rolls the stein and spawns all parts.</summary>

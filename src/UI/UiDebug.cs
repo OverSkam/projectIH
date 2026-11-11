@@ -53,6 +53,9 @@ public partial class UiDebug : Node
                 other.SetHeld("pickaxe");
                 other.ApplyNetState(other.GlobalPosition, other.Rotation.Y, 0, 0);
                 _done = true; break;
+            case "guide":
+                if (_t > 0.5) { MenuUI.I?.ShowGuide(true); _done = true; }
+                break;
             case "settings":
                 if (_t > 0.5) { MenuUI.I?.ShowSettings(true); _done = true; }
                 break;

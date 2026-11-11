@@ -111,17 +111,21 @@ public partial class Game : Node
 
     void ServerStartRound()
     {
+        if (Round == 0 && int.TryParse(Util.Arg("startround", ""), out var sr) && sr > 1) Round = sr - 1;   // test only: begin the match at a later round
         Round++;
         Phase = GamePhase.Round;
         _collapsing = false;
         _roundLeft = Config.RoundSeconds(Round);
         _syncTimer = 0;
         _seed = (int)(_rng.Randi() & 0x7fffffff);
+        if (int.TryParse(Util.Arg("seedbase", ""), out var sb)) _seed = sb * 131 + Round * 17; // test: reproducible caves
         var parts = Net.I.Names.Keys.ToList();
+        var fresh = new List<ServerPlayer>();
         foreach (var id in parts)
         {
             var p = GetPlayer(id);
             p.Participant = true; p.Alive = true;
+            if (!p.Initialized || p.DiedLastRound) fresh.Add(p);
             if (!p.Initialized)
             {
                 // Match start (or mid-match joiner): start kit + one random Common stein.
@@ -148,6 +152,8 @@ public partial class Game : Node
             p.Fire(new SteinEvent { Kind = SteinEventKind.RoundStart });
             p.Dirty = true;
         }
+        foreach (var p in fresh)
+            if (p.Inv.Steins.Count > 0) ServerNotice(p, "You start with: " + ItemInfo.Line("stein:" + p.Inv.Steins[0]));
         Util.Log($"ROUND: {Round} start quota={Quota} time={_roundLeft}");
     }
 
@@ -293,7 +299,8 @@ public partial class Game : Node
     {
         if (!Players.TryGetValue(id, out var p)) return;
         Util.Log($"GAME: peer {id} ({p.Name}) left");
-        if (p.Alive && Phase == GamePhase.Round) KillMiner(p, null, "left");
+        if (p.Alive && Phase == GamePhase.Round) KillMiner(p, null, "left");   // drops everything in a lootable bag, Death event resets the Infinity counter
+        else if (p.Inv.Steins.Contains("infinity")) { InfinityTracker.Reset(); InfinityTracker.Spawned = false; }   // left between rounds: the stein is gone, a new one may appear
         p.Participant = false;
         Players.Remove(id);
         Rpc(nameof(ClientRemoveMiner), id);

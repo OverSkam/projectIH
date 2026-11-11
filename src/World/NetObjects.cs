@@ -150,11 +150,12 @@ public partial class PickupObj : NetObject
         if (kind != "util") AddChild(new OmniLight3D { LightColor = m.MaterialOverride is StandardMaterial3D sm ? sm.AlbedoColor : Colors.White, OmniRange = 2.5f, LightEnergy = 0.6f });
     }
 
-    public override string Prompt(Inventory inv) => "E  Pick up " + NameOf(Data);
+    public override string Prompt(Inventory inv) => Data.StartsWith("ore:") ? "E  Pick up " + NameOf(Data) : "E  Pick up " + ItemInfo.Full(Data);
 
     public override void ServerInteract(ServerPlayer p)
     {
         if (!p.TryAdd(Data) && !ItemsServer.TrySwap(p, Data)) return;
+        if (!Data.StartsWith("ore:")) Game.I.ServerNotice(p, "You take: " + ItemInfo.Line(Data));
         Game.I.ServerDespawnObject(Id);
     }
 }
@@ -182,7 +183,7 @@ public partial class BagObj : NetObject
     public override void ServerInteract(ServerPlayer p)
     {
         foreach (var it in Items.ToArray())
-            if (p.TryAdd(it)) Items.Remove(it);
+            if (p.TryAdd(it)) { Items.Remove(it); if (!it.StartsWith("ore:")) Game.I.ServerNotice(p, "You take: " + ItemInfo.Line(it)); }
         if (Items.Count == 0) Game.I.ServerDespawnObject(Id);
     }
 }

@@ -36,38 +36,42 @@ public static class TrapSpawner
     static World _placedFor;
     static readonly List<Vector3> Placed = new();
 
-    static bool Spaced(Game g, Vector3 pos)
+    static bool Spaced(Game g, Vector3 pos, float min = -1f)
     {
         if (_placedFor != g.World) { _placedFor = g.World; Placed.Clear(); }
-        foreach (var q in Placed) if (q.DistanceTo(pos) < TrapTuning.MinTrapSpacing) return false;
+        if (min < 0f) min = TrapTuning.MinTrapSpacing;
+        foreach (var q in Placed) if (q.DistanceTo(pos) < min) return false;
         return true;
     }
 
     static bool NearCamp(Game g, Vector3 pos) => g.World.Cave.CampZone.Grow(TrapTuning.CampMargin).HasPoint(pos);
 
     /// <summary>Runs a on the server after the freshly built cave is in the physics space (raycasts miss before that).</summary>
-    public static async void Defer(Game g, Action a)
+    public static async void Defer(Game g, Action a, int extraFrames = 0)
     {
         var w = g.World;
         await g.ToSignal(g.GetTree(), SceneTree.SignalName.PhysicsFrame);
         await g.ToSignal(g.GetTree(), SceneTree.SignalName.PhysicsFrame);
+        for (int i = 0; i < extraFrames; i++) await g.ToSignal(g.GetTree(), SceneTree.SignalName.PhysicsFrame);
         if (g.World != w || !GodotObject.IsInstanceValid(w) || g.Phase != GamePhase.Round) return;
         a();
     }
 
     // ---------------------------------------------------------------- trap markers
     public static void FromTrapMarker(Game g, RoomInfo room, SpawnMarker m, RandomNumberGenerator rng)
-        => Defer(g, () => PlaceTrap(g, room, m, rng));
+        => Defer(g, () => PlaceTrap(g, room, m, rng), 2);   // levers (+ their mechanisms) are placed first
 
     static void PlaceTrap(Game g, RoomInfo room, SpawnMarker m, RandomNumberGenerator rng)
     {
-        if (!Net.I.IsServer || NearCamp(g, m.Pos) || !Spaced(g, m.Pos)) return;
+        if (!Net.I.IsServer || NearCamp(g, m.Pos) || !Spaced(g, m.Pos) || Placed.Count >= TrapTuning.MaxTraps(g.Round)) return;
         int round = g.Round, depth = room.Depth;
+        bool safe = depth <= TrapTuning.SafeDepth;
         var table = new List<(string kind, float w)>
         {
             ("spikes", 3f), ("rockfall", 2f), ("gas", 1.5f + 0.5f * Math.Min(round, 3)),
             ("darts", 1f + 0.5f * Math.Min(round, 3)), ("trapdoor", 1f + 0.5f * Math.Min(round, 3) + (depth >= 2 ? 1f : 0f)),
         };
+        if (safe) table.RemoveAll(t => t.kind != "darts");   // darts only sting; everything else is lethal
         var order = new List<string>();
         while (table.Count > 0)
         {
@@ -78,6 +82,7 @@ public static class TrapSpawner
         }
         foreach (var k in order)
             if (Spawn(g, k, m.Pos, rng, false, false) != null) { Placed.Add(m.Pos); return; }
+        if (Util.HasArg("soak") || Util.HasArg("trapdebug")) { var pr = Probe.At(m.Pos); Util.Log($"TRAPREJECT trap at {m.Pos} room={room.Name} valid={pr.Valid} floor={pr.FloorY:0.0} ceil={pr.CeilH:0.0} free={pr.FreeFwd:0.#}/{pr.FreeBack:0.#} side={pr.SideP:0.#}/{pr.SideN:0.#} width={pr.Width:0.#}"); }
     }
 
     /// <summary>Spawns one trap of the given kind at pos. Returns the NetObject or null when the surroundings do not fit (unless force).</summary>
@@ -128,20 +133,32 @@ public static class TrapSpawner
 
     static void PlaceLever(Game g, RoomInfo room, SpawnMarker m, RandomNumberGenerator rng)
     {
-        if (!Net.I.IsServer || NearCamp(g, m.Pos) || !Spaced(g, m.Pos)) return;
+        if (!Net.I.IsServer || NearCamp(g, m.Pos) || !Spaced(g, m.Pos, TrapTuning.MinLeverSpacing) || Placed.Count >= TrapTuning.MaxTraps(g.Round)) return;
         var kinds = new List<string> { "gate", "collapse", "trapdoor" };
         float r = rng.Randf();
         string first = r < 0.4f ? "gate" : r < 0.75f ? "collapse" : "trapdoor";
         kinds.Remove(first); kinds.Insert(0, first);
-        foreach (var k in kinds)
-            if (SpawnLever(g, m.Pos, k, false, false)) { Placed.Add(m.Pos); return; }
+        if (room.Depth <= TrapTuning.SafeDepth) kinds.RemoveAll(k => k != "gate");   // collapse / trapdoor levers are lethal
+        // a lever marker often sits in a niche beside the passage, where the probe cannot read the passage axis: also try nearby open cells
+        var mc = ModularCave.Last;
+        foreach (var (dx, dz) in new[] { (0f, 0f), (2f, 0f), (-2f, 0f), (0f, 2f), (0f, -2f), (4f, 0f), (-4f, 0f), (0f, 4f), (0f, -4f) })
+        {
+            var at = m.Pos + new Vector3(dx, 0, dz);
+            if (mc != null && !mc.OpenAt((int)Math.Round(at.X / 2f), (int)Math.Round(at.Z / 2f))) continue;
+            foreach (var k in kinds)
+                if (SpawnLever(g, at, k, false, false)) { Placed.Add(m.Pos); return; }
+        }
+        if (Util.HasArg("soak") || Util.HasArg("trapdebug")) { var pr = Probe.At(m.Pos); Util.Log($"TRAPREJECT lever at {m.Pos} room={room.Name} valid={pr.Valid} floor={pr.FloorY:0.0} ceil={pr.CeilH:0.0} free={pr.FreeFwd:0.#}/{pr.FreeBack:0.#} side={pr.SideP:0.#}/{pr.SideN:0.#} width={pr.Width:0.#}"); }
     }
 
     /// <summary>Lever + mechanism ("gate", "collapse", "trapdoor") some metres down the nearest passage, linked by a chain.</summary>
+    static bool Rej(string why) { if (Util.HasArg("soak") || Util.HasArg("trapdebug")) Util.Log("TRAPDBG lever rejected: " + why); return false; }
+
     public static bool SpawnLever(Game g, Vector3 pos, string mech, bool force, bool fast)
     {
         var pr = Probe.At(pos);
-        if (!pr.Valid && !force) return false;
+        if (!pr.Valid && !force) return Rej("probe invalid");
+        if (!force && !Spaced(g, pos, TrapTuning.MinLeverSpacing)) return Rej("lever spacing");
         // pedestal sits beside the passage axis, never in the way
         float sideSgn = pr.SideP >= pr.SideN ? 1f : -1f;
         float off = Mathf.Clamp(Mathf.Max(pr.SideP, pr.SideN) - 1.0f, 0f, 1.2f);
@@ -152,11 +169,12 @@ public static class TrapSpawner
         float free = fwd ? pr.FreeFwd : pr.FreeBack;
         var dir = TrapUtil.Dir(a);
         float dist = mech switch { "gate" => Mathf.Clamp(free - 1.5f, 3.5f, 5f), "collapse" => 5.5f, _ => 7.5f };
-        if (!force && free < dist + 1f) return false;
+        if (!force && free < dist + 1f) return Rej($"free {free:0.#} < dist {dist:0.#}+1 ({mech})");
         var mp = lp + dir * dist;
         var mpr = Probe.At(mp);
-        if (!force && !mpr.Valid) return false;
+        if (!force && !mpr.Valid) return Rej("mech probe invalid");
         var mfp = new Vector3(mp.X, mpr.FloorY, mp.Z);
+        if (!force && !Spaced(g, mfp, TrapTuning.MinMechSpacing)) return Rej($"mech spacing {mech}");   // never stack a mechanism on another trap
         if (Util.HasArg("trapdebug")) Util.Log($"TRAPDBG lever={lp} marker={pos} corr={pr.CorrAng:0.00} free={pr.FreeFwd:0.#}/{pr.FreeBack:0.#} side={pr.SideP:0.#}/{pr.SideN:0.#} mech={mfp} mw={mpr.Width:0.#} mcorr={mpr.CorrAng:0.00}");
 
         string data; string objKind; Vector3 anchor; float cd;
@@ -165,7 +183,7 @@ public static class TrapSpawner
             case "gate":
             {
                 float w = mpr.Width + 0.4f;
-                if (!force && (w < 2.4f || w > 9f)) return false;
+                if (!force && (w < 2.4f || w > 9f)) return Rej($"gate width {w:0.#}");
                 if (force && (w < 2.4f || w > 9f)) w = 4.4f;
                 float gh = Mathf.Min(mpr.CeilH, 4.2f);
                 float ga = mpr.CorrAng;
@@ -185,7 +203,7 @@ public static class TrapSpawner
                 float hw = Mathf.Min(TrapTuning.PitWidth, mpr.Width - 1.6f), hl = TrapTuning.PitLength;
                 float ta = mpr.CorrAng;
                 if (force && (hw < 1.4f || mpr.FreeFwd < hl / 2f + 0.6f || mpr.FreeBack < hl / 2f + 0.6f)) { hw = TrapTuning.PitWidth; ta = a; }
-                else if (hw < 1.4f || mpr.FreeFwd < hl / 2f + 0.6f || mpr.FreeBack < hl / 2f + 0.6f) return false;
+                else if (hw < 1.4f || mpr.FreeFwd < hl / 2f + 0.6f || mpr.FreeBack < hl / 2f + 0.6f) return Rej($"trapdoor fit hw={hw:0.#} fwd={mpr.FreeFwd:0.#} back={mpr.FreeBack:0.#}");
                 objKind = "trap_trapdoor"; data = TrapBase.Mk(("s", "closed"), ("a", ta), ("hl", hl), ("hw", hw), ("dp", TrapTuning.PitDepth), ("lv", true));
                 anchor = mfp + new Vector3(0, 0.12f, 0);
                 cd = TrapTuning.TrapdoorCreak + TrapTuning.TrapdoorLeverOpen + 5f + TrapTuning.LeverCooldown;
@@ -193,6 +211,7 @@ public static class TrapSpawner
             }
         }
         int mid = g.ServerSpawnObject(objKind, mfp, data);
+        Placed.Add(mfp);
         g.ServerSpawnObject("trap_lever", lp, TrapBase.Mk(("s", "ready"), ("mid", mid), ("mk", mech), ("cd", cd), ("fx", mfp.X), ("fz", mfp.Z), ("ax", anchor.X), ("ay", anchor.Y), ("az", anchor.Z)));
         return true;
     }

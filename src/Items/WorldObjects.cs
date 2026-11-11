@@ -61,7 +61,7 @@ public partial class ChestObj : NetObject
             names.Add(PickupObj.NameOf(it));
             if (!p.TryAdd(it)) ItemsServer.DropItem(GlobalPosition + new Vector3(rng.RandfRange(-0.6f, 0.6f), 1.0f, rng.RandfRange(-0.6f, 0.6f)), it);
         }
-        Game.I.ServerNotice(p, "Chest: " + string.Join(", ", names));
+        Game.I.ServerNotice(p, "Chest: " + string.Join("  |  ", items.Select(ItemInfo.Line)));
         Util.Pass("chest_opened", $"opener={p.Name} loot={string.Join("+", items)} luck={p.Stats.Luck}");
     }
 }
@@ -116,9 +116,9 @@ public partial class ShrineObj : NetObject
         if (_state == "done") return "The pedestal is empty.";
         switch (_type)
         {
-            case "blood": return $"E  Pay {BloodCost:0} health for the {StName}";
-            case "timed": return _state == "running" ? $"E  Take the {StName}!" : "Locked: start the trial at the switch.";
-            default: return _state == "open" ? $"E  Take the {StName}" : "Locked: another miner must stand on the plate.";
+            case "blood": return $"E  Pay {BloodCost:0} health for\n{ItemInfo.Full("stein:" + _stein)}";
+            case "timed": return _state == "running" ? $"E  Take it now!\n{ItemInfo.Full("stein:" + _stein)}" : $"Locked: start the trial at the switch.\nIt holds: {ItemInfo.Full("stein:" + _stein)}";
+            default: return _state == "open" ? $"E  Take\n{ItemInfo.Full("stein:" + _stein)}" : $"Locked: another miner must stand on the plate.\nIt holds: {ItemInfo.Full("stein:" + _stein)}";
         }
     }
 
@@ -157,7 +157,7 @@ public partial class ShrineObj : NetObject
         string st = Loot.LuckUpgrade(_stein, p.Stats.Luck, rng, Game.I.Round);
         ItemsServer.GiveStein(p, st);
         SetState("done");
-        Game.I.ServerNotice(p, "You take the " + (Steins.Get(st)?.Name ?? st) + ".");
+        Game.I.ServerNotice(p, "You take: " + ItemInfo.Line("stein:" + st));
         if (Barrier != null) { Game.I.ServerDespawnObject(Barrier.Id); Barrier = null; }
         Util.Pass("shrine_taken", $"type={_type} stein={st} by={p.Name}");
     }
@@ -392,7 +392,7 @@ public partial class BearTrapObj : NetObject
         if (now < _armAt) return;
         foreach (var p in Game.I.Players.Values.ToArray())
         {
-            if (!p.Alive || !p.Participant) continue;
+            if (!p.Alive || !p.Participant || Game.I.World.Cave.InCamp(p.Pos)) continue;   // traps never bite inside the camp
             if (ObjUtil.Flat(p.Pos - GlobalPosition).Length() < 0.8f && Math.Abs(p.Pos.Y - GlobalPosition.Y) < 1.2f)
             {
                 Trigger();

@@ -42,15 +42,37 @@ public static class MonsterModule
         float ox = rng.RandfRange(-2f, 2f), oz = rng.RandfRange(-2f, 2f);
         if (Util.HasArg("nomonsters")) return;
         int round = g.Round;
-        if (g.World.Cave.InCamp(m.Pos)) return;
+        if (g.World.Cave.InCamp(m.Pos) || room.Depth <= MonsterTuning.SafeDepth) return;
         float chance = Mathf.Clamp(MonsterTuning.SpawnChanceBase + MonsterTuning.SpawnChancePerRound * (round - 1) + MonsterTuning.SpawnChancePerDepth * (room.Depth - 1), 0f, 0.95f);
         if (roll > chance) return;
         SpawnOne(g, room, m.Pos, round, pick);
-        if (round >= 4 && extraRoll < 0.35f) SpawnOne(g, room, m.Pos + new Vector3(ox, 0, oz) + new Vector3(Math.Sign(ox + 0.001f) * 2f, 0, 0), round, 1f - pick);
+        if (round >= 4 && extraRoll < 0.35f)
+        {
+            var extra = m.Pos + new Vector3(ox, 0, oz) + new Vector3(Math.Sign(ox + 0.001f) * 2f, 0, 0);
+            if (OpenFloor(m.Pos, extra)) SpawnOne(g, room, extra, round, 1f - pick);
+        }
     }
+
+    /// <summary>The offset spawn must be an open, level, standing-height cell (not rock, a pillar, a crawl space or a pit edge).</summary>
+    static bool OpenFloor(Vector3 origin, Vector3 p)
+    {
+        var mc = ModularCave.Last;
+        if (mc == null) return true;
+        int i = (int)Math.Round(p.X / 2f), j = (int)Math.Round(p.Z / 2f);
+        if (!mc.OpenAt(i, j)) return false;
+        var c = mc.At(i, j);
+        return !c.Crawl && !c.Thin && !c.Ramp && !c.Water && Math.Abs(c.Mean - origin.Y) < 0.3f && c.Ceil >= 4f;
+    }
+
+    static World _countWorld;
+    static int _total;
+    static readonly Dictionary<int, int> _perRoom = new();
 
     static void SpawnOne(Game g, RoomInfo room, Vector3 pos, int round, float pick)
     {
+        if (_countWorld != g.World) { _countWorld = g.World; _total = 0; _perRoom.Clear(); }
+        if (_total >= MonsterTuning.MaxTotal(round) || _perRoom.GetValueOrDefault(room.Id) >= MonsterTuning.MaxPerRoom(round)) return;
+        _total++; _perRoom[room.Id] = _perRoom.GetValueOrDefault(room.Id) + 1;
         float wg = MonsterTuning.GolemWeight;
         float we = round >= 2 || room.Depth >= 3 ? MonsterTuning.EmberWeightLate : (room.Depth >= 2 ? MonsterTuning.EarlyRareWeight : 0f);
         float ww = round >= 2 ? MonsterTuning.WispWeightLate : (room.Depth >= 2 ? MonsterTuning.EarlyRareWeight : 0f);

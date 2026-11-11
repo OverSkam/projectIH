@@ -38,6 +38,8 @@ public class ModularCave : ICaveBuilder
     public const float CellSize = 2f;
     public static readonly (int dx, int dy)[] Dirs = { (0, -1), (1, 0), (0, 1), (-1, 0) };
 
+    /// <summary>Most recently built cave (grid access for debug/soak checks).</summary>
+    public static ModularCave Last;
     public CaveInfo Info = new();
     public Cell[] G; public int W, H, OX, OY;
     public List<Slot> Slots = new();
@@ -56,6 +58,7 @@ public class ModularCave : ICaveBuilder
         var g = Generate(seed, round);
         foreach (var e in g.Errors) Util.Fail("cave_layout", e);
         CaveBuilder.Emit(g, parent);
+        Last = g;
         if (Util.HasArg("cavelist"))
             foreach (var sl in g.Slots) Util.Log($"CAVE room={sl.Id} {sl.Mod.Name} rot={sl.Rot} depth={sl.Depth} center={g.Info.Rooms[sl.Id].Center}");
         return g.Info;
