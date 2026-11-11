@@ -103,3 +103,9 @@ To avoid merge conflicts in `Game.cs`, put new gameplay RPCs in a `partial class
 ## Seeing the game
 `tools/screenshot.sh <outdir> <frames> <game args>` renders off-screen and writes PNG frames (10 frames = 1 s). Open a PNG with your image-reading tool to check
 visuals. Software rendering is slow: keep it to a few hundred frames.
+
+## Items workstream (src/Items)
+Registered by `ItemsModule` ([ContentModule]). Steins incl. Blood/Infinity (`ItemsServer`, `InfinityTracker`), chests/shrines/loose loot (`Loot`, `WorldObjects.cs`),
+utilities via RMB (`Game.RequestUseUtility` -> `ItemsServer.UseHeld`: dynamite, bear trap, rope), active stein key Q (`stein_ability`), F cycles the highlighted stein slot
+(swap target), drop ore moved to T. Monsters can implement `IRootable` (bear trap) and `IExplodable` (dynamite). Owner-only item state goes through `ClientItemState`.
+Tests: `tools/items_test.sh` (scripted by `--itest=util|infinity`, `--give=`, `--debugspawn=`, `--rounds=`; bots `--bot=t_*`, see `ItemsDebug.cs`).
