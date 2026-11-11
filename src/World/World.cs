@@ -12,7 +12,7 @@ public partial class World : Node3D
     public readonly Dictionary<int, NetObject> Objects = new();
     public int NextObjectId = 1; // server only
 
-    public static ICaveBuilder Builder = new GreyBoxCave(); // swap for the procedural generator
+    public static ICaveBuilder Builder = Util.Arg("cave", "modular") == "greybox" ? new GreyBoxCave() : new ModularCave();
 
     public void BuildCave(int seed, int round)
     {
@@ -33,10 +33,11 @@ public partial class World : Node3D
             AmbientLightEnergy = 0f,
             TonemapMode = Godot.Environment.ToneMapper.Filmic,
             FogEnabled = true,
-            FogLightColor = new Color(0.02f, 0.02f, 0.03f),
-            FogDensity = 0.015f,
+            FogLightColor = new Color(0.025f, 0.03f, 0.05f),
+            FogDensity = 0.028f,
         };
         AddChild(new WorldEnvironment { Environment = env });
+        if (Util.HasArg("camroom") || Util.HasArg("cam")) AddChild(DebugCam.Make(Cave));
     }
 
     public Miner GetMiner(int peer) => MinersRoot.GetNodeOrNull<Miner>(peer.ToString());

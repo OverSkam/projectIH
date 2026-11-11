@@ -83,7 +83,7 @@ public partial class Miner : CharacterBody3D
 
     public override void _Ready()
     {
-        CollisionLayer = 2; CollisionMask = 1;
+        CollisionLayer = 2; CollisionMask = 1 | 16; // 16 = thin (ethereal) walls
         _shape = new CollisionShape3D { Shape = new CapsuleShape3D { Radius = 0.4f, Height = 1.8f }, Position = new Vector3(0, 0.9f, 0) };
         AddChild(_shape);
         _head = new Node3D { Position = new Vector3(0, 1.6f, 0) };

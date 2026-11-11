@@ -44,7 +44,7 @@ public class ModularCave : ICaveBuilder
     public List<RampDef> Ramps = new();
     public List<TunnelDef> Tunnels = new();
     public List<string> Errors = new();
-    public int Seed, Round, LoopCount;
+    public int Seed, Round, LoopCount, Salt;
     public int[] NodeAt;            // per cell: nav node index or -1
     public Dictionary<int, int> OwnerDepth = new();
 
@@ -69,14 +69,20 @@ public class ModularCave : ICaveBuilder
     }
     static Cell _void;
     public bool OpenAt(int i, int j) { int x = i - OX, y = j - OY; return x >= 0 && y >= 0 && x < W && y < H && G[y * W + x].Open; }
+    public RoomInfo RoomAt(Vector3 p) { int i = (int)Math.Round(p.X / 2f), j = (int)Math.Round(p.Z / 2f); var o = At(i, j).Owner; return At(i, j).Open && o < Info.Rooms.Count ? Info.Rooms[o] : null; }
     public int Idx(int i, int j) => (j - OY) * W + (i - OX);
     public static Vector3 CellPos(int i, int j, float y = 0f) => new Vector3(i * CellSize, y, j * CellSize);
 
     // ------------------------------------------------------------------ generation
     public static ModularCave Generate(int seed, int round)
     {
-        var g = new ModularCave { Seed = seed, Round = round };
-        g.Topology();
+        ModularCave g = null;
+        for (int salt = 0; salt < 20; salt++)
+        {
+            g = new ModularCave { Seed = seed, Round = round, Salt = salt };
+            g.Topology();
+            if (g.LoopCount > 0 || g.Slots.Count < 6) break;
+        }
         g.Assign();
         g.Stamp();
         g.Finish();
@@ -85,7 +91,7 @@ public class ModularCave : ICaveBuilder
 
     void Topology()
     {
-        var rnd = new Rnd(Seed * 7919L + Round * 104729L + 17);
+        var rnd = new Rnd(Seed * 7919L + Round * 104729L + Salt * 1299709L + 17);
         int target = (int)(8 + (Round - 1) * 2.5f + 0.5f);
         var at = new Dictionary<(int, int), Slot>();
         Slot Add(int gx, int gy) { var s = new Slot { Id = Slots.Count, Gx = gx, Gy = gy }; Slots.Add(s); at[(gx, gy)] = s; return s; }
@@ -215,7 +221,7 @@ public class ModularCave : ICaveBuilder
                         c = new Cell { Open = true, Owner = t.Owner, Ceil = 4.5f };
                         t.Cells.Add((i, j));
                     }
-                t.X = (t.Cells.Average(c => c.i)) * CellSize; t.Z = (t.Cells.Average(c => c.j)) * CellSize;
+                t.X = (float)t.Cells.Average(c => c.i) * CellSize; t.Z = (float)t.Cells.Average(c => c.j) * CellSize;
                 Tunnels.Add(t);
             }
     }
@@ -251,7 +257,7 @@ public class ModularCave : ICaveBuilder
                     if (lo == '#' || hi == '#' || IsRamp(lo) || IsRamp(hi)) Errors.Add($"{s.Mod.Name}: ramp at r{r} c{c} has no flat ends");
                     float hl = FlatH(lo), hh = FlatH(hi);
                     float e0 = hl + (hh - hl) * k / n, e1 = hl + (hh - hl) * (k + 1) / n;
-                    if (Math.Abs(hh - hl) / (n * 2f) > 0.6f) Errors.Add($"{s.Mod.Name}: ramp at r{r} c{c} too steep");
+                    if (Math.Abs(hh - hl) / (n * 2f) > 0.7f) Errors.Add($"{s.Mod.Name}: ramp at r{r} c{c} too steep");
                     cell.Ramp = true;
                     switch (ch)
                     {
