@@ -112,6 +112,8 @@ public partial class RockfallObj : TrapBase, ILeverMech
         }
     }
 
+    public override void DebugForce() => Trigger(null);
+
     /// <summary>Server: start the rumble. Credit for kills goes to `by`.</summary>
     public void Trigger(ServerPlayer by)
     {
@@ -209,6 +211,7 @@ public partial class TrapdoorObj : TrapBase, ILeverMech
     float _t, _stand;
     static int _maskFrame = -1;
 
+    public override void DebugForce() { if (State == "closed") { SetState("creak"); _t = TrapTuning.TrapdoorCreak; } }
     public bool CanActivate => State == "closed";
     public void ServerActivate(ServerPlayer by) { if (State == "closed") { SetState("creak"); _t = TrapTuning.TrapdoorCreak; } }
 

@@ -36,6 +36,8 @@ public static class TrapDebug
                 foreach (var pos in spots) SpawnOne(g, kind, pos, rng, fast);
             }
         }
+        if (Util.HasArg("trapforce") && double.TryParse(Util.Arg("trapforce"), out var fs))
+            g.GetTree().CreateTimer(fs).Timeout += () => { if (g.World != null) foreach (var o in g.World.Objects.Values.OfType<TrapBase>()) o.DebugForce(); };
         if (Util.HasArg("trapnoise") && !_noiseArmed && double.TryParse(Util.Arg("trapnoise"), out var sec))
         {
             _noiseArmed = true;

@@ -228,6 +228,8 @@ public abstract partial class TrapBase : NetObject
         ServerTick((float)delta);
     }
     protected virtual void ServerTick(float dt) { }
+    /// <summary>Server debug (--trapforce): trigger without a victim.</summary>
+    public virtual void DebugForce() { }
 
     // ---- visual helpers
     protected static MeshInstance3D Box(Node parent, Vector3 size, Vector3 pos, Color c, float em = 0f, Vector3? rot = null)

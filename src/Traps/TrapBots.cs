@@ -72,6 +72,24 @@ public static class TrapBots
             case "trapwalk": WalkWire(m, ref inp, g); break;
             case "trapleverpull": Pull(m, ref inp, g); break;
             case "trapgate": Gate(m, ref inp, g); break;
+            case "trapview": View(m, ref inp, g); break;
+        }
+    }
+
+    /// <summary>Screenshot helper: stand 4 m from the nearest trap-ish object (camp side) and look at it.</summary>
+    static void View(Miner m, ref MinerInput inp, Game g)
+    {
+        var o = Nearest(g, m, x => x.Kind.StartsWith("trap_") && x.Kind != "trap_lever");
+        if (o == null) return;
+        var ang = Fv(Kv(o), "a");
+        var side = TrapUtil.Dir(ang + Mathf.Pi / 2f) * (Util.Arg("viewside", "0") == "1" ? 3.5f : 0f);
+        var toCamp = (-o.GlobalPosition with { Y = 0 }).Normalized();
+        var spot = o.GlobalPosition + toCamp * float.Parse(Util.Arg("viewdist", "4.5")) + side;
+        if (Walk(m, ref inp, spot, 0.5f))
+        {
+            inp.Move = Vector2.Zero;
+            var d = o.GlobalPosition + Vector3.Up * float.Parse(Util.Arg("viewy", "0.4")) - m.EyePos;
+            inp.Yaw = Mathf.Atan2(-d.X, -d.Z); inp.Pitch = Mathf.Atan2(d.Y, new Vector2(d.X, d.Z).Length());
         }
     }
 

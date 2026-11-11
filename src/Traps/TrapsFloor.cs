@@ -56,6 +56,8 @@ public partial class SpikePlateObj : TrapBase
         }
     }
 
+    public override void DebugForce() { if (State == "armed") { SetState("click"); _t = TrapTuning.SpikeClickDelay; } }
+
     bool OnPlate(float half, float maxY)
     {
         foreach (var p in TrapUtil.Miners())
@@ -284,6 +286,8 @@ public partial class DartWireObj : TrapBase
             m.Position = new Vector3(x, 1.1f + (i - 1) * 0.22f, 0);
         }
     }
+
+    public override void DebugForce() { if (State == "armed") { SetState("fire"); _t = TrapTuning.DartTelegraph; } }
 
     bool Crossing(ServerPlayer p)
     {
