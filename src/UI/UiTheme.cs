@@ -82,11 +82,11 @@ public static class UiTheme
         t.SetStylebox("panel", "PopupMenu", Box(Stone, Brass, 4, 2, 8, 6));
 
         // sliders
-        var track = Box(new Color(0.05f, 0.045f, 0.04f), BrassDark, 4, 1, 0, 0);
-        var fill = Box(Brass, null, 4, 0, 0, 0);
+        var track = Box(new Color(0.05f, 0.045f, 0.04f), BrassDark, 4, 1, 0, 5);
+        var fill = Box(Brass, null, 4, 0, 0, 5);
         t.SetStylebox("slider", "HSlider", track);
         t.SetStylebox("grabber_area", "HSlider", fill);
-        t.SetStylebox("grabber_area_highlight", "HSlider", Box(Gold, null, 4, 0, 0, 0));
+        t.SetStylebox("grabber_area_highlight", "HSlider", Box(Gold, null, 4, 0, 0, 5));
         t.SetIcon("grabber", "HSlider", KnobIcon(Parchment));
         t.SetIcon("grabber_highlight", "HSlider", KnobIcon(Gold));
         t.SetIcon("grabber_disabled", "HSlider", KnobIcon(Dim));

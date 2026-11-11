@@ -182,10 +182,10 @@ void fragment(){
         sv.Panel = p;
         var col = UiKit.VBox(1);
         col.AddChild(p);
-        sv.Caption = UiKit.MakeLabel("", 13, UiTheme.Dim, HorizontalAlignment.Center, 3);
-        sv.Caption.CustomMinimumSize = new Vector2(58, 0); sv.Caption.ClipText = true;
+        sv.Caption = UiKit.MakeLabel("", 12, UiTheme.Dim, HorizontalAlignment.Center, 3);
+        sv.Caption.CustomMinimumSize = new Vector2(64, 0); sv.Caption.ClipText = true;
         col.AddChild(sv.Caption);
-        col.CustomMinimumSize = new Vector2(58, 0);
+        col.CustomMinimumSize = new Vector2(64, 0);
         into.AddChild(col);
         return sv;
     }
