@@ -11,6 +11,7 @@ public partial class Main : Node
 
     public override void _Ready()
     {
+        if (SfxTools.Run(GetTree())) return;
         if (Util.HasArg("name")) Net.I.LocalName = Util.Arg("name");
         else if (Util.HasArg("bot")) Net.I.LocalName = "Bot" + (int)(GD.Randi() % 1000);
 

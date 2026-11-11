@@ -22,8 +22,8 @@ public static class UiKit
     public static Button MakeButton(string text, System.Action onPress, int minWidth = 160, bool primary = false)
     {
         var b = new Button { Text = text, CustomMinimumSize = new Vector2(minWidth, 44), FocusMode = Control.FocusModeEnum.None };
-        b.Pressed += () => { Sfx.Play("ui_click"); onPress(); };
-        b.MouseEntered += () => Sfx.Play("ui_hover");
+        b.Pressed += () => { Sfx.Play(SfxNames.UiClick); onPress(); };
+        b.MouseEntered += () => Sfx.Play(SfxNames.UiHover);
         if (primary)
         {
             b.AddThemeStyleboxOverride("normal", UiTheme.Box(new Color(0.42f, 0.31f, 0.1f), UiTheme.Gold, 5, 2, 16, 8));

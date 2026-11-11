@@ -70,7 +70,7 @@ public partial class RockfallObj : TrapBase, ILeverMech
     {
         if (!_built || State != "armed") return;
         double now = Time.GetTicksMsec() / 1000.0;
-        if (now > _nextTick) { _nextTick = now + 4 + (Id % 5); TrapSfx.Play(GlobalPosition + Vector3.Up * _ch, "pebble", -10f); }
+        if (now > _nextTick) { _nextTick = now + 4 + (Id % 5); TrapSfx.Play(GlobalPosition + Vector3.Up * _ch, SfxNames.RockPebble, -10f); }
     }
 
     protected override void OnState(string old, string now)
@@ -82,7 +82,7 @@ public partial class RockfallObj : TrapBase, ILeverMech
             case "armed": _dust.Emitting = true; _heavy.Emitting = false; break;
             case "rumble":
                 _heavy.Emitting = true; _dust.Amount = 14;
-                TrapSfx.Play(GlobalPosition, "rumble", 4f);
+                TrapSfx.Play(GlobalPosition, SfxNames.RockfallRumble, 4f);
                 var sh = CreateTween().SetLoops(12);
                 sh.TweenProperty(_hang, "position", new Vector3(0.03f, 0, 0.02f), 0.06f);
                 sh.TweenProperty(_hang, "position", new Vector3(-0.03f, 0, -0.02f), 0.06f);
@@ -100,7 +100,7 @@ public partial class RockfallObj : TrapBase, ILeverMech
                 foreach (var (m, end) in _rocks) { m.Visible = true; m.Position = end; }
                 if (!init)
                 {
-                    TrapSfx.Play(GlobalPosition, "thud", 6f);
+                    TrapSfx.Play(GlobalPosition, SfxNames.RockfallCrash, 6f);
                     var burst = Particles(this, new Vector3(0, 0.3f, 0), new Color(0.6f, 0.56f, 0.5f, 0.35f), 0.35f, 24, 1.8f, 1.5f, Vector3.Up, 70f, new Vector3(0, 0f, 0), new Vector3(_r * 0.5f, 0.1f, _r * 0.5f), true);
                     burst.OneShot = true; burst.Explosiveness = 0.9f; burst.Emitting = true;
                 }
@@ -282,7 +282,7 @@ public partial class TrapdoorObj : TrapBase, ILeverMech
                 _lidPivot.Rotation = Vector3.Zero;
                 break;
             case "creak":
-                TrapSfx.Play(GlobalPosition, "creak", 4f);
+                TrapSfx.Play(GlobalPosition, SfxNames.TrapdoorCreak, 4f);
                 var tw = CreateTween().SetLoops(6);
                 tw.TweenProperty(_lidPivot, "rotation:x", -0.03f, 0.075f);
                 tw.TweenProperty(_lidPivot, "rotation:x", 0.0f, 0.075f);
@@ -290,7 +290,7 @@ public partial class TrapdoorObj : TrapBase, ILeverMech
             case "open":
                 _lidShape.SetDeferred("disabled", true);
                 _void.Visible = true;
-                TrapSfx.Play(GlobalPosition, "slam", 0f);
+                TrapSfx.Play(GlobalPosition, SfxNames.TrapdoorDrop, 0f);
                 if (init) _lidPivot.Rotation = new Vector3(-1.5f, 0, 0);
                 else CreateTween().TweenProperty(_lidPivot, "rotation:x", -1.5f, 0.3f).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
                 break;

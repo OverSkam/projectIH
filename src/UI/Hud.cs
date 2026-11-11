@@ -396,7 +396,7 @@ void fragment(){
     {
         _flash = Mathf.Clamp(0.35f + amount / 40f, 0.35f, 1f);
         _hpBar.Flash();
-        Sfx.Play("hurt");
+        Sfx.Play(SfxNames.Hurt);
         var g = Game.I;
         if (g.LocalMiner == null) return;
         Vector3? dir = null;

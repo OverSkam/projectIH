@@ -60,7 +60,7 @@ public partial class PauseMenu : CanvasLayer
         if (on == _root.Visible) return;
         _root.Visible = on;
         ShowSettings(false);
-        Sfx.Play(on ? "ui_open" : "ui_close");
+        Sfx.Play(on ? SfxNames.UiOpen : SfxNames.UiClose);
         if (on) Input.MouseMode = Input.MouseModeEnum.Visible;
         else if (DisplayServer.GetName() != "headless" && Game.I.Phase == GamePhase.Round && (Game.I.LocalMiner != null || Game.I.LocalGhost != null))
             Input.MouseMode = Input.MouseModeEnum.Captured;

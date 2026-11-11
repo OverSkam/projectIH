@@ -44,11 +44,11 @@ public partial class SpikePlateObj : TrapBase
             case "armed": if (!init) CreateTween().TweenProperty(_plate, "position:y", 0.0f, 0.2f); break;
             case "click":
                 _plate.Position = new Vector3(0, -0.03f, 0);
-                TrapSfx.Play(GlobalPosition, "click");
+                TrapSfx.Play(GlobalPosition, SfxNames.SpikeClick);
                 break;
             case "up":
                 CreateTween().TweenProperty(_spikes, "position:y", 0.0f, 0.07f);
-                TrapSfx.Play(GlobalPosition, "thud", -4f);
+                TrapSfx.Play(GlobalPosition, SfxNames.SpikeThrust, -4f);
                 break;
             case "down":
                 CreateTween().TweenProperty(_spikes, "position:y", -0.95f, 0.5f);
@@ -137,11 +137,11 @@ public partial class GasVentObj : TrapBase
                 break;
             case "warn":
                 _wisp.Amount = 30; _wisp.SpeedScale = 2f; _glow.LightEnergy = 1.2f;
-                TrapSfx.Play(GlobalPosition, "hiss", -6f);
+                TrapSfx.Play(GlobalPosition, SfxNames.GasHiss, -6f);
                 break;
             case "vent":
                 _cloud.Emitting = true; _glow.LightEnergy = 3.2f; _glow.OmniRange = TrapTuning.GasRadius + 2.5f;
-                TrapSfx.Play(GlobalPosition, "hiss", 2f);
+                TrapSfx.Play(GlobalPosition, SfxNames.GasHiss, 2f);
                 break;
         }
         if (now != "vent") _glow.OmniRange = 3.5f;
@@ -155,7 +155,7 @@ public partial class GasVentObj : TrapBase
         if (State == "idle" && now > _nextHiss)
         {
             _nextHiss = now + 3.5 + (Id % 4);
-            TrapSfx.Play(GlobalPosition, "hiss", -18f);
+            TrapSfx.Play(GlobalPosition, SfxNames.GasHiss, -18f);
         }
         if (State == "idle") _glow.LightEnergy = 0.3f + 0.12f * Mathf.Sin((float)now * 3f + Id);
     }
@@ -241,8 +241,8 @@ public partial class DartWireObj : TrapBase
         switch (now)
         {
             case "fire":
-                TrapSfx.Play(GlobalPosition, "twang");
-                TrapSfx.Play(GlobalPosition + DartDir * -_dl, "click", -2f);
+                TrapSfx.Play(GlobalPosition, SfxNames.DartTwang);
+                TrapSfx.Play(GlobalPosition + DartDir * -_dl, SfxNames.DartThud, -2f);
                 _wire.Position = new Vector3(0, 0.06f, 0);
                 var tw = CreateTween();
                 tw.TweenProperty(_wire, "scale", new Vector3(1.6f, 1.6f, 1f), 0.08f);
@@ -259,7 +259,7 @@ public partial class DartWireObj : TrapBase
                     Pivot.AddChild(m);
                     _darts.Add((m, i * TrapTuning.DartStagger));
                 }
-                TrapSfx.Play(GlobalPosition + DartDir * -_dl, "whoosh", 2f);
+                TrapSfx.Play(GlobalPosition + DartDir * -_dl, SfxNames.DartWhoosh, 2f);
                 break;
             case "reload":
                 _volley = false;

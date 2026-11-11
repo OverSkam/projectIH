@@ -86,7 +86,7 @@ public partial class GoblinVoice : Node
         bool large = d >= 120;
         Say(GoblinLines.Pick(large ? "deposit_large" : "deposit_small", $"{g.Round}:{g.Delivered}"), "happy");
         GoblinRig.React("happy");
-        Sfx.Play("deposit");
+        Sfx.Play(SfxNames.Deposit);
     }
 
     void OnPhase()
@@ -103,7 +103,7 @@ public partial class GoblinVoice : Node
                     _w60 = _w30 = _w10 = false;
                     _roundStartTime = g.TimeLeft;
                     Say(GoblinLines.Pick("round_start", "r" + g.Round, g.Round.ToString()));
-                    Sfx.Play("round_start");
+                    Sfx.Play(SfxNames.RoundStart);
                 }
                 break;
             case GamePhase.Summary:
@@ -134,6 +134,6 @@ public partial class GoblinVoice : Node
     void Warn(string cat)
     {
         Say(GoblinLines.Pick(cat, "r" + Game.I.Round), cat == "warn10" ? "angry" : "smug");
-        Sfx.Play("warning");
+        Sfx.Play(SfxNames.Warning);
     }
 }

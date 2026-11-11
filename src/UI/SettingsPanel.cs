@@ -21,7 +21,7 @@ public partial class SettingsPanel : PanelContainer
         v.AddChild(Row("Master volume", 0f, 1f, 0.01f, UserSettings.Volume, x => { UserSettings.Volume = x; UserSettings.Apply(); }, x => Mathf.RoundToInt(x * 100) + "%"));
 
         var fs = new CheckBox { Text = "  Fullscreen", ButtonPressed = UserSettings.Fullscreen, FocusMode = FocusModeEnum.None };
-        fs.Toggled += on => { UserSettings.Fullscreen = on; UserSettings.Apply(GetWindow()); UserSettings.Save(); Sfx.Play("ui_click"); };
+        fs.Toggled += on => { UserSettings.Fullscreen = on; UserSettings.Apply(GetWindow()); UserSettings.Save(); Sfx.Play(SfxNames.UiClick); };
         v.AddChild(fs);
         v.AddChild(UiKit.Spacer(4));
         var back = UiKit.MakeButton("Back", () => { UserSettings.Save(); OnBack?.Invoke(); }, 200, true);

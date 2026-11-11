@@ -41,7 +41,7 @@ public partial class GoblinRig : Node3D
     void OnReact(string kind)
     {
         _react = kind; _reactT = kind == "happy" ? 2.4f : 2.0f;
-        Sfx.Play(kind == "happy" ? "goblin_laugh" : "goblin_growl", GlobalPosition);
+        Sfx.Play(kind == "happy" ? SfxNames.GoblinLaugh : SfxNames.GoblinGrowl, GlobalPosition);
     }
 
     /// <summary>Called by GoblinObj.Build(): collision (layers 1|4) + the animated rig.</summary>

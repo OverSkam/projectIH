@@ -50,7 +50,7 @@ public partial class GateObj : TrapBase, ILeverMech
         {
             case "up": _shape.SetDeferred("disabled", true); _bars.Position = new Vector3(0, _up, 0); break;
             case "warn":
-                TrapSfx.Play(GlobalPosition, "chain", 2f);
+                TrapSfx.Play(GlobalPosition, SfxNames.GateChains, 2f);
                 var tw = CreateTween().SetLoops(5);
                 tw.TweenProperty(_bars, "position:y", _up - 0.18f, 0.1f);
                 tw.TweenProperty(_bars, "position:y", _up, 0.1f);
@@ -61,13 +61,13 @@ public partial class GateObj : TrapBase, ILeverMech
                 else
                 {
                     CreateTween().TweenProperty(_bars, "position:y", 0f, 0.18f).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
-                    TrapSfx.Play(GlobalPosition, "slam", 4f);
+                    TrapSfx.Play(GlobalPosition, SfxNames.GateSlam, 4f);
                 }
                 break;
             case "rising":
                 _shape.SetDeferred("disabled", true);
                 CreateTween().TweenProperty(_bars, "position:y", _up, TrapTuning.GateRise);
-                TrapSfx.Play(GlobalPosition, "chain", 0f);
+                TrapSfx.Play(GlobalPosition, SfxNames.GateChains, 0f);
                 break;
         }
     }
@@ -145,7 +145,7 @@ public partial class LeverObj : TrapBase
         else
         {
             CreateTween().TweenProperty(_arm, "rotation:x", target, 0.25f);
-            if (now == "pulled") TrapSfx.Play(GlobalPosition, "click", 4f);
+            if (now == "pulled") TrapSfx.Play(GlobalPosition, SfxNames.LeverClunk, 4f);
         }
     }
 
@@ -210,7 +210,7 @@ public partial class CuttableObj : TrapBase
     {
         if (_rope == null || now != "cut") return;
         if (old == "") { _rope.Visible = false; return; }
-        TrapSfx.Play(GlobalPosition, "twang", 2f);
+        TrapSfx.Play(GlobalPosition, SfxNames.RopeCut, 2f);
         CreateTween().TweenProperty(_rope, "position:y", -2.5f, 0.5f).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
         CollisionLayer = 0;
     }

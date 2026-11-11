@@ -535,6 +535,7 @@ public partial class Game : Node
         var m = World?.GetMiner(peer);
         Vector3 at = m != null ? m.GlobalPosition + Vector3.Up * 1.5f : new Vector3(0, 2, 6);
         m?.QueueFree();
+        Sfx.Play(SfxNames.Death, at);
         if (peer == MyId)
         {
             LocalMiner = null; LocalWasKilled = true;

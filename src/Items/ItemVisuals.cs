@@ -156,6 +156,7 @@ public static class ItemFx
 {
     public static void Explosion(Node3D world, Vector3 pos, float radius)
     {
+        Sfx.Play(SfxNames.Explosion, pos);
         var n = new Node3D { Position = pos };
         world.AddChild(n);
         n.GlobalPosition = pos;
@@ -171,6 +172,7 @@ public static class ItemFx
 
     public static void Pebble(Node3D world, Vector3 pos)
     {
+        Sfx.Play(SfxNames.GhostPebble, pos);
         var n = new Node3D { Position = pos };
         world.AddChild(n);
         n.GlobalPosition = pos;

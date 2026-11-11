@@ -120,53 +120,8 @@ public struct Probe
 /// <summary>Procedural one-shot sounds (no asset files).</summary>
 public static class TrapSfx
 {
-    const int SR = 22050;
-    static readonly Dictionary<string, AudioStreamWav> Cache = new();
-    static readonly Random R = new(4242);
-    static float N() => (float)(R.NextDouble() * 2 - 1);
-
-    static AudioStreamWav Gen(float dur, Func<float, float> f)
-    {
-        int n = (int)(dur * SR);
-        var b = new byte[n * 2];
-        for (int i = 0; i < n; i++)
-        {
-            short v = (short)(Mathf.Clamp(f(i / (float)SR), -1f, 1f) * 28000);
-            b[2 * i] = (byte)(v & 0xff); b[2 * i + 1] = (byte)((v >> 8) & 0xff);
-        }
-        return new AudioStreamWav { Format = AudioStreamWav.FormatEnum.Format16Bits, MixRate = SR, Stereo = false, Data = b };
-    }
-
-    static AudioStreamWav Make(string n)
-    {
-        float lp = 0, hp = 0;
-        switch (n)
-        {
-            case "click": return Gen(0.07f, t => (N() * 0.6f + Mathf.Sin(t * 6.283f * 1800f) * 0.5f) * Mathf.Exp(-t * 90f));
-            case "pebble": return Gen(0.06f, t => (N() * 0.5f + Mathf.Sin(t * 6.283f * 900f) * 0.3f) * Mathf.Exp(-t * 70f) * 0.5f);
-            case "thud": return Gen(0.6f, t => (Mathf.Sin(t * 6.283f * 55f) * 0.9f + N() * 0.35f * Mathf.Exp(-t * 20f)) * Mathf.Exp(-t * 7f));
-            case "rumble": return Gen(1.7f, t => { lp += (N() - lp) * 0.06f; return (lp * 3.2f + Mathf.Sin(t * 6.283f * 38f) * 0.4f) * Mathf.Min(1f, t * 3f) * 0.9f; });
-            case "hiss": return Gen(1.5f, t => { float x = N(); float y = x - hp; hp = x; return y * 0.5f * Mathf.Min(1f, t * 6f) * (1f - t / 1.6f); });
-            case "creak": return Gen(0.95f, t => (Mathf.Sin(t * 6.283f * (170f + 70f * Mathf.Sin(t * 22f) + t * 60f)) * 0.6f + N() * 0.12f) * Mathf.Sin(Mathf.Pi * t / 0.95f));
-            case "twang": return Gen(0.5f, t => Mathf.Sin(t * 6.283f * 520f) * Mathf.Exp(-t * 8f) * 0.7f);
-            case "whoosh": return Gen(0.2f, t => N() * Mathf.Sin(Mathf.Pi * t / 0.2f) * 0.6f);
-            case "chain": return Gen(0.9f, t => ((int)(t * 20f) % 2 == 0 ? N() : 0f) * Mathf.Exp(-((t * 20f) % 1f) * 9f) * 0.7f);
-            case "slam": return Gen(0.7f, t => (Mathf.Sin(t * 6.283f * 80f) * 0.6f + N() * 0.6f * Mathf.Exp(-t * 30f) + Mathf.Sin(t * 6.283f * 420f) * 0.3f * Mathf.Exp(-t * 12f)) * Mathf.Exp(-t * 6f));
-            default: return Gen(0.1f, t => 0f);
-        }
-    }
-
-    public static void Play(Vector3 pos, string name, float volDb = 0f)
-    {
-        var w = Game.I?.World;
-        if (w == null || !GodotObject.IsInstanceValid(w) || !w.IsInsideTree()) return;
-        if (!Cache.TryGetValue(name, out var s)) Cache[name] = s = Make(name);
-        var p = new AudioStreamPlayer3D { Stream = s, MaxDistance = 40f, UnitSize = 7f, VolumeDb = volDb };
-        w.AddChild(p);
-        p.GlobalPosition = pos;
-        p.Finished += p.QueueFree;
-        p.Play();
-    }
+    /// <summary>Plays a trap sound through the audio engine. `name` is an SfxNames constant.</summary>
+    public static void Play(Vector3 pos, string name, float volDb = 0f) => Sfx.Play(name, pos, volDb);
 }
 
 /// <summary>Base of every trap: replicated state lives in Data ("s=state;key=val;..."), the server runs the logic, all peers animate.</summary>

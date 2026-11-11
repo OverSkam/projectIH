@@ -182,7 +182,7 @@ public partial class Miner : CharacterBody3D
         if (on && _body != null) { _mask = ItemVisuals.Mask(); _body.AddChild(_mask); }
     }
 
-    public void SetLanternOut(bool o) { LanternOut = o; if (_light != null) _light.Visible = !o; }
+    public void SetLanternOut(bool o) { if (_light != null && LanternOut != o) Sfx.Play(o ? SfxNames.LanternOut : SfxNames.LanternOn, GlobalPosition + Vector3.Up); LanternOut = o; if (_light != null) _light.Visible = !o; }
 
     public float RootLeft => _rootLeft;
     public void Root(float seconds) { _rootLeft = seconds; }
@@ -215,6 +215,7 @@ public partial class Miner : CharacterBody3D
     {
         if (_tool == null) return;
         _rig?.Swing();
+        AudioDirector.OnSwing(this);
         if (!IsLocal) return;
         _swing?.Kill();
         _swing = CreateTween();
@@ -240,6 +241,8 @@ public partial class Miner : CharacterBody3D
         _netPos = pos; _netYaw = yaw; _netPitch = pitch; _flags = flags;
     }
 
+    public int NetFlags => _flags;
+    public string Held => _held;
     public Vector3 EyePos => GlobalPosition + new Vector3(0, _crouching ? 1.1f : 1.6f, 0);
     public Vector3 LookDir => -_head.GlobalTransform.Basis.Z;
 
