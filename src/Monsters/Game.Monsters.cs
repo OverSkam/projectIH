@@ -13,7 +13,6 @@ public partial class Game
         if (World != null && World.Objects.TryGetValue(id, out var o) && o is MonsterObj m) m.SetNetState(pos, yaw);
     }
 
-    public void ServerAnnounce(string msg) => Rpc(nameof(ClientAnnounce), msg);
 
     public void ServerKnockback(int peer, Vector3 v) => RpcId(peer, nameof(ClientKnockback), v);
 }
