@@ -87,6 +87,11 @@ public class SteinDef
     public Action<ServerPlayer, float> OnTick;
     /// <summary>Server-side event hook (damage, kills, deposit, round start/end...).</summary>
     public Action<ServerPlayer, SteinEvent> OnEvent;
+    /// <summary>Passive modifiers that depend on the carrier (e.g. money). Runs inside ServerPlayer.RecalcStats().</summary>
+    public Action<ServerPlayer, StatBlock> ModifyFor;
+    /// <summary>Id of an active ability triggered with the stein key (Q), or null.</summary>
+    public string Ability;
+    public float AbilityCooldown, AbilityDuration;
 }
 
 public static class Steins
@@ -115,6 +120,29 @@ public static class Steins
             Id = "packmule", Name = "Packmule Stein", Description = "+2 sack slots.", Color = new Color(0.8f, 0.55f, 0.2f),
             Modify = s => s.SackBonus += 2,
         });
+        // ---- Common
+        Add(new SteinDef { Id = "strongarm", Name = "Strongarm Stein", Description = "Mine 50% faster, +25% melee damage.", Color = new Color(0.85f, 0.3f, 0.2f),
+            Modify = s => { s.MiningSpeedMul *= 1.5f; s.MeleeDamageMul *= 1.25f; } });
+        Add(new SteinDef { Id = "owl", Name = "Owl Stein", Description = "See in the dark (only you).", Color = new Color(1f, 0.85f, 0.2f),
+            Modify = s => s.DarkVision = true });
+        Add(new SteinDef { Id = "feather", Name = "Feather Stein", Description = "No fall damage, jump higher.", Color = new Color(0.92f, 0.95f, 1f),
+            Modify = s => { s.NoFallDamage = true; s.JumpMul *= 1.25f; } });
+        Add(new SteinDef { Id = "hush", Name = "Hush Stein", Description = "Monsters hear you half as far.", Color = new Color(0.7f, 0.55f, 0.95f),
+            Modify = s => s.NoiseMul *= 0.5f });
+        // ---- Rare
+        Add(new SteinDef { Id = "luck", Name = "Luck Stein", Rarity = Rarity.Rare, Description = "Better chests, shrines and veins.", Color = new Color(0.3f, 1f, 0.5f),
+            Modify = s => s.Luck += 1f });
+        Add(new SteinDef { Id = "midas", Name = "Midas Stein", Rarity = Rarity.Rare, Description = "Melee damage grows with your money (max +60%).", Color = new Color(1f, 0.78f, 0.1f),
+            ModifyFor = (p, s) => s.MeleeDamageMul *= 1f + Math.Min(0.6f, p.Money / 1500f),
+            OnEvent = (p, e) => { if (e.Kind == SteinEventKind.Deposit || e.Kind == SteinEventKind.RoundStart || e.Kind == SteinEventKind.RoundEnd) p.RecalcStats(); } });
+        Add(new SteinDef { Id = "ethereal", Name = "Ethereal Stein", Rarity = Rarity.Rare, Description = "[Q] Walk through thin walls for 5 s (25 s cooldown).", Color = new Color(0.5f, 0.95f, 1f),
+            Ability = "ethereal", AbilityCooldown = 25f, AbilityDuration = 5f });
+        // ---- Legendary
+        Add(new SteinDef { Id = "blood", Name = "Blood Stein", Rarity = Rarity.Legendary, Description = "Huge health, speed and damage. Kill a miner each round or lose the stein and half your money.", Color = new Color(0.75f, 0.02f, 0.05f),
+            Modify = s => { s.DamageTakenMul *= 0.5f; s.SpeedMul *= 1.3f; s.MeleeDamageMul *= 1.8f; s.RegenPerSec += 1f; },
+            OnEvent = ItemsServer.BloodEvent });
+        Add(new SteinDef { Id = "infinity", Name = "Infinity Stein", Rarity = Rarity.Legendary, Description = "No power. Hold it at the end of 3 rounds in a row and you win.", Color = new Color(1f, 1f, 1f),
+            OnEvent = ItemsServer.InfinityEvent });
     }
     public static SteinDef Get(string id) => All.TryGetValue(id, out var d) ? d : null;
     public static string RandomCommon(RandomNumberGenerator rng)
@@ -133,8 +161,6 @@ public class UtilityDef
     public bool IsLight;
     public bool IsPickaxe;
     public float MeleeDamage = 5f;
-    /// <summary>True when the behaviour is not implemented yet (placeholder for later content).</summary>
-    public bool Stub;
 }
 
 public static class Utilities
@@ -145,11 +171,11 @@ public static class Utilities
     {
         Add(new UtilityDef { Id = "pickaxe", Name = "Pickaxe", Description = "Mine ore. 20 damage.", Color = new Color(0.55f, 0.4f, 0.25f), IsPickaxe = true, MeleeDamage = 20f });
         Add(new UtilityDef { Id = "lantern", Name = "Lantern", Description = "Light.", Color = new Color(1f, 0.8f, 0.4f), IsLight = true });
-        Add(new UtilityDef { Id = "rope", Name = "Rope", Description = "Climb pits.", Color = new Color(0.7f, 0.6f, 0.3f), Stub = true });
-        Add(new UtilityDef { Id = "gasmask", Name = "Gas mask", Description = "Immune to gas.", Color = new Color(0.3f, 0.5f, 0.3f), Stub = true });
-        Add(new UtilityDef { Id = "map", Name = "Map", Description = "Shows the layout.", Color = new Color(0.9f, 0.85f, 0.6f), Stub = true });
-        Add(new UtilityDef { Id = "dynamite", Name = "Dynamite", Description = "Boom.", Color = new Color(0.8f, 0.2f, 0.1f), Stub = true });
-        Add(new UtilityDef { Id = "beartrap", Name = "Bear trap", Description = "Placeable trap.", Color = new Color(0.4f, 0.4f, 0.45f), Stub = true });
+        Add(new UtilityDef { Id = "rope", Name = "Rope", Description = "RMB at a ledge: hangs a climbable rope.", Color = new Color(0.7f, 0.6f, 0.3f) });
+        Add(new UtilityDef { Id = "gasmask", Name = "Gas mask", Description = "Immune to gas.", Color = new Color(0.3f, 0.5f, 0.3f) });
+        Add(new UtilityDef { Id = "map", Name = "Map", Description = "Hold RMB: room layout and your position.", Color = new Color(0.9f, 0.85f, 0.6f) });
+        Add(new UtilityDef { Id = "dynamite", Name = "Dynamite", Description = "RMB: throw. 3 s fuse. Loud.", Color = new Color(0.8f, 0.2f, 0.1f) });
+        Add(new UtilityDef { Id = "beartrap", Name = "Bear trap", Description = "RMB: place. Roots the first to step on it.", Color = new Color(0.4f, 0.4f, 0.45f) });
     }
     public static UtilityDef Get(string id) => string.IsNullOrEmpty(id) ? null : (All.TryGetValue(id, out var d) ? d : null);
 }
