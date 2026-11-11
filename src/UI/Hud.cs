@@ -142,14 +142,14 @@ void fragment(){
     {
         _bl = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
         _bl.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
-        _bl.OffsetLeft = 20; _bl.OffsetTop = -112; _bl.OffsetRight = 340; _bl.OffsetBottom = -18;
+        _bl.OffsetLeft = 20; _bl.OffsetTop = -112; _bl.OffsetRight = 290; _bl.OffsetBottom = -18;
         _root.AddChild(_bl);
         var v = UiKit.VBox(6); UiKit.FullRect(v); _bl.AddChild(v);
 
         var hh = UiKit.HBox(8);
         v.AddChild(hh);
         hh.AddChild(new HeartIcon());
-        _hpBar = new FillBar { CustomMinimumSize = new Vector2(270, 28), Fill = new Color(0.82f, 0.18f, 0.18f), FontSize = 18, Max = 100 };
+        _hpBar = new FillBar { CustomMinimumSize = new Vector2(220, 28), Fill = new Color(0.82f, 0.18f, 0.18f), FontSize = 18, Max = 100 };
         hh.AddChild(_hpBar);
 
         var mh = UiKit.HBox(8);
@@ -166,10 +166,10 @@ void fragment(){
     SlotView MakeSlot(HBoxContainer into, string key = null)
     {
         var sv = new SlotView();
-        var p = new PanelContainer { CustomMinimumSize = new Vector2(54, 54), MouseFilter = Control.MouseFilterEnum.Ignore };
+        var p = new PanelContainer { CustomMinimumSize = new Vector2(48, 48), MouseFilter = Control.MouseFilterEnum.Ignore };
         sv.Style = UiTheme.Box(new Color(0.07f, 0.06f, 0.05f, 0.85f), UiTheme.BrassDark, 6, 2, 4, 4);
         p.AddThemeStyleboxOverride("panel", sv.Style);
-        sv.Icon = new ItemIcon { CustomMinimumSize = new Vector2(42, 42) };
+        sv.Icon = new ItemIcon { CustomMinimumSize = new Vector2(38, 38) };
         sv.Icon.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter; sv.Icon.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
         p.AddChild(sv.Icon);
         if (key != null)
@@ -183,9 +183,9 @@ void fragment(){
         var col = UiKit.VBox(1);
         col.AddChild(p);
         sv.Caption = UiKit.MakeLabel("", 13, UiTheme.Dim, HorizontalAlignment.Center, 3);
-        sv.Caption.CustomMinimumSize = new Vector2(70, 0); sv.Caption.ClipText = true;
+        sv.Caption.CustomMinimumSize = new Vector2(58, 0); sv.Caption.ClipText = true;
         col.AddChild(sv.Caption);
-        col.CustomMinimumSize = new Vector2(70, 0);
+        col.CustomMinimumSize = new Vector2(58, 0);
         into.AddChild(col);
         return sv;
     }
@@ -198,7 +198,7 @@ void fragment(){
         anchor.OffsetTop = -112; anchor.OffsetBottom = -14;
         _root.AddChild(anchor);
         _slotRow = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        _slotRow.AddThemeConstantOverride("separation", 22);
+        _slotRow.AddThemeConstantOverride("separation", 12);
         _slotRow.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         _slotRow.GrowHorizontal = Control.GrowDirection.Both; _slotRow.GrowVertical = Control.GrowDirection.Begin;
         anchor.AddChild(_slotRow);

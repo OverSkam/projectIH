@@ -24,8 +24,6 @@ public partial class PauseMenu : CanvasLayer
 
         var panel = new PanelContainer();
         center.AddChild(panel);
-        var stack = new Control();
-        panel.AddChild(stack);
 
         _menuBox = UiKit.VBox(12);
         _menuBox.CustomMinimumSize = new Vector2(340, 0);

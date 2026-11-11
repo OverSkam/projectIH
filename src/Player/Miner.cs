@@ -151,7 +151,7 @@ public partial class Miner : CharacterBody3D
             if (def.IsPickaxe)
             {
                 HeldVisuals.Pickaxe(_tool, def.Color);
-                _toolRest = IsLocal ? new Vector3(0.55f, -0.1f, 0) : new Vector3(Mathf.Pi / 2f, 0, 0);
+                _toolRest = IsLocal ? new Vector3(0.6f, -0.45f, -0.15f) : new Vector3(Mathf.Pi / 2f, 0, 0);
             }
             else if (def.IsLight)
             {
@@ -315,11 +315,11 @@ public partial class Miner : CharacterBody3D
         _handT += dt;
         float move = new Vector2(Velocity.X, Velocity.Z).Length();
         float bob = IsOnFloor() ? Mathf.Sin((float)_handT * 9f) * 0.012f * Mathf.Min(1f, move / 4f) : 0f;
-        if (_leftHand != null) _leftHand.Position = new Vector3(-0.27f, -0.3f + bob, -0.5f);
+        if (_leftHand != null) _leftHand.Position = new Vector3(-0.3f, -0.32f + bob, -0.5f);
         if (_tool != null && (_swing == null || !_swing.IsRunning()))
         {
             bool lantern = Utilities.Get(_held)?.IsLight == true;
-            _tool.Position = new Vector3(0.33f, -0.3f + bob, -0.55f);
+            _tool.Position = lantern ? new Vector3(0.3f, -0.12f + bob, -0.6f) : new Vector3(0.33f, -0.3f + bob, -0.55f);
             _tool.Rotation = _toolRest + (lantern ? new Vector3(Mathf.Sin((float)_handT * 1.7f) * 0.05f + move * 0.006f, 0, Mathf.Sin((float)_handT * 1.3f) * 0.04f) : Vector3.Zero);
         }
     }

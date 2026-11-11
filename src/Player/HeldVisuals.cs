@@ -16,8 +16,9 @@ public static class HeldVisuals
         var m = Util.BoxMesh(size, c, emission); m.Position = pos; if (rot.HasValue) m.Rotation = rot.Value; p.AddChild(m); return m;
     }
 
-    public static void Pickaxe(Node3D tool, Color handle)
+    public static void Pickaxe(Node3D toolRoot, Color handle)
     {
+        var tool = new Node3D { Scale = Vector3.One * 0.75f }; toolRoot.AddChild(tool);
         Box(tool, new Vector3(0.05f, 0.05f, 0.85f), new Vector3(0, 0, 0.08f), handle);
         Box(tool, new Vector3(0.055f, 0.055f, 0.1f), new Vector3(0, 0, 0.5f), handle.Darkened(0.35f)); // wrapped end
         Box(tool, new Vector3(0.09f, 0.11f, 0.12f), new Vector3(0, 0, -0.33f), Steel.Darkened(0.2f)); // socket
@@ -66,7 +67,7 @@ public static class HeldVisuals
         var h = new Node3D { Name = "Hand" };
         Box(h, new Vector3(0.1f, 0.09f, 0.11f), new Vector3(0, 0.01f, 0.0f), Leather);        // glove
         Box(h, new Vector3(0.1f, 0.03f, 0.06f), new Vector3(0, 0.05f, 0.08f), Leather.Darkened(0.2f)); // knuckle/thumb
-        Box(h, new Vector3(0.09f, 0.09f, 0.5f), new Vector3(0.03f, -0.07f, 0.3f), Sleeve, 0f, new Vector3(0.2f, -0.12f, 0));
+        Box(h, new Vector3(0.07f, 0.07f, 0.4f), new Vector3(0.03f, -0.06f, 0.25f), Sleeve, 0f, new Vector3(0.2f, -0.12f, 0));
         Box(h, new Vector3(0.1f, 0.1f, 0.05f), new Vector3(0.012f, -0.035f, 0.085f), Leather.Darkened(0.35f), 0f, new Vector3(0.2f, -0.12f, 0)); // cuff
         tool.AddChild(h);
         return h;
@@ -74,9 +75,9 @@ public static class HeldVisuals
 
     public static Node3D LeftHandFp()
     {
-        var h = new Node3D { Position = new Vector3(-0.27f, -0.3f, -0.5f), Rotation = new Vector3(0.25f, 0.45f, 0) };
+        var h = new Node3D { Position = new Vector3(-0.3f, -0.32f, -0.5f), Rotation = new Vector3(0.05f, 0.35f, 0) };
         Box(h, new Vector3(0.1f, 0.09f, 0.11f), new Vector3(0, 0, 0), Leather);
-        Box(h, new Vector3(0.09f, 0.09f, 0.5f), new Vector3(-0.03f, -0.07f, 0.3f), Sleeve, 0f, new Vector3(0.2f, 0.12f, 0));
+        Box(h, new Vector3(0.07f, 0.07f, 0.4f), new Vector3(-0.03f, -0.06f, 0.25f), Sleeve, 0f, new Vector3(0.2f, 0.12f, 0));
         Box(h, new Vector3(0.1f, 0.1f, 0.05f), new Vector3(-0.012f, -0.035f, 0.085f), Leather.Darkened(0.35f), 0f, new Vector3(0.2f, 0.12f, 0));
         return h;
     }
