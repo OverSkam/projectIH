@@ -134,7 +134,7 @@ public partial class GasVentObj : TrapBase
                 _cloud.Emitting = false; _glow.LightEnergy = 0.35f; _wisp.Amount = 8; _wisp.Emitting = true;
                 break;
             case "warn":
-                _wisp.Amount = 30; _wisp.Speed = 1f; _glow.LightEnergy = 1.2f;
+                _wisp.Amount = 30; _wisp.SpeedScale = 2f; _glow.LightEnergy = 1.2f;
                 TrapSfx.Play(GlobalPosition, "hiss", -6f);
                 break;
             case "vent":
@@ -211,7 +211,7 @@ public partial class DartWireObj : TrapBase
     public override void Build()
     {
         float a = GF("a");
-        Prelude(a);
+        Prelude("a");
         _wp = GF("wp", 2f); _wn = GF("wn", 2f); _dl = GF("dl", 6f); _range = GF("rg", 12f);
         var iron = new Color(0.18f, 0.17f, 0.17f);
         // wire + pegs

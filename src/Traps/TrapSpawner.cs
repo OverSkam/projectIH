@@ -45,8 +45,21 @@ public static class TrapSpawner
 
     static bool NearCamp(Game g, Vector3 pos) => g.World.Cave.CampZone.Grow(TrapTuning.CampMargin).HasPoint(pos);
 
+    /// <summary>Runs a on the server after the freshly built cave is in the physics space (raycasts miss before that).</summary>
+    public static async void Defer(Game g, Action a)
+    {
+        var w = g.World;
+        await g.ToSignal(g.GetTree(), SceneTree.SignalName.PhysicsFrame);
+        await g.ToSignal(g.GetTree(), SceneTree.SignalName.PhysicsFrame);
+        if (g.World != w || !GodotObject.IsInstanceValid(w) || g.Phase != GamePhase.Round) return;
+        a();
+    }
+
     // ---------------------------------------------------------------- trap markers
     public static void FromTrapMarker(Game g, RoomInfo room, SpawnMarker m, RandomNumberGenerator rng)
+        => Defer(g, () => PlaceTrap(g, room, m, rng));
+
+    static void PlaceTrap(Game g, RoomInfo room, SpawnMarker m, RandomNumberGenerator rng)
     {
         if (!Net.I.IsServer || NearCamp(g, m.Pos) || !Spaced(g, m.Pos)) return;
         int round = g.Round, depth = room.Depth;
@@ -111,6 +124,9 @@ public static class TrapSpawner
 
     // ---------------------------------------------------------------- lever markers
     public static void FromLeverMarker(Game g, RoomInfo room, SpawnMarker m, RandomNumberGenerator rng)
+        => Defer(g, () => PlaceLever(g, room, m, rng));
+
+    static void PlaceLever(Game g, RoomInfo room, SpawnMarker m, RandomNumberGenerator rng)
     {
         if (!Net.I.IsServer || NearCamp(g, m.Pos) || !Spaced(g, m.Pos)) return;
         var kinds = new List<string> { "gate", "collapse", "trapdoor" };
@@ -126,18 +142,22 @@ public static class TrapSpawner
     {
         var pr = Probe.At(pos);
         if (!pr.Valid && !force) return false;
-        var lp = new Vector3(pos.X, pr.FloorY, pos.Z);
+        // pedestal sits beside the passage axis, never in the way
+        float sideSgn = pr.SideP >= pr.SideN ? 1f : -1f;
+        float off = Mathf.Clamp(Mathf.Max(pr.SideP, pr.SideN) - 1.0f, 0f, 1.2f);
+        var lp = new Vector3(pos.X, pr.FloorY, pos.Z) + TrapUtil.Dir(pr.CorrAng + Mathf.Pi / 2f) * sideSgn * off;
         // direction to the mechanism: freer side of the passage axis
         bool fwd = pr.FreeFwd >= pr.FreeBack;
         float a = pr.CorrAng + (fwd ? 0f : Mathf.Pi);
         float free = fwd ? pr.FreeFwd : pr.FreeBack;
         var dir = TrapUtil.Dir(a);
-        float dist = mech switch { "gate" => Mathf.Clamp(free - 1.5f, 4f, 7f), "collapse" => 5.5f, _ => 7.5f };
+        float dist = mech switch { "gate" => Mathf.Clamp(free - 1.5f, 3.5f, 5f), "collapse" => 5.5f, _ => 7.5f };
         if (!force && free < dist + 1f) return false;
         var mp = lp + dir * dist;
         var mpr = Probe.At(mp);
         if (!force && !mpr.Valid) return false;
         var mfp = new Vector3(mp.X, mpr.FloorY, mp.Z);
+        if (Util.HasArg("trapdebug")) Util.Log($"TRAPDBG lever={lp} marker={pos} corr={pr.CorrAng:0.00} free={pr.FreeFwd:0.#}/{pr.FreeBack:0.#} side={pr.SideP:0.#}/{pr.SideN:0.#} mech={mfp} mw={mpr.Width:0.#} mcorr={mpr.CorrAng:0.00}");
 
         string data; string objKind; Vector3 anchor; float cd;
         switch (mech)

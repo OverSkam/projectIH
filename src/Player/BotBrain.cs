@@ -38,7 +38,7 @@ public class BotBrain : IMinerController
             case "miner": Miner(m, ref inp, g); break;
             case "killer": Killer(m, ref inp, g); break;
             case "pit": Pit(m, ref inp, g); break;
-            default: break; // idle
+            default: if (_routine.StartsWith("trap")) TrapBots.Run(_routine, m, ref inp, g); break; // idle / trap test routines (src/Traps)
         }
         _yaw = inp.Yaw; _pitch = inp.Pitch;
         if (_unstick > 0) { _unstick -= dt; inp.Jump = true; inp.Move = new Vector2(1, 0.5f); }

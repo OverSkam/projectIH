@@ -19,7 +19,7 @@ public partial class GateObj : TrapBase, ILeverMech
 
     public override void Build()
     {
-        Prelude(GF("a"));
+        Prelude("a");
         CollisionLayer = 1 | 4 | 32; CollisionMask = 0;
         _w = GF("w", 4f); _h = GF("h", 3.5f);
         _up = _h - 0.7f;

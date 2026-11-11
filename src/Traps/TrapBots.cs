@@ -81,7 +81,7 @@ public static class TrapBots
         if (o == null) return;
         var d = Kv(o);
         var target = o.GlobalPosition;
-        if (o.Kind == "trap_trapdoor") target += TrapUtil.Dir(Fv(d, "a")) * (-Fv(d, "hl", 6f) * 0.25f);
+        if (o.Kind == "trap_trapdoor") target += TrapUtil.Dir(Fv(d, "a")) * (-Fv(d, "hl", 7f) * 0.4f);
         if (m.GlobalPosition.Y < o.GlobalPosition.Y - 2.5f) Once("trapdoor_fell", $"y={m.GlobalPosition.Y:0.0}");
         if (Walk(m, ref inp, target, 0.3f)) { inp.Move = Vector2.Zero; inp.Sprint = false; Once("trap_standing", o.Kind); }
     }
@@ -108,6 +108,11 @@ public static class TrapBots
         if (o == null) return;
         string st = Kv(o).GetValueOrDefault("s", "");
         if (st != "ready") { inp.Move = Vector2.Zero; Once("lever_seen_pulled"); return; }
+        if (Kv(o).GetValueOrDefault("mk", "") == "collapse")
+        {
+            var mp = new Vector3(Fv(Kv(o), "fx"), 0, Fv(Kv(o), "fz"));
+            if (!g.World.Miners().Any(x => x != m && new Vector2(x.GlobalPosition.X - mp.X, x.GlobalPosition.Z - mp.Z).Length() < 1.2f)) { inp.Move = Vector2.Zero; return; }
+        }
         if (!Walk(m, ref inp, o.GlobalPosition, 1.7f)) return;
         inp.Move = Vector2.Zero;
         var d = o.GlobalPosition + Vector3.Up * 1f - m.EyePos;
@@ -133,14 +138,14 @@ public static class TrapBots
             case 0: if (Walk(m, ref inp, home, 0.8f)) _stage = 1; break;
             case 1:
                 inp.Move = Vector2.Zero;
-                if (st == "down") { _stage = 2; _t = _clock; }
+                if (st == "down") { _stage = 2; _t = _clock; Util.Log($"GATEBOT start pos={m.GlobalPosition} P={P} dir={dir} home={home} far={far}"); }
                 break;
             case 2:   // push into the closed gate: must stay on the home side
                 Steer(m, ref inp, far);
                 if (along < 0.2f) { Util.Fail("gate_blocked", "crossed a closed gate"); _stage = 9; }
                 else if (_clock - _t > 2.5)
                 {
-                    Util.Pass("gate_blocked", $"along={along:0.0} state={st}");
+                    Util.Pass("gate_blocked", $"along={along:0.0} state={st} pos={m.GlobalPosition}");
                     _stage = 3;
                 }
                 break;

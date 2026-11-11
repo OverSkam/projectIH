@@ -19,6 +19,11 @@ public static class TrapDebug
     public static void OnPopulated(Game g, RandomNumberGenerator rng)
     {
         if (!Net.I.IsServer) return;
+        if (Util.HasArg("spawntrap") || Util.HasArg("trapnoise")) TrapSpawner.Defer(g, () => Populate(g, rng));
+    }
+
+    static void Populate(Game g, RandomNumberGenerator rng)
+    {
         string arg = Util.Arg("spawntrap", "");
         if (arg != "")
         {

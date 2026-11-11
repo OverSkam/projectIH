@@ -14,7 +14,7 @@ public static class TrapTuning
     // spike plate
     public const float SpikeHalf = 0.85f, SpikeClickDelay = 0.6f, SpikeDamage = 30f, SpikeUpTime = 1.2f, SpikeRearm = 3f;
     // rockfall
-    public const float RockRadius = 2.4f, RockRumble = 1.5f, RockFallTime = 0.45f, RockCrushDamage = 65f, CollapseDamage = 120f;
+    public const float RockRadius = 2.4f, RockRumble = 1.5f, RockFallTime = 0.45f, RockCrushDamage = 65f, CollapseDamage = 200f;
     public const float RockNoiseMin = 12f;           // loudness needed (metres) to trigger a rockfall...
     public const float RockNoiseRange = 18f;         // ...and max distance (also limited by the loudness itself)
     public const float RockRandomMin = 110f, RockRandomMax = 260f;
@@ -25,7 +25,7 @@ public static class TrapTuning
     public const float DartWireHeight = 0.22f, DartTriggerHeight = 0.4f, DartTelegraph = 0.45f, DartSpeed = 22f, DartDamage = 9f, DartReload = 5f, DartStagger = 0.12f;
     public const int DartCount = 3;
     // trapdoor
-    public const float PitDepth = 3.8f, PitLength = 6f, PitWidth = 2.2f, TrapdoorStand = 0.5f, TrapdoorCreak = 0.9f, TrapdoorOpen = 7f, TrapdoorLeverOpen = 6f, TrapdoorRearm = 6f;
+    public const float PitDepth = 4.6f, PitLength = 7f, PitWidth = 2.2f, TrapdoorStand = 0.5f, TrapdoorCreak = 0.9f, TrapdoorOpen = 7f, TrapdoorLeverOpen = 6f, TrapdoorRearm = 6f;
     // levers / gate
     public const float GateWarn = 1.0f, GateDown = 10f, GateRise = 0.8f, LeverCooldown = 20f, CollapseLeverCooldown = 30f;
     // placement
@@ -189,11 +189,11 @@ public abstract partial class TrapBase : NetObject
     }
 
     /// <summary>Called by Build() of subclasses first.</summary>
-    protected void Prelude(float angle = 0f)
+    protected void Prelude(string angleKey = null)
     {
         CollisionLayer = 0; CollisionMask = 0;
         D = Kv(Data);
-        Pivot = new Node3D { Rotation = new Vector3(0, -angle, 0) };
+        Pivot = new Node3D { Rotation = new Vector3(0, angleKey == null ? 0f : -GF(angleKey), 0) };
         AddChild(Pivot);
     }
 

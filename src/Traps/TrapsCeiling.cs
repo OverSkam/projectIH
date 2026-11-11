@@ -214,7 +214,7 @@ public partial class TrapdoorObj : TrapBase, ILeverMech
 
     public override void Build()
     {
-        Prelude(GF("a"));
+        Prelude("a");
         CollisionLayer = TrapTuning.PitLayer; CollisionMask = 0;
         _hl = GF("hl", TrapTuning.PitLength); _hw = GF("hw", TrapTuning.PitWidth); _depth = GF("dp", TrapTuning.PitDepth);
         var rock = new Color(0.2f, 0.18f, 0.17f);
@@ -328,7 +328,10 @@ public partial class TrapdoorObj : TrapBase, ILeverMech
                 if (GB("lv") || _t > 0) { _stand = 0; break; }
                 bool on = false;
                 foreach (var p in TrapUtil.Miners())
+                {
+                    if (Util.HasArg("trapdebug") && Engine.GetPhysicsFrames() % 120 == 0) Util.Log($"TRAPDBG {p.Name} pos={p.Pos} local={Pivot.ToLocal(p.Pos)} obj={GlobalPosition} hl={_hl} hw={_hw}");
                     if (InLocal(p, out var l) && l.X < 0.5f && p.Pos.Y < Floor + 0.5f && p.Pos.Y > Floor - 0.5f) on = true;
+                }
                 _stand = on ? _stand + dt : 0;
                 if (_stand >= TrapTuning.TrapdoorStand) { _stand = 0; SetState("creak"); _t = TrapTuning.TrapdoorCreak; }
                 break;
