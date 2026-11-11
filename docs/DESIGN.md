@@ -52,9 +52,9 @@ monster drops. Luck improves rarity.
 - **Legendary:**
   - **Blood** — large boost to health, speed and damage, but you must kill one miner each round; if you
     did not, at round end you lose the stein and half your money.
-  - **Infinity** (6 variants) — gives no power and uses a slot. If one miner is holding an Infinity Stein
-    at the end of 3 rounds in a row, they win instantly. The Goblin announces "an Infinity Stein has been
-    carried for N rounds" without naming the holder.
+  - **Infinity** — a single item that looks like six stones fused together and takes one stein slot.
+    It gives no power. If one miner is holding it at the end of 3 rounds in a row, they win instantly.
+    The Goblin announces "the Infinity Stein has been carried for N rounds" without naming the holder.
 
 ## Utility items
 Pickaxe (mine + 20 dmg melee), Lantern (light; without it the cave is nearly black), Rope (anchor at a
