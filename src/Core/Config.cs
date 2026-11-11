@@ -29,7 +29,7 @@ public class MatchConfig
     {
         Name = "debug",
         Rounds = 2,
-        BaseRoundSeconds = 55f,
+        BaseRoundSeconds = 60f,
         RoundSecondsGrowth = 0f,
         QuotaPerPlayer = 0,
         QuotaFlat = 15,

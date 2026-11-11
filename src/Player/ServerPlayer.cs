@@ -17,6 +17,7 @@ public class ServerPlayer
     public StatBlock Stats = new();
     public int DeliveredThisRound;
     public bool Cursed;
+    public bool DiedLastRound, Initialized;
     public int KillsThisRound;
     public Vector3 Pos;
     public float Yaw, Pitch;

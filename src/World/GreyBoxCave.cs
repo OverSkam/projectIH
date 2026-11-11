@@ -118,11 +118,18 @@ public class GreyBoxCave : ICaveBuilder
         float sideLen = (pz1 - pz0) / 2f - rampHalf;
         Solid(new Vector3(px1 - 0.25f, wallY, pz0 + sideLen / 2f), new Vector3(0.5f, wallH, sideLen), wallCol);
         Solid(new Vector3(px1 - 0.25f, wallY, pz1 - sideLen / 2f), new Vector3(0.5f, wallH, sideLen), wallCol);
+        // closes the gap under the ramp so nobody walks out beneath the floor
+        Solid(new Vector3(px1 - 0.25f, -0.75f - 2.625f, cz), new Vector3(0.5f, 5.25f, rampHalf * 2f), wallCol);
         // ramp rising towards +x
-        float dx = px1 - px0; float ang = Mathf.Atan2(PitDepth, dx); float len2 = Mathf.Sqrt(dx * dx + PitDepth * PitDepth);
-        var mid2 = new Vector3(cx, -PitDepth / 2f, cz);
+        // surface emerges from the pit floor 1m in front of the west wall and meets the floor edge at px1
+        float xe = px0 + 1.5f;
+        float dx = px1 - xe; float ang = Mathf.Atan2(PitDepth, dx);
+        var dirv = new Vector3(Mathf.Cos(ang), Mathf.Sin(ang), 0);
         var normal = new Vector3(-Mathf.Sin(ang), Mathf.Cos(ang), 0);
-        Solid(mid2 - normal * 0.2f, new Vector3(len2, 0.4f, 3f), new Color(0.4f, 0.32f, 0.2f), new Basis(Vector3.Back, ang));
+        var pStart = new Vector3(xe, -PitDepth, cz) - dirv * 1.0f;   // buried 1m in the pit floor
+        var pEnd = new Vector3(px1, 0, cz);
+        float len2 = pStart.DistanceTo(pEnd);
+        Solid((pStart + pEnd) * 0.5f - normal * 0.2f, new Vector3(len2, 0.4f, 3f), new Color(0.4f, 0.32f, 0.2f), new Basis(Vector3.Back, ang));
 
         // metadata
         info.CampZone = new Aabb(new Vector3(-10, -1, -10), new Vector3(20, H + 3, 20));
