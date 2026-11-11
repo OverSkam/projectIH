@@ -133,7 +133,7 @@ public class GreyBoxCave : ICaveBuilder
 
         // metadata
         info.CampZone = new Aabb(new Vector3(-10, -1, -10), new Vector3(20, H + 3, 20));
-        info.GoblinPos = new Vector3(0, 0, -7);
+        info.GoblinPos = new Vector3(-5, 0, -7); // off the north tunnel axis
         for (int i = 0; i < 8; i++) info.MinerSpawns.Add(new Vector3(-7 + 2 * i, 0.3f, 6.5f));
         var markerOffs = new (string k, float x, float z)[]
         {

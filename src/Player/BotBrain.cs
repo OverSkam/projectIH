@@ -122,6 +122,7 @@ public class BotBrain : IMinerController
         if (target == null) { WalkTo(m, ref inp, new Vector3(0, 0, 3)); return; }
         EquipPickaxe(g);
         var tp = target.GlobalPosition;
+        if (Util.HasArg("botdebug") && _actTimer <= 0) { _actTimer = 1; Util.Log($"KILLERBOT t={g.TimeLeft:0.0} me={m.GlobalPosition} target={tp} d={bd:0.0} held={g.OwnInv.Held}"); }
         if (bd > 10f) WalkTo(m, ref inp, tp, 1.0f);
         else if (bd > 1.8f) { Face(m, ref inp, tp + Vector3.Up * 1.1f); inp.Pitch = 0; inp.Move = new Vector2(0, 1); inp.Sprint = true; TrackStuck(m, ref inp); }
         if (bd < 2.6f)
