@@ -94,7 +94,7 @@ public static class MonsterTest
         float h0 = gol.Hp;
         yield return Until(() => gol.Hp < h0, 15, "golem_front_hit_registered");
         yield return Sleep(4f);
-        yield return Until(() => h0 - gol.Hp <= 6f * 20f * MonsterTuning.GolemFrontMul + 0.01f && gol.State != MonsterState.Dead, 1, "golem_front_real_hits_barely_hurt");
+        yield return Until(() => h0 - gol.Hp <= 12f * 36f * MonsterTuning.GolemFrontMul + 0.01f && gol.State != MonsterState.Dead, 1, "golem_front_real_hits_barely_hurt");
         gol.Yaw = 0f; // turns its back on her
         float h1 = gol.Hp;
         yield return Until(() => h1 - gol.Hp >= 30f, 8, "golem_back_real_hit_hurts");

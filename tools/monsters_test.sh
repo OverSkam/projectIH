@@ -22,13 +22,13 @@ run_scenario() {
   local L="$LOGDIR/$name"; mkdir -p "$L"
   echo "== scenario $name"
   local PIDS=()
-  godot --headless --path . -- --host --name=Host --port="$PORT" --autostart="$autostart" --preset=debug --bot=idle --nomonsters --montest="$name" --timeout="$TIMEOUT" > "$L/host.log" 2>&1 &
+  godot --headless --path . -- --cave=greybox --host --name=Host --port="$PORT" --autostart="$autostart" --preset=debug --bot=idle --nomonsters --montest="$name" --timeout="$TIMEOUT" > "$L/host.log" 2>&1 &
   PIDS+=($!)
   sleep 4
-  godot --headless --path . -- --join=127.0.0.1 --port="$PORT" --name=Alice --bot=mon "$@" --timeout="$TIMEOUT" > "$L/alice.log" 2>&1 &
+  godot --headless --path . -- --cave=greybox --join=127.0.0.1 --port="$PORT" --name=Alice --bot=mon "$@" --timeout="$TIMEOUT" > "$L/alice.log" 2>&1 &
   PIDS+=($!)
   if [ "$bob" = "1" ]; then
-    godot --headless --path . -- --join=127.0.0.1 --port="$PORT" --name=Bob --bot=mon --monpos=40:-2 --monface=38:-2 --timeout="$TIMEOUT" > "$L/bob.log" 2>&1 &
+    godot --headless --path . -- --cave=greybox --join=127.0.0.1 --port="$PORT" --name=Bob --bot=mon --monpos=40:-2 --monface=38:-2 --timeout="$TIMEOUT" > "$L/bob.log" 2>&1 &
     PIDS+=($!)
   fi
   local start=$(date +%s)
