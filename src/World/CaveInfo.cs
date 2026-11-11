@@ -4,7 +4,8 @@ using Godot;
 
 namespace AppStein;
 
-/// <summary>Spawn marker inside a room. Kind: "vein", "ore" (loose), "monster", "trap", "loot".</summary>
+/// <summary>Spawn marker inside a room. Kind: "vein", "ore" (loose), "monster", "dragon", "trap", "lever", "loot", "chest", "shrine".
+/// "vein"/"ore" are spawned by Game.PopulateWorld; every other kind is handled by Game.MarkerSpawners[kind] (see Seams.cs).</summary>
 public class SpawnMarker
 {
     public string Kind;
@@ -32,6 +33,9 @@ public class CaveInfo
     /// <summary>Walkable waypoint graph (used by bots, and later by monster AI).</summary>
     public List<Vector3> NavNodes = new();
     public List<(int a, int b)> NavEdges = new();
+    /// <summary>Water pools (Ember Elementals die inside; puts out fire).</summary>
+    public List<Aabb> WaterZones = new();
+    public bool InWater(Vector3 p) { foreach (var w in WaterZones) if (w.HasPoint(p)) return true; return false; }
 
     public bool InCamp(Vector3 p) => CampZone.HasPoint(p);
 

@@ -85,3 +85,21 @@ To avoid merge conflicts in `Game.cs`, put new gameplay RPCs in a `partial class
 - Peer ids are Godot's random ints (not 1..8). Quota/round-time numbers are first guesses (see `MatchConfig.Default`).
 - Not verifiable headless: visuals, lighting, input feel, mouse capture/pause menu behaviour, HUD layout. Bots navigate only the grey-box cave via its waypoint graph.
 - A hard-killed host is noticed by clients only after the ENet timeout (~30 s); a normal quit disconnects immediately.
+
+## Extension points for parallel content work (`src/Core/Seams.cs`) — use these instead of editing shared files
+- **Content modules:** a static class marked `[ContentModule]` with `public static void Register()` runs once on every peer at startup. Do all your
+  registration there (`NetObject.Factories["kind"] = ...`, `Game.MarkerSpawners["kind"] = ...`, event subscriptions). One module class per workstream, in its own folder.
+  Do NOT edit the `Factories` initializer or `Game.PopulateWorld`.
+- **Marker spawners:** `Game.MarkerSpawners[kind] = (game, room, marker, rng) => ...` is called on the server for every cave marker of that kind each round.
+  Kinds: `monster`, `dragon` (Monsters); `trap`, `lever` (Traps); `loot`, `chest`, `shrine` (Items). `Game.RoundPopulated` fires afterwards.
+- **Noise:** call `Game.ServerNoise(pos, loudnessMetres, byPlayer)` on the server when something is loud; subscribe to `Game.NoiseMade` to react (monsters, rockfalls).
+- **Damage causes:** pass a cause string to `ServerPlayer.TakeDamage`: `melee`, `fall`, `gas`, `fire`, `crush`, `spikes`, `monster`, `explosion`, `collapse`.
+  `gas` is ignored when `Stats.GasImmune`.
+- **StatBlock** already has `GasImmune`, `DarkVision`, `Luck`, `NoiseMul` (owned by the Items workstream; others only read them).
+- **Physics layers:** `Layers.World/Miners/Solid/Pickup/ThinWall/Monsters`. Thin (Ethereal) walls are StaticBodies on `Layers.ThinWall` built by the cave.
+- **Water:** `CaveInfo.WaterZones` / `InWater(pos)`.
+- **New RPCs:** in your own `partial class Game` file inside your folder.
+
+## Seeing the game
+`tools/screenshot.sh <outdir> <frames> <game args>` renders off-screen and writes PNG frames (10 frames = 1 s). Open a PNG with your image-reading tool to check
+visuals. Software rendering is slow: keep it to a few hundred frames.

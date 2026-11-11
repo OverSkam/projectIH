@@ -69,6 +69,7 @@ public class ServerPlayer
     public float TakeDamage(float amount, ServerPlayer source, string cause)
     {
         if (!Alive) return 0;
+        if (cause == "gas" && Stats.GasImmune) return 0;
         float dmg = amount * Stats.DamageTakenMul;
         Health -= dmg;
         Dirty = true;

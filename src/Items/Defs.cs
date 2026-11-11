@@ -58,6 +58,13 @@ public sealed class StatBlock
     public float SpeedMul = 1f, JumpMul = 1f, DamageTakenMul = 1f, MeleeDamageMul = 1f, MiningSpeedMul = 1f, RegenPerSec = 0f;
     public int SackBonus = 0;
     public bool NoFallDamage = false;
+    /// <summary>Immune to damage with cause "gas".</summary>
+    public bool GasImmune = false;
+    public bool DarkVision = false;
+    /// <summary>0 = normal. Positive improves drop rarity rolls.</summary>
+    public float Luck = 0f;
+    /// <summary>Multiplier on noise this miner makes (Game.ServerNoise).</summary>
+    public float NoiseMul = 1f;
 }
 
 public enum SteinEventKind { RoundStart, RoundEnd, DamageTaken, DamageDealt, Kill, Death, Deposit, Mined }

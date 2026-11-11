@@ -68,6 +68,7 @@ public partial class Game : Node
     public override void _Ready()
     {
         I = this;
+        LoadContentModules();
         _rng.Randomize();
         Net.I.PeerRegistered += OnPeerRegistered;
         Net.I.PeerLeft += OnPeerLeft;
@@ -161,6 +162,7 @@ public partial class Game : Node
                 else if (m.Kind == "ore")
                     ServerSpawnObject("pickup", m.Pos + new Vector3(0, 0.4f, 0), "ore:" + Ores.Pick(rng, room.Depth, Round));
             }
+        RunMarkerSpawners(rng);
     }
 
     void ServerEndRound()
