@@ -185,26 +185,13 @@ public partial class BagObj : NetObject
     }
 }
 
-// ----------------------------------------------------------------------------- Goblin (placeholder)
+// ----------------------------------------------------------------------------- Goblin (model: src/Goblin)
 public partial class GoblinObj : NetObject
 {
     public override float InteractRange => 3.6f;
 
-    public override void Build()
-    {
-        CollisionLayer = 1 | 4; CollisionMask = 0;
-        var skin = new Color(0.35f, 0.6f, 0.25f);
-        var body = Util.CapsuleMesh(0.5f, 1.3f, new Color(0.2f, 0.35f, 0.7f)); // polo shirt
-        body.Position = new Vector3(0, 0.75f, 0);
-        AddChild(body);
-        var head = Util.SphereMesh(0.4f, skin); head.Position = new Vector3(0, 1.7f, 0); AddChild(head);
-        var hair = Util.BoxMesh(new Vector3(0.7f, 0.2f, 0.8f), new Color(0.7f, 0.7f, 0.72f)); hair.Position = new Vector3(0.1f, 2.0f, 0); hair.Rotation = new Vector3(0, 0, -0.2f); AddChild(hair);
-        var nose = Util.BoxMesh(new Vector3(0.12f, 0.12f, 0.35f), skin); nose.Position = new Vector3(0, 1.7f, 0.4f); AddChild(nose);
-        var desk = Util.BoxMesh(new Vector3(2.2f, 1f, 0.9f), new Color(0.35f, 0.25f, 0.15f)); desk.Position = new Vector3(0, 0.5f, 1.0f); AddChild(desk);
-        AddChild(Util.BoxShape(new Vector3(2.2f, 1f, 0.9f), new Vector3(0, 0.5f, 1.0f)));
-        AddChild(Util.BoxShape(new Vector3(1f, 2f, 1f), new Vector3(0, 1f, 0)));
-        AddChild(new OmniLight3D { Position = new Vector3(0, 2.5f, 1.5f), LightColor = new Color(1f, 0.85f, 0.5f), OmniRange = 8f, LightEnergy = 1.2f });
-    }
+    /// <summary>Visuals, collision and animation live in src/Goblin/GoblinRig.cs.</summary>
+    public override void Build() => GoblinRig.Attach(this);
 
     public override string Prompt(Inventory inv)
     {
