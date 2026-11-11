@@ -36,6 +36,12 @@ public partial class Net : Node
         Multiplayer.ServerDisconnected += OnServerDisconnected;
     }
 
+    public override void _Notification(int what)
+    {
+        // Closing the window while hosting/joining: tell the other side right away instead of letting it time out.
+        if (what == NotificationWMCloseRequest) Disconnect();
+    }
+
     public Error Host(int port = DefaultPort)
     {
         var peer = new ENetMultiplayerPeer();
