@@ -108,7 +108,7 @@ public class BotBrain : IMinerController
         if (g.Round < 2)
         {
             // Round 1: stand in a far room (gets buried when the mine collapses).
-            WalkTo(m, ref inp, world.Cave.Rooms[0].Center + new Vector3(0, 0, 3), 1f);
+            { var c = world.Cave; var far = c.Rooms[Math.Min(1, c.Rooms.Count - 1)].Center; int ni = c.NearestNode(far); WalkTo(m, ref inp, ni >= 0 ? c.NavNodes[ni] : far, 1f); }
             return;
         }
         Miner target = null; float bd = float.MaxValue;

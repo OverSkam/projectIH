@@ -109,3 +109,7 @@ Registered by `ItemsModule` ([ContentModule]). Steins incl. Blood/Infinity (`Ite
 utilities via RMB (`Game.RequestUseUtility` -> `ItemsServer.UseHeld`: dynamite, bear trap, rope), active stein key Q (`stein_ability`), F cycles the highlighted stein slot
 (swap target), drop ore moved to T. Monsters can implement `IRootable` (bear trap) and `IExplodable` (dynamite). Owner-only item state goes through `ClientItemState`.
 Tests: `tools/items_test.sh` (scripted by `--itest=util|infinity`, `--give=`, `--debugspawn=`, `--rounds=`; bots `--bot=t_*`, see `ItemsDebug.cs`).
+## Modular cave (src/World/Cave)
+Default builder `ModularCave` (`--cave=greybox` selects the old one). 14x14-cell (2 m) hand-built modules in `CaveModules.cs` (ASCII legend in the file), rotated and joined on an 18-cell slot grid.
+Debug: `-- --cavecheck` (headless self-check, seeds 1-20 x rounds 1-5), `--caveseed=N --caveround=N`, `--cavelist`, screenshots with `--camroom=N [--camat=<marker kind>] [--camoff=x,y,z --camyaw=deg --campitch=deg]` or `--cam=x,y,z`.
+Nav graph = one node per walkable cell (crawl and thin-wall cells excluded); `FindPath` is A*. Miners collide with layer 16 (thin walls).
