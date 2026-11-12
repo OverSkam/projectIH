@@ -66,6 +66,28 @@ public static class CaveBuilder
         {
             float y = k / 100f; Box(body, Ctr(i, j, w, h) with { Y = y + 1f }, new Vector3(w * C + Eps, 2f, h * C + Eps));
         });
+        // narrowed passages: the lattice warp pulls tunnel walls inward, so add the rock between the old cell edge and the new wall (convex prisms)
+        for (int j = g.OY; j < g.OY + g.H; j++)
+            for (int i = g.OX; i < g.OX + g.W; i++)
+            {
+                var c = g.At(i, j);
+                if (!c.Open) continue;
+                float x0 = i * C - 1, x1 = i * C + 1, z0 = j * C - 1, z1 = j * C + 1;
+                for (int d = 0; d < 4; d++)
+                {
+                    var (dx, dy) = ModularCave.Dirs[d];
+                    if (g.OpenAt(i + dx, j + dy)) continue;
+                    Vector2 a, b;
+                    switch (d) { case 0: a = new(x0, z0); b = new(x1, z0); break; case 1: a = new(x1, z0); b = new(x1, z1); break; case 2: a = new(x0, z1); b = new(x1, z1); break; default: a = new(x0, z0); b = new(x0, z1); break; }
+                    var wa = g.Warp.TryGetValue(((int)Math.Round(a.X), (int)Math.Round(a.Y)), out var w1) ? w1 : a;
+                    var wb = g.Warp.TryGetValue(((int)Math.Round(b.X), (int)Math.Round(b.Y)), out var w2) ? w2 : b;
+                    if (wa.DistanceTo(a) < 0.01f && wb.DistanceTo(b) < 0.01f) continue;
+                    float yLo = c.Min - 1f, yHi = c.Ceil + 1f;
+                    var pts = new List<Vector3>();
+                    foreach (var q in new[] { a, b, wb, wa }) { pts.Add(new Vector3(q.X, yLo, q.Y)); pts.Add(new Vector3(q.X, yHi, q.Y)); }
+                    body.AddChild(new CollisionShape3D { Shape = new ConvexPolygonShape3D { Points = pts.ToArray() } });
+                }
+            }
         // ramps
         foreach (var r in g.Ramps)
         {

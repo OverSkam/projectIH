@@ -29,7 +29,14 @@ public class Slot
 
 public class RampDef { public float X0, Z0, X1, Z1, H0, H1; }
 
-public class TunnelDef { public int Owner; public bool AlongX; public float X, Z; public int Depth; public List<(int i, int j)> Cells = new(); public Slot A, B; }
+/// <summary>A connecting tunnel: ONE cell wide in the grid, pulled in to Width metres by the lattice warp (see ModularCave.Warp).
+/// Kind 0 = ordinary (1.2-1.4 m wide, 2.1-2.3 m high), 1 = crawl (the two middle cells are 1.1 m high: crouch only), 2 = sideways squeeze (0.85 m wide in the middle).</summary>
+public class TunnelDef
+{
+    public int Owner; public bool AlongX; public float X, Z; public int Depth; public List<(int i, int j)> Cells = new(); public Slot A, B;
+    public int Kind, W; public float Hw, Ceil;
+    public float Width => Hw * 2f;
+}
 
 /// <summary>Modular cave: rooms assembled from hand-built modules on a slot grid, joined by tunnels. Deterministic per (seed, round).</summary>
 public class ModularCave : ICaveBuilder
@@ -45,6 +52,10 @@ public class ModularCave : ICaveBuilder
     public List<Slot> Slots = new();
     public List<RampDef> Ramps = new();
     public List<TunnelDef> Tunnels = new();
+    /// <summary>Lattice points (cell corners, odd integer metres) that are pulled inward so the 1-cell tunnels become 0.8-1.4 m wide. Used by visuals AND collision.</summary>
+    public Dictionary<(int, int), Vector2> Warp = new();
+    public List<Aabb> Squeezes = new();
+    public const int TunnelLen = Pitch - 14;
     public List<string> Errors = new();
     public int Seed, Round, LoopCount, Salt;
     public int[] NodeAt;            // per cell: nav node index or -1
@@ -107,7 +118,7 @@ public class ModularCave : ICaveBuilder
             int d = rnd.I(4);
             var (dx, dy) = Dirs[d];
             if (at.ContainsKey((from.Gx + dx, from.Gy + dy))) continue;
-            if (from == camp && camp.Adj.Count >= 3) continue;
+            if (from == camp && (d == 0 || camp.Adj.Count >= 3)) continue;   // the Goblin sits at the north end: no tunnel there
             var n = Add(from.Gx + dx, from.Gy + dy);
             Connect(from, n, d);
         }
@@ -117,7 +128,7 @@ public class ModularCave : ICaveBuilder
             for (int d = 0; d < 2; d++) // E and S only, each pair once
             {
                 var (dx, dy) = Dirs[1 + d];
-                if (at.TryGetValue((s.Gx + dx, s.Gy + dy), out var o) && !s.Adj.Contains(o.Id)) cands.Add((s, o, 1 + d));
+                if (at.TryGetValue((s.Gx + dx, s.Gy + dy), out var o) && !s.Adj.Contains(o.Id) && !(o == camp && d == 1)) cands.Add((s, o, 1 + d));
             }
         rnd.Shuffle(cands);
         foreach (var (a, b, d) in cands)
@@ -206,8 +217,9 @@ public class ModularCave : ICaveBuilder
         W = (gx1 - gx0) * Pitch + 14 + 4; H = (gy1 - gy0) * Pitch + 14 + 4;
         G = new Cell[W * H];
         foreach (var s in Slots) { StampSlot(s); OwnerDepth[s.Id] = s.Depth; }
-        // tunnels
-        int tid = 1000;
+        // tunnels: one cell wide, low; the lattice warp then pulls the walls in
+        int tid = 1000, crawls = 0;
+        var tr = new Rnd(Seed * 5851L + Round * 3571L + 99);
         foreach (var a in Slots)
             for (int d = 1; d <= 2; d++)
             {
@@ -216,17 +228,62 @@ public class ModularCave : ICaveBuilder
                 var b = Slots.First(s => s.Gx == a.Gx + dx && s.Gy == a.Gy + dy);
                 var t = new TunnelDef { Owner = tid++, AlongX = d == 1, A = a, B = b, Depth = Math.Min(a.Depth, b.Depth) };
                 OwnerDepth[t.Owner] = t.Depth;
-                for (int k = 0; k < Pitch - 14; k++)
-                    for (int w = 6; w <= 7; w++)
-                    {
-                        int i = d == 1 ? a.OX + 14 + k : a.OX + w, j = d == 1 ? a.OY + w : a.OY + 14 + k;
-                        ref var c = ref At(i, j);
-                        c = new Cell { Open = true, Owner = t.Owner, Ceil = 4.5f };
-                        t.Cells.Add((i, j));
-                    }
+                t.W = 6 + tr.I(2);
+                float roll = tr.F();
+                bool crawlOk = a.Id != 0 && b.Id != 0 && !IsBridge(a, b);   // (bridge test also removes every crawl chosen so far)   // a crawl may never be the only way somewhere (bots cannot crouch)
+                t.Kind = crawlOk && crawls < 2 && roll < 0.55f ? 1 : (roll > 0.72f ? 2 : 0);
+                if (t.Kind == 1) { crawls++; _crawlEdges.Add((a.Id, b.Id)); }
+                t.Hw = 0.6f + 0.1f * tr.F();
+                t.Ceil = 2.1f + 0.2f * tr.F();
+                for (int k = 0; k < TunnelLen; k++)
+                {
+                    int i = d == 1 ? a.OX + 14 + k : a.OX + t.W, j = d == 1 ? a.OY + t.W : a.OY + 14 + k;
+                    bool mid = k == 1 || k == 2;
+                    bool crawl = t.Kind == 1 && mid;
+                    At(i, j) = new Cell { Open = true, Owner = t.Owner, Ceil = crawl ? 1.1f : t.Ceil, Crawl = crawl };
+                    t.Cells.Add((i, j));
+                }
                 t.X = (float)t.Cells.Average(c => c.i) * CellSize; t.Z = (float)t.Cells.Average(c => c.j) * CellSize;
+                // lattice warp: lines m = 0..TunnelLen are the cell edges from the end of room A to the start of room B
+                for (int m = 0; m <= TunnelLen; m++)
+                {
+                    float hw = t.Kind == 2 && m >= 1 && m <= TunnelLen - 1 ? 0.425f : t.Hw;
+                    int lon = 2 * ((d == 1 ? a.OX : a.OY) + 13 + m) + 1;
+                    int lat = 2 * ((d == 1 ? a.OY : a.OX) + t.W);       // cell centre line
+                    foreach (int sgn in new[] { -1, 1 })
+                    {
+                        int latEdge = lat + sgn;
+                        float latNew = lat + sgn * hw;
+                        Warp[d == 1 ? (lon, latEdge) : (latEdge, lon)] = d == 1 ? new Vector2(lon, latNew) : new Vector2(latNew, lon);
+                    }
+                }
+                if (t.Kind == 2)
+                {
+                    var (i1, j1) = t.Cells[1]; var (i2, j2) = t.Cells[2];
+                    float x0 = Math.Min(i1, i2) * CellSize - 1f, x1 = Math.Max(i1, i2) * CellSize + 1f, z0 = Math.Min(j1, j2) * CellSize - 1f, z1 = Math.Max(j1, j2) * CellSize + 1f;
+                    if (t.AlongX) { float c = j1 * CellSize; z0 = c - 0.6f; z1 = c + 0.6f; } else { float c = i1 * CellSize; x0 = c - 0.6f; x1 = c + 0.6f; }
+                    Squeezes.Add(new Aabb(new Vector3(x0, -1f, z0), new Vector3(x1 - x0, 4f, z1 - z0)));
+                }
                 Tunnels.Add(t);
             }
+    }
+
+    /// <summary>True when removing the connection a-b would split the slot graph.</summary>
+    readonly List<(int, int)> _crawlEdges = new();
+    bool IsBridge(Slot a, Slot b)
+    {
+        bool Cut(int u, int v) => (u == a.Id && v == b.Id) || (u == b.Id && v == a.Id) || _crawlEdges.Contains((u, v)) || _crawlEdges.Contains((v, u));
+        var seen = new HashSet<int> { a.Id }; var q = new Queue<int>(); q.Enqueue(a.Id);
+        while (q.Count > 0)
+        {
+            int u = q.Dequeue();
+            foreach (int v in Slots[u].Adj)
+            {
+                if (Cut(u, v)) continue;
+                if (seen.Add(v)) q.Enqueue(v);
+            }
+        }
+        return !seen.Contains(b.Id);
     }
 
     void StampSlot(Slot s)
@@ -242,12 +299,14 @@ public class ModularCave : ICaveBuilder
                     (c == 13 && (r == 6 || r == 7) && !s.R[1]) || (c == 0 && (r == 6 || r == 7) && !s.R[3])) continue;
                 int i = s.OX + c, j = s.OY + r;
                 var cell = new Cell { Open = true, Owner = s.Id, Ceil = s.Mod.Ceil };
+                bool doorCell = ((r == 0 || r == 13) && (c == 6 || c == 7)) || ((c == 0 || c == 13) && (r == 6 || r == 7));
+                if (doorCell) cell.Ceil = Math.Min(cell.Ceil, 3.0f);   // the mouth of every tunnel is low
                 float h = FlatH(ch);
                 cell.A = cell.B = cell.C = cell.D = h;
                 if (ch == 'w') cell.Water = true;
                 if (ch == 'W') cell.Thin = true;
                 bool nearCrawl = Ch(r - 1, c) == 'x' || Ch(r + 1, c) == 'x' || Ch(r, c - 1) == 'x' || Ch(r, c + 1) == 'x';
-                if (ch == 'x' || (MarkerOf(ch) != null && nearCrawl)) { cell.Ceil = 1.7f; cell.Crawl = true; }
+                if (ch == 'x' || (MarkerOf(ch) != null && nearCrawl)) { cell.Ceil = 1.1f; cell.Crawl = true; }
                 if (IsRamp(ch))
                 {
                     var (dr, dc) = ch switch { '8' => (-1, 0), '2' => (1, 0), '6' => (0, 1), _ => (0, -1) };
@@ -281,6 +340,19 @@ public class ModularCave : ICaveBuilder
                 }
                 At(i, j) = cell;
             }
+    }
+
+    /// <summary>Hall furniture (the giant Goblin's body and palm, the Scale, the shaft, the cage lift) is solid: no nav nodes inside or hugging it.</summary>
+    static bool HallBlocked(CaveInfo info, Vector3 p)
+    {
+        if (!info.HallZone.HasPoint(p + Vector3.Up)) return false;
+        var h0 = info.GoblinSeat + new Vector3(0, 0, 9.2f);
+        float x = p.X - h0.X, z = p.Z - h0.Z;
+        if (z < -3.5f && Math.Abs(x) < 6.0f) return true;                                 // Goblin, throne, legs, palm
+        if (new Vector2(x, z + 1.8f).Length() < 2.4f) return true;                         // Scale
+        if (new Vector2(x - 7.2f, z + 2.0f).Length() < 2.8f) return true;                  // shaft
+        if (Math.Abs(x + 9.5f) < 2.4f && Math.Abs(z - 10f) < 2.4f) return true;           // cage lift
+        return false;
     }
 
     // ------------------------------------------------------------------ info, markers, nav graph
@@ -318,12 +390,17 @@ public class ModularCave : ICaveBuilder
             info.Rooms.Add(ri);
         }
         var camp = Slots[0];
-        info.HallZone = new Aabb(new Vector3(camp.OX * CellSize - 1, -2, camp.OY * CellSize - 1), new Vector3(28, 14, 28));
-        info.GoblinPos = CellPos(camp.OX + 4, camp.OY + 2);
-        info.PalmPos = info.GoblinPos + new Vector3(0, 1.2f, 2.0f);
-        info.ScalePos = CellPos(camp.OX + 7, camp.OY + 5);
-        info.ShaftPos = info.ScalePos + new Vector3(5f, 0, -1.5f);
-        info.MakeWeighSpots();
+        info.HallZone = new Aabb(new Vector3(camp.OX * CellSize - 1, -2, camp.OY * CellSize - 1), new Vector3(28, 16, 28));
+        // Hall of the Scale (local frame: x east, z south; the Goblin sits at the north wall facing south)
+        var h0 = CellPos(camp.OX, camp.OY) + new Vector3(6.5f * CellSize, 0, 6.5f * CellSize);
+        info.GoblinSeat = h0 + new Vector3(0, 0, -9.2f);
+        info.GoblinPos = h0 + new Vector3(-4.2f, 0, -4.8f);          // floor under the centre of the feeding palm
+        info.PalmPos = info.GoblinPos + new Vector3(0, 1.4f, 0);
+        info.ScalePos = h0 + new Vector3(0, 0, -1.8f);
+        info.ShaftPos = h0 + new Vector3(7.2f, 0, -2.0f);
+        info.CagePos = h0 + new Vector3(-9.5f, 0, 10.0f);
+        info.MakeWeighSpots(8, 3.2f, 1.05f);
+        info.SqueezeZones.AddRange(Squeezes);
         for (int c = 3; c <= 10; c++) info.MinerSpawns.Add(CellPos(camp.OX + c, camp.OY + 9, 0.3f));
         for (int c = 4; c <= 9; c++) info.MinerSpawns.Add(CellPos(camp.OX + c, camp.OY + 10, 0.3f));
         // water zones
@@ -343,6 +420,7 @@ public class ModularCave : ICaveBuilder
                 int k = y * W + x; NodeAt[k] = -1;
                 var c = G[k];
                 if (!c.Open || c.Thin || c.Crawl) continue;
+                if (HallBlocked(info, CellPos(x + OX, y + OY))) continue;
                 NodeAt[k] = info.NavNodes.Count;
                 info.NavNodes.Add(CellPos(x + OX, y + OY, c.Mean));
             }

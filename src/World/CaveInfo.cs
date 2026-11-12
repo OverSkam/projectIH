@@ -32,7 +32,13 @@ public class CaveInfo
     public Aabb HallZone;
     /// <summary>Old name of <see cref="HallZone"/> (kept so older cave code keeps compiling).</summary>
     public Aabb CampZone { get => HallZone; set => HallZone = value; }
+    /// <summary>Origin of the Goblin network object: the floor point under the centre of his feeding palm (he sits behind it, see <see cref="GoblinSeat"/>).
+    /// Bots and the feed prompt stand 2.3 m in front of this point.</summary>
     public Vector3 GoblinPos;
+    /// <summary>Floor point under the seat of the seated giant Goblin (the rig is built here).</summary>
+    public Vector3 GoblinSeat;
+    /// <summary>Cage lift (visual only) at the Hall exit toward the cave.</summary>
+    public Vector3 CagePos;
     /// <summary>Feeding point: the Goblin's open palm. Stones/steins are fed to the Goblin when a miner interacts near it.</summary>
     public Vector3 PalmPos;
     /// <summary>Centre of the weighing platform (the Scale). Weighing visuals are built here.</summary>
@@ -49,6 +55,10 @@ public class CaveInfo
     /// <summary>Water pools (Ember Elementals die inside; puts out fire).</summary>
     public List<Aabb> WaterZones = new();
     public bool InWater(Vector3 p) { foreach (var w in WaterZones) if (w.HasPoint(p)) return true; return false; }
+
+    /// <summary>Sideways squeezes (0.8 m wide gaps): miners move slower inside.</summary>
+    public List<Aabb> SqueezeZones = new();
+    public bool InSqueeze(Vector3 p) { foreach (var z in SqueezeZones) if (z.HasPoint(p)) return true; return false; }
 
     public bool InHall(Vector3 p) => HallZone.HasPoint(p);
 

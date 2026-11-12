@@ -39,6 +39,7 @@ public partial class Main : Node
 
     public override void _Process(double delta)
     {
+        if (Util.HasArg("nohud")) foreach (var n in new[] { "Hud", "WeighingUi", "Screens" }) if (GetNodeOrNull(n) is CanvasLayer cl) cl.Visible = false;   // screenshot staging
         if (_autostart > 0 && !_started && Net.I.IsServer && Game.I.Phase == GamePhase.Lobby && Net.I.Names.Count >= _autostart)
         {
             _autoTimer += delta;

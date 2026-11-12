@@ -20,7 +20,7 @@ public partial class FlickerLight : OmniLight3D
 }
 
 /// <summary>Builds the irregular low-poly rock shell, props, glow meshes and lights of a ModularCave.</summary>
-public static class CaveVisuals
+public static partial class CaveVisuals
 {
     const float C = ModularCave.CellSize;
     static float[] _levels;
@@ -36,11 +36,15 @@ public static class CaveVisuals
     }
     static float Jf(uint h) => (h & 0xffff) / 32767.5f - 1f;
     /// <summary>Deterministic vertex jitter keyed on the lattice point, so all faces sharing a vertex stay watertight.</summary>
+    static Dictionary<(int, int), Vector2> _warp;
     static Vector3 P(float x, float y, float z)
     {
         y = Sn(y);
         int ix = (int)MathF.Round(x * 2), iy = (int)MathF.Round(y * 100), iz = (int)MathF.Round(z * 2);
-        return new Vector3(x + Jf(Hs(ix, iy, iz, 1)) * 0.26f, y + Jf(Hs(iz, iy, ix, 2)) * 0.13f, z + Jf(Hs(iy, ix, iz, 3)) * 0.26f);
+        float jx = 0.26f, jy = 0.13f;
+        // lattice points of narrowed tunnels are pulled inward (same table the collision uses) and jitter only a little, so 1.3 m tunnels stay 1.3 m
+        if (_warp != null && _warp.TryGetValue(((int)MathF.Round(x), (int)MathF.Round(z)), out var w)) { x = w.X; z = w.Y; jx = 0.05f; jy = 0.05f; }
+        return new Vector3(x + Jf(Hs(ix, iy, iz, 1)) * jx, y + Jf(Hs(iz, iy, ix, 2)) * jy, z + Jf(Hs(iy, ix, iz, 3)) * jx);
     }
 
     static List<float> Span(float lo, float hi)
@@ -56,8 +60,8 @@ public static class CaveVisuals
     static Color Rock(int depth, int kind, uint h, bool camp, float y)
     {
         float t = Mathf.Clamp(depth / 6f, 0, 1);
-        var c = new Color(0.46f, 0.40f, 0.33f).Lerp(new Color(0.26f, 0.29f, 0.42f), t);
-        if (camp) c = new Color(0.58f, 0.47f, 0.34f);
+        var c = new Color(0.33f, 0.33f, 0.35f).Lerp(new Color(0.20f, 0.23f, 0.29f), t);   // cold, desaturated rock: only light sources reveal it
+        if (camp) c = new Color(0.36f, 0.36f, 0.34f);
         float m = kind == 0 ? 0.8f : kind == 2 ? 0.62f : 1f;
         if (y < -2f) m *= 0.8f;
         float n = 0.8f + 0.4f * ((h & 255) / 255f);
@@ -88,6 +92,7 @@ public static class CaveVisuals
         public Dictionary<string, MeshBuilder> Glow = new();
         public MeshBuilder Water = new();
         public List<Node3D> Lights = new();
+        public List<(Vector3 center, Vector3 size)> Colliders = new();
         public MeshBuilder R(int owner) { if (!Rock.TryGetValue(owner, out var m)) Rock[owner] = m = new MeshBuilder(); return m; }
         public MeshBuilder Gl(string k) { if (!Glow.TryGetValue(k, out var m)) Glow[k] = m = new MeshBuilder(); return m; }
         public void Light(Vector3 pos, Color col, float energy, float range, bool flicker, float amt = 0.25f)
@@ -102,6 +107,7 @@ public static class CaveVisuals
 
     public static void Build(ModularCave g, Node3D parent)
     {
+        _warp = g.Warp;
         var set = new SortedSet<int>();
         for (int v = -14; v <= 14; v += 2) set.Add(v * 100);
         foreach (var c in g.G) if (c.Open) { set.Add((int)MathF.Round(c.A * 100)); set.Add((int)MathF.Round(c.B * 100)); set.Add((int)MathF.Round(c.C * 100)); set.Add((int)MathF.Round(c.D * 100)); set.Add((int)MathF.Round(c.Ceil * 100)); }
@@ -136,6 +142,12 @@ public static class CaveVisuals
             root.AddChild(new MeshInstance3D { Name = "Water", Mesh = cx.Water.Build(), MaterialOverride = wm, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
         }
         foreach (var l in cx.Lights) root.AddChild(l);
+        if (cx.Colliders.Count > 0)
+        {
+            var body = new StaticBody3D { Name = "PropBody", CollisionLayer = Layers.World, CollisionMask = 0 };
+            foreach (var (c, sz) in cx.Colliders) body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = sz }, Position = c });
+            root.AddChild(body);
+        }
     }
 
     static void RockCell(Ctx cx, int i, int j)
@@ -183,24 +195,22 @@ public static class CaveVisuals
     }
 
     // ------------------------------------------------------------------ props
-    static void Frame(Ctx cx, Rnd r, MeshBuilder mb, Vector3 center, bool alongX, float ceil)
+    static void Frame(Ctx cx, Rnd r, MeshBuilder mb, Vector3 center, bool alongX, float ceil, float hw)
     {
-        // timber frame spanning the tunnel width (4 m); 'alongX' = tunnel axis
+        // timber frame spanning the tunnel ('alongX' = tunnel axis): two posts against the walls and a cap beam under the ceiling
         float rot = alongX ? 0f : Mathf.Pi * 0.5f;
         var basis = new Basis(Vector3.Up, rot);
-        float h = ceil - 0.15f;
-        foreach (float s in new[] { -1.75f, 1.75f })
-            mb.Box(center + basis * new Vector3(0, h * 0.5f, s), new Vector3(0.22f, h, 0.22f), WoodC(r));
-        mb.Box(center + basis * new Vector3(0, h - 0.1f, 0), new Vector3(0.3f, 0.3f, 4f), WoodC(r));
-        mb.Box(center + basis * new Vector3(0, h - 0.5f, -1.4f), new Vector3(0.18f, 0.18f, 1.0f), WoodC(r), 0.7f);
-        mb.Box(center + basis * new Vector3(0, h - 0.5f, 1.4f), new Vector3(0.18f, 0.18f, 1.0f), WoodC(r), -0.7f);
+        float h = ceil - 0.08f;
+        foreach (float s in new[] { -(hw - 0.08f), hw - 0.08f })
+            mb.Box(center + basis * new Vector3(0, h * 0.5f, s), new Vector3(0.18f, h, 0.18f), WoodC(r));
+        mb.Box(center + basis * new Vector3(0, h - 0.1f, 0), new Vector3(0.24f, 0.22f, hw * 2f + 0.3f), WoodC(r));
     }
 
     static void Props(Ctx cx)
     {
         var g = cx.G;
         var r = new Rnd(g.Seed * 31L + g.Round * 17L + 5);
-        // tunnels: frames, rails, lanterns
+        // tunnels: timber frames, rails, sleepers (no lamps: the dark is the point)
         foreach (var t in g.Tunnels)
         {
             var mb = cx.R(t.Owner);
@@ -209,19 +219,17 @@ public static class CaveVisuals
             foreach (int k in new[] { 0, axis.Count - 1 })
             {
                 float a = axis[k] * C;
-                Frame(cx, r, mb, t.AlongX ? new Vector3(a, 0, lat) : new Vector3(lat, 0, a), t.AlongX, 4.5f);
+                Frame(cx, r, mb, t.AlongX ? new Vector3(a, 0, lat) : new Vector3(lat, 0, a), t.AlongX, t.Ceil, t.Hw);
             }
+            if (t.Kind == 2) { var (ci, cj) = t.Cells[1]; Frame(cx, r, mb, new Vector3(ci * C + (t.AlongX ? 1f : 0f), 0, cj * C + (t.AlongX ? 0f : 1f)), t.AlongX, t.Ceil, 0.45f); }
             float a0 = axis[0] * C - 1, a1 = axis[^1] * C + 1, mid = (a0 + a1) * 0.5f;
-            foreach (float off in new[] { -0.8f, 0.8f })
+            foreach (float off in new[] { -0.32f, 0.32f })
             {
-                var size = t.AlongX ? new Vector3(a1 - a0, 0.1f, 0.1f) : new Vector3(0.1f, 0.1f, a1 - a0);
-                mb.Box(t.AlongX ? new Vector3(mid, 0.14f, lat + off) : new Vector3(lat + off, 0.14f, mid), size, new Color(0.3f, 0.3f, 0.34f));
+                var size = t.AlongX ? new Vector3(a1 - a0, 0.07f, 0.07f) : new Vector3(0.07f, 0.07f, a1 - a0);
+                mb.Box(t.AlongX ? new Vector3(mid, 0.12f, lat + off) : new Vector3(lat + off, 0.12f, mid), size, new Color(0.22f, 0.22f, 0.25f));
             }
             for (float a = a0 + 0.5f; a < a1; a += 1.0f)
-                mb.Box(t.AlongX ? new Vector3(a, 0.08f, lat) : new Vector3(lat, 0.08f, a), t.AlongX ? new Vector3(0.18f, 0.1f, 2.1f) : new Vector3(2.1f, 0.1f, 0.18f), WoodC(r));
-            var lp = t.AlongX ? new Vector3(mid, 3.5f, lat) : new Vector3(lat, 3.5f, mid);
-            cx.Gl("lantern").Box(lp, new Vector3(0.25f, 0.35f, 0.25f), Colors.White);
-            mb.Box(lp + new Vector3(0, 0.5f, 0), new Vector3(0.05f, 0.7f, 0.05f), Wood);
+                mb.Box(t.AlongX ? new Vector3(a, 0.06f, lat) : new Vector3(lat, 0.06f, a), t.AlongX ? new Vector3(0.14f, 0.08f, 0.95f) : new Vector3(0.95f, 0.08f, 0.14f), WoodC(r));
         }
         foreach (var s in g.Slots) RoomProps(cx, s, new Rnd(g.Seed * 131L + s.Id * 977L + g.Round));
         // rope bridges over deep gaps
@@ -295,35 +303,13 @@ public static class CaveVisuals
         {
             int i = s.OX + 1 + r.I(12), j = s.OY + 1 + r.I(12); var c = g.At(i, j);
             if (!c.Open || c.Crawl || c.Ceil < 3f) continue;
-            mb.Cone(new Vector3(i * C + r.Range(-.7f, .7f), c.Ceil + 0.1f, j * C + r.Range(-.7f, .7f)), r.Range(0.2f, 0.45f), -r.Range(0.7f, 1.9f), Rock(s.Depth, 2, (uint)r.Next(), false, 0), 5, r.F() * 3f);
+            float len = r.Range(0.7f, 1.9f);
+            if (!camp) len = Math.Min(len, c.Ceil - 2.3f);
+            if (len < 0.3f) continue;
+            mb.Cone(new Vector3(i * C + r.Range(-.7f, .7f), c.Ceil + 0.1f, j * C + r.Range(-.7f, .7f)), r.Range(0.2f, 0.45f), -len, Rock(s.Depth, 2, (uint)r.Next(), false, 0), 5, r.F() * 3f);
         }
         Vector3 CellP(int col, int row) => new Vector3((s.OX + col) * C, 0, (s.OY + row) * C);
-        if (camp)
-        {
-            var mid = new Vector3((s.OX + 6.5f) * C, 0, (s.OY + 6.5f) * C);
-            for (int k = 0; k < 9; k++)
-            {
-                float a = k * Mathf.Tau / 9f;
-                mb.Box(mid + new Vector3(Mathf.Cos(a) * 1.3f, 0.2f, Mathf.Sin(a) * 1.3f), new Vector3(0.5f, 0.4f, 0.5f), new Color(0.35f, 0.33f, 0.32f) * (0.8f + 0.4f * r.F()), a);
-            }
-            mb.Box(mid + new Vector3(0, 0.12f, 0), new Vector3(1.6f, 0.2f, 0.25f), new Color(0.2f, 0.12f, 0.07f), 0.5f);
-            mb.Box(mid + new Vector3(0, 0.12f, 0), new Vector3(1.6f, 0.2f, 0.25f), new Color(0.2f, 0.12f, 0.07f), -0.5f);
-            cx.Gl("fire").Cone(mid + new Vector3(0, 0.2f, 0), 0.5f, 1.0f, Colors.White, 5, 0.3f);
-            cx.Gl("fire").Cone(mid + new Vector3(0.2f, 0.2f, 0.1f), 0.3f, 1.4f, Colors.White, 4, 0.9f);
-            cx.Light(mid + new Vector3(0, 1.4f, 0), new Color(1f, 0.62f, 0.28f), 3.2f, 24f, true, 0.2f);
-            foreach (var (col, row) in new[] { (3, 3), (10, 3), (3, 10), (10, 10) })
-            {
-                var p = CellP(col, row);
-                mb.Box(p + new Vector3(0, 1.0f, 0), new Vector3(0.14f, 2f, 0.14f), WoodC(r));
-                cx.Gl("fire").Cone(p + new Vector3(0, 2.0f, 0), 0.2f, 0.5f, Colors.White, 4);
-                cx.Light(p + new Vector3(0, 2.5f, 0), new Color(1f, 0.6f, 0.25f), 1.8f, 13f, true, 0.3f);
-            }
-            // banner above the goblin
-            var gp = CellP(4, 2);
-            mb.Box(gp + new Vector3(0, 3.2f, -1.2f), new Vector3(3f, 1.4f, 0.08f), new Color(0.5f, 0.1f, 0.1f));
-            // sacks / table
-            mb.Box(CellP(5, 2) + new Vector3(0, 0.45f, 0.3f), new Vector3(1.6f, 0.9f, 0.8f), WoodC(r));
-        }
+        if (camp) HallDecor(cx, s, r);
         switch (s.Mod.Name)
         {
             case "shrine":

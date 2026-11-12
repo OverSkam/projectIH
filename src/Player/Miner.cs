@@ -118,7 +118,7 @@ public partial class Miner : CharacterBody3D
     public override void _Ready()
     {
         CollisionLayer = 2; CollisionMask = 1 | Layers.ThinWall;
-        _shape = new CollisionShape3D { Shape = new CapsuleShape3D { Radius = 0.4f, Height = 1.8f }, Position = new Vector3(0, 0.9f, 0) };
+        _shape = new CollisionShape3D { Shape = new CapsuleShape3D { Radius = 0.32f, Height = 1.8f }, Position = new Vector3(0, 0.9f, 0) };
         AddChild(_shape);
         _head = new Node3D { Position = new Vector3(0, 1.6f, 0) };
         AddChild(_head);
@@ -231,9 +231,9 @@ public partial class Miner : CharacterBody3D
         IsDowned = d;
         _rig?.SetDowned(d);
         if (!IsLocal || _shape == null) return;
-        ((CapsuleShape3D)_shape.Shape).Height = d ? 0.7f : (_crouching ? 1.2f : 1.8f);
-        _shape.Position = new Vector3(0, d ? 0.35f : (_crouching ? 0.6f : 0.9f), 0);
-        _head.Position = new Vector3(0, d ? 0.45f : (_crouching ? 1.1f : 1.6f), 0);
+        ((CapsuleShape3D)_shape.Shape).Height = d ? 0.7f : (_crouching ? 1.0f : 1.8f);
+        _shape.Position = new Vector3(0, d ? 0.35f : (_crouching ? 0.5f : 0.9f), 0);
+        _head.Position = new Vector3(0, d ? 0.45f : (_crouching ? 0.95f : 1.6f), 0);
     }
 
     /// <summary>Weighing ceremony: turn to face a direction (the Scale).</summary>
@@ -243,11 +243,21 @@ public partial class Miner : CharacterBody3D
         (Controller as HumanController)?.SetLook(yaw, 0.05f);
     }
 
-    /// <summary>The Goblin picks this miner up, swings them over the shaft and drops them. Runs on every peer; at the end the node is removed.</summary>
+    // ---- the throw: the Goblin's arm (GoblinRig) reaches the victim, lifts them to the hold point, swings them over the shaft and lets go.
+    // Both read the same timeline (ThrowU) so the hand and the miner stay in sync on every peer.
+    public const float ThrowReachEnd = 0.14f, ThrowLiftEnd = 0.36f, ThrowSwingEnd = 0.52f;
+    public bool IsThrown => _thrown;
+    /// <summary>0..1 progress of the throw, -1 when not being thrown.</summary>
+    public float ThrowU => _thrown ? Mathf.Clamp((float)_throwT / _throwLen, 0f, 1f) : -1f;
+    public static Vector3 ThrowHold(Vector3 from, Vector3 shaft) => from.Lerp(shaft, 0.45f) + new Vector3(0, 4.6f, 0);
+    public static Vector3 ThrowTop(Vector3 shaft) => shaft + new Vector3(0, 3.4f, 0);
+
+    /// <summary>The Goblin picks this miner up, swings them over the shaft and drops them. Runs on every peer; at the end the node is removed.
+    /// (palm is kept for the call contract; the hold point is derived from the victim's spot and the shaft.)</summary>
     public void StartThrow(Vector3 palm, Vector3 shaft, float seconds)
     {
         _thrown = true; _throwT = 0; _throwLen = Math.Max(1f, seconds);
-        _throwFrom = GlobalPosition; _throwPalm = palm + new Vector3(0, 1.2f, 0); _throwShaft = shaft;
+        _throwFrom = GlobalPosition; _throwPalm = ThrowHold(_throwFrom, shaft); _throwShaft = shaft;
         CollisionMask = 0; CollisionLayer = 0; Velocity = Vector3.Zero;
     }
 
@@ -255,18 +265,26 @@ public partial class Miner : CharacterBody3D
     {
         _throwT += dt;
         float u = Mathf.Clamp((float)_throwT / _throwLen, 0f, 1f);
-        Vector3 pos;
-        const float liftEnd = 0.30f, swingEnd = 0.46f;
-        if (u < liftEnd) pos = _throwFrom.Lerp(_throwPalm, Mathf.SmoothStep(0f, 1f, u / liftEnd));
-        else if (u < swingEnd) { float k = Mathf.SmoothStep(0f, 1f, (u - liftEnd) / (swingEnd - liftEnd)); pos = _throwPalm.Lerp(_throwShaft + new Vector3(0, 3.2f, 0), k) + new Vector3(0, Mathf.Sin(k * Mathf.Pi) * 1.4f, 0); }
+        Vector3 pos; var top = ThrowTop(_throwShaft);
+        if (u < ThrowReachEnd) pos = _throwFrom;
+        else if (u < ThrowLiftEnd) pos = _throwFrom.Lerp(_throwPalm, Mathf.SmoothStep(0f, 1f, (u - ThrowReachEnd) / (ThrowLiftEnd - ThrowReachEnd)));
+        else if (u < ThrowSwingEnd) { float k = Mathf.SmoothStep(0f, 1f, (u - ThrowLiftEnd) / (ThrowSwingEnd - ThrowLiftEnd)); pos = _throwPalm.Lerp(top, k) + new Vector3(0, Mathf.Sin(k * Mathf.Pi) * 0.9f, 0); }
         else
         {
-            float f = (u - swingEnd) / (1f - swingEnd);
-            pos = _throwShaft + new Vector3(0, 3.2f - 70f * f * f, 0);
+            float f = (u - ThrowSwingEnd) / (1f - ThrowSwingEnd);
+            pos = top + new Vector3(0, -70f * f * f, 0);
         }
         GlobalPosition = pos;
-        float spin = Mathf.Max(0f, (u - liftEnd)) * 14f;
-        Rotation = new Vector3(Mathf.Sin(spin * 0.9f) * 0.9f, Rotation.Y, spin * 0.6f);
+        if (u < ThrowSwingEnd)   // dangling in the fist
+        {
+            float k = Mathf.Clamp((u - ThrowReachEnd) / (ThrowSwingEnd - ThrowReachEnd), 0f, 1f);
+            Rotation = new Vector3(0.35f * k + Mathf.Sin((float)_throwT * 5f) * 0.12f * k, Rotation.Y, Mathf.Sin((float)_throwT * 3.3f) * 0.2f * k);
+        }
+        else
+        {
+            float spin = (u - ThrowSwingEnd) * 40f;
+            Rotation = new Vector3(0.35f + Mathf.Sin(spin * 0.9f) * 0.9f, Rotation.Y, spin * 0.6f);
+        }
         if (u >= 1f)
         {
             _thrown = false;
@@ -346,7 +364,7 @@ public partial class Miner : CharacterBody3D
 
     public int NetFlags => _flags;
     public string Held => _held;
-    public Vector3 EyePos => GlobalPosition + new Vector3(0, _crouching ? 1.1f : 1.6f, 0);
+    public Vector3 EyePos => GlobalPosition + new Vector3(0, _crouching ? 0.95f : 1.6f, 0);
     public Vector3 LookDir => -_head.GlobalTransform.Basis.Z;
 
     public override void _PhysicsProcess(double delta)
@@ -384,12 +402,13 @@ public partial class Miner : CharacterBody3D
         if (wantCrouch != _crouching)
         {
             _crouching = wantCrouch;
-            ((CapsuleShape3D)_shape.Shape).Height = _crouching ? 1.2f : 1.8f;
-            _shape.Position = new Vector3(0, _crouching ? 0.6f : 0.9f, 0);
-            _head.Position = new Vector3(0, _crouching ? 1.1f : 1.6f, 0);
+            ((CapsuleShape3D)_shape.Shape).Height = _crouching ? 1.0f : 1.8f;
+            _shape.Position = new Vector3(0, _crouching ? 0.5f : 0.9f, 0);
+            _head.Position = new Vector3(0, _crouching ? 0.95f : 1.6f, 0);
         }
 
         float speed = (_crouching ? CrouchSpeed : (c.Sprint ? SprintSpeed : WalkSpeed)) * SpeedMul * (IsDowned ? DownedSpeedMul : 1f);
+        if (Game.I.World?.Cave != null && Game.I.World.Cave.InSqueeze(GlobalPosition)) speed *= 0.55f;   // sideways squeeze: slow going
         var wish = Transform.Basis * new Vector3(c.Move.X, 0, -c.Move.Y);
         wish = wish.LengthSquared() > 1f ? wish.Normalized() : wish;
         UpdateEthereal();

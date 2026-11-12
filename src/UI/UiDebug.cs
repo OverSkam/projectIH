@@ -33,11 +33,11 @@ public partial class UiDebug : Node
         {
             case "goblin": case "goblin_happy": case "goblin_angry":
                 if (!inRound || _t < 1.0) return;
-                var gp = g.World.Cave.GoblinPos;
-                _cam = new Camera3D { Current = true, Fov = 55f, Near = 0.05f };
+                var gp = g.World.Cave.GoblinSeat;
+                _cam = new Camera3D { Current = true, Fov = 40f, Near = 0.05f };
                 g.World.AddChild(_cam);
-                _cam.GlobalPosition = gp + new Vector3(0.0f, 1.75f, 2.6f);
-                _cam.LookAt(gp + new Vector3(0f, 1.5f, 0f), Vector3.Up);
+                _cam.GlobalPosition = gp + new Vector3(0.0f, 6.0f, 13f);
+                _cam.LookAt(gp + new Vector3(0f, 7.2f, 0f), Vector3.Up);
                 Hud.I.Visible = false;
                 if (_screen == "goblin_happy") GoblinRig.React("happy");
                 if (_screen == "goblin_angry") GoblinRig.React("angry");
@@ -96,7 +96,7 @@ public partial class UiDebug : Node
             case "feedprompt": case "feedprompt_stein":
                 if (!inRound || g.LocalMiner == null || _t < 1.0) return;
                 var gob = g.World.Cave.GoblinPos;
-                g.LocalMiner.Teleport(gob + new Vector3(0, 0, 2.6f), 0);
+                g.LocalMiner.Teleport(gob + new Vector3(0, 0, 2.3f), 0);
                 g.LocalMiner.FaceYaw(0f);
                 if (_screen == "feedprompt_stein") g.LocalMiner.DebugHoldProgress(0.6f);
                 break;

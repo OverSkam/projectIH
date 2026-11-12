@@ -34,11 +34,11 @@ public partial class World : Node3D
             AmbientLightEnergy = 0f,
             TonemapMode = Godot.Environment.ToneMapper.Filmic,
             FogEnabled = true,
-            FogLightColor = new Color(0.025f, 0.03f, 0.05f),
-            FogDensity = 0.028f,
+            FogLightColor = new Color(0.008f, 0.010f, 0.016f),
+            FogDensity = 0.062f,
         };
         AddChild(new WorldEnvironment { Environment = env });
-        if (Util.HasArg("camroom") || Util.HasArg("cam")) AddChild(DebugCam.Make(Cave));
+        if (Util.HasArg("camroom") || Util.HasArg("cam") || Util.HasArg("camtunnel") || Util.HasArg("camgoblin")) AddChild(DebugCam.Make(Cave));
     }
 
     public Miner GetMiner(int peer) => MinersRoot.GetNodeOrNull<Miner>(peer.ToString());

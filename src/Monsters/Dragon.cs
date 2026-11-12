@@ -22,7 +22,7 @@ public partial class DragonObj : MonsterObj
 
     public DragonObj()
     {
-        TurnRate = MonsterTuning.DragonTurn; BodyRadius = 2f; EyeH = 2f;
+        TurnRate = MonsterTuning.DragonTurn; BodyRadius = 2f; EyeH = 2f; Headroom = 5f;
     }
 
     protected override void ServerInit()

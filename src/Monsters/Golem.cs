@@ -16,7 +16,7 @@ public partial class GolemObj : MonsterObj
     {
         WalkSpeed = MonsterTuning.GolemWalk; InvestigateSpeed = MonsterTuning.GolemInvestigate; ChaseSpeed = MonsterTuning.GolemChase;
         TurnRate = MonsterTuning.GolemTurn; MoveAlign = 0.7f; SightCos = MonsterTuning.GolemSightCos;
-        AttackRange = MonsterTuning.GolemSlamReach - 0.4f; AttackAlign = 0.35f; BodyRadius = 1.0f; EyeH = 3.0f; WanderRadius = 8f;
+        AttackRange = MonsterTuning.GolemSlamReach - 0.4f; AttackAlign = 0.35f; BodyRadius = 1.0f; EyeH = 3.0f; WanderRadius = 8f; Headroom = 4.0f;
     }
 
     protected override void BuildModel()

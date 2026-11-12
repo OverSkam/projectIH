@@ -342,8 +342,12 @@ public abstract partial class MonsterObj : NetObject
     }
 
     /// <summary>Extra veto on a step (water, lair bounds...). Camp is always vetoed.</summary>
+    /// <summary>Ceiling height this monster needs to walk somewhere (tunnels are ~2.2 m: a golem cannot follow into them).</summary>
+    protected float Headroom = 0f;
+
     protected virtual bool Allowed(Vector3 np, bool chasing)
     {
+        if (Headroom > 0f && ModularCave.Last is { } mc && mc.At((int)Math.Round(np.X / 2f), (int)Math.Round(np.Z / 2f)).Ceil < Headroom) return false;
         if (HallBlock(np) && !HallBlock(GlobalPosition)) return false;
         return true;
     }
