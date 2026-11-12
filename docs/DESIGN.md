@@ -1,93 +1,157 @@
-# App Stein — Game Design (v0.1)
+# App Stein — Game Design (v2)
 
-First-person multiplayer (2–8 players) mining game. Miners descend into a dark mineshaft, collect valuable
-steins (stones) and hand them to the boss Goblin for money. Everyone shares the cave and its dangers, but
-only one miner wins. Mood: PEAK-style low-poly, but dark and underground. Tone: dark comedy.
+First-person multiplayer (2–8 players) horror-comedy. Miners descend into a black, cramped mineshaft, crack
+geodes, and carry steins (stones) back to a giant Goblin who eats them. Each round the Goblin weighs every
+miner's tribute and throws the lightest miner down the shaft. Thrown miners come back as monsters.
+The last miner wins. There is no money and no shared quota.
+
+Mood: low-poly but very dark and grim. The player is prey: weak, short of light, in tunnels one body wide.
+Tone: dark comedy carried by the Goblin.
+
+**v1 → v2 summary:** money → tribute weight; quota/poorest-curse/survivor-bonus removed; fixed 5 rounds →
+elimination until one miner is left; killable monsters → unkillable; free lantern → lantern oil; wide rooms →
+narrow, low tunnels; small Goblin behind a counter → giant Goblin in the Hall of the Scale.
 
 ## Match structure
-- A match is **5 rounds**. Each round is a new, deeper cave assembled from hand-built room modules.
-- Each round has a **timer set by the Goblin** (round 1: 6 min, growing to ~12 min by round 5).
-- Every round starts and ends at the **Goblin's camp** (the hub room at the cave entrance).
-- When the timer ends the Goblin collapses the mine: every miner not inside the camp dies.
-- The round also ends immediately if every miner is dead.
-- **Shared quota:** the group must deliver a total value each round. If missed, every miner loses 20% of
-  their money. This is what makes cooperation worthwhile.
-- **Poorest miner punishment:** after each round the Goblin publicly names the miner who delivered the
-  least that round and curses them (next round: starts at 60% health). Only the poorest is ever named.
-- **Survivor bonus:** if exactly one miner is alive at round end, they get a cash bonus.
-- **Winner:** most money after round 5, or an Infinity Stein victory (see below).
+- With N miners there are N−1 rounds. Each round is a new, deeper cave.
+- **Round flow:** cage lift down from the Hall → mine → return to the Hall and feed the Goblin → timer ends →
+  the weighing → one miner is thrown → next round.
+- **Timer:** set by the Goblin. Round 1: 6 min, +1 min per round, max 10 min.
+- **Timer end:** the lift leaves. A miner who is not inside the Hall weighs **zero** this round and loses
+  everything they carry.
+- **The weighing:** each miner's pile is put on the giant Scale one at a time in front of everyone, lightest
+  last. The lightest miner is picked up by the Goblin and thrown down the shaft (eliminated).
+  - Ties for lightest: all tied miners are thrown, unless that would leave nobody — then one of them, at random.
+  - Final two miners: the heavier pile wins the match.
+- **Infinity Stein** victory still exists (see steins).
 
 ## Hidden information (core rule)
-- Nobody can see another miner's steins, sack contents, or money. The scoreboard shows only your own money.
-- The Goblin reveals only: the group quota progress, the poorest miner, and Infinity Stein warnings.
-- When a miner dies, everything they carry drops in a lootable bag. That is the only way to learn it.
+- Nobody sees another miner's tribute weight, sack or steins. You see only your own weight this round.
+- Weights become public only during the weighing.
+- The Goblin never names who is ahead or behind. (The only hint is the monster "the Owed".)
 
-## Death
-- Dead miners become **ghosts** until the next round: free-fly spectators who can meddle a little
-  (blow out a lantern, knock a pebble to make noise) on a cooldown. They respawn alive next round.
-- Banked money is kept. Carried ore, power steins and utility items are dropped.
+## Tribute
+- Tribute is **weight**, counted per round and reset to zero after each weighing.
+- Feed the Goblin by placing stones in his open palm (interact). Sack stones are fed together; a power stein
+  can also be fed (deliberate separate action) and weighs a lot.
+- Weights: Coal 1, Iron 2, Silver 4, Gold 7, Ruby 10, Diamond 14. Power steins: Common 6, Rare 12,
+  Legendary 20. Special objects: gold statue 15, mother geode 30.
+
+## Death in the cave is not elimination
+- A miner at 0 health is **downed** for 30 s: cannot act, can crawl very slowly, can be looted. (Step 4 adds
+  dragging and reviving.) After 30 s, or if hit again, they die.
+- A dead miner drops everything in a bag, haunts as a ghost (can blow out a lantern or knock a pebble) and
+  returns next round with only a pickaxe and a lantern. Tribute already fed this round still counts.
+- Only the Scale eliminates.
+
+## The Turned (eliminated players)
+- A thrown miner returns from the next round on as a monster and stays one for the rest of the match.
+- The Turned **cannot tell miners apart**: they see lantern light and sound pulses (footsteps, mining, geode
+  cracks), not bodies, names or colours. A miner with the lantern out, standing still, is invisible to them.
+- They cannot win. They play for spite.
+- (Until the Turned are implemented, eliminated players remain ghosts for the rest of the match.)
 
 ## What a miner carries
 | Slots | Holds | Notes |
 |---|---|---|
-| Sack ×4 | Valuable ore | Delivered to the Goblin for money |
-| Stein ×2 | Power steins | Passive/active powers. Never bought — only found |
-| Utility ×2 | Tools | Start with Pickaxe + Lantern; others found in the cave and swapped |
+| Sack ×4 | Stones (tribute) | Fed to the Goblin |
+| Stein ×2 | Power steins | Power while held; heavy tribute if fed |
+| Utility ×2 | Tools | Start with Pickaxe + Lantern |
 
-Health 100. Fists always available (5 dmg + shove). Direct PvP is allowed everywhere except inside the camp.
+Health 100. Fists and pickaxe hurt **miners**. Nothing a miner carries can kill a monster. No fighting
+inside the Hall.
 
-## Valuable ore (money)
-Mined from veins with a pickaxe (several hits) or found loose. Coal 10, Iron 25, Silver 50, Gold 100,
-Ruby 175, Diamond 250. Deeper rooms and later rounds have richer veins.
+## Light
+- The lantern burns **oil**: a full lantern lasts about 4 minutes of light. It starts each round full.
+- Oil drums are rare objects in the cave (refill by interacting; each drum has a few refills).
+- The lantern can be switched off to save oil or to hide. Without it the cave is black.
+- Darkness itself becomes dangerous once the dark-hunting monsters exist.
+
+## Loot (step 2)
+- Veins drop sealed **geodes**. Cracking one (pickaxe, takes a moment) plays an escalating reveal: glow through
+  cracks → colour of rarity → burst. Most are common stones; rarely a power stein.
+- **The rarer the result, the brighter and louder the reveal** — a legendary lights the tunnel and is heard
+  far away by miners and monsters.
+- **Bright chests** hold several stones or a stein. Some are **mimics** that bite and hold on.
+- Until geodes exist, veins drop stones directly as in v1.
 
 ## Power steins
-Every miner starts the match with one random Common stein. More come from trial shrines, rare chests and
-monster drops. Luck improves rarity.
+Every miner starts the match with one random Common stein. Found in geodes, chests, shrines. Never bought.
+Every strong stein has a cost another player can exploit.
 
-- **Common:** Regen (slow heal), Swift (+speed), Stoneskin (−damage taken), Strongarm (faster mining,
-  +melee), Owl (see in the dark), Feather (no fall damage, higher jump), Packmule (+2 sack slots),
-  Hush (monsters hear you less).
-- **Rare:** Luck (better drops), Midas (bonus damage scaling with your money), Ethereal (walk through
-  specially marked thin walls, with a cooldown).
+- **Common:** Regen, Swift, Stoneskin, Strongarm, Owl, Feather, Packmule, Hush.
+- **Rare:** Luck (better geode/vein rolls), Ethereal (pass marked thin walls), Glutton (your sack stones weigh
+  double on the Scale, but each stone you carry slows you), Parasite (slowly drains tribute weight from the
+  nearest miner to you), Lantern-heart (you glow and need no oil, but can never go dark), Echo (leave a
+  standing decoy of yourself), Whisper (you hear the heartbeat of legendary steins nearby — and monsters hear
+  yours).
 - **Legendary:**
-  - **Blood** — large boost to health, speed and damage, but you must kill one miner each round; if you
-    did not, at round end you lose the stein and half your money.
-  - **Infinity** — a single item that looks like six stones fused together and takes one stein slot.
-    It gives no power. If one miner is holding it at the end of 3 rounds in a row, they win instantly.
-    The Goblin announces "the Infinity Stein has been carried for N rounds" without naming the holder.
+  - **Midas** — a miner you kill turns into a gold statue (weight 15) instead of dropping a bag of loot.
+  - **Liar** — once, during the weighing, swap your pile with another miner's.
+  - **Blood** — large boost to health, speed and damage; you must kill a miner each round or lose the stein
+    and half your tribute at the weighing.
+  - **Infinity** — one item that looks like six fused stones, no power. Held by the same miner at the end of
+    3 rounds in a row → instant win. The Goblin announces the count without naming the holder.
 
 ## Utility items
-Pickaxe (mine + 20 dmg melee), Lantern (light; without it the cave is nearly black), Rope (anchor at a
-ledge to climb pits; others can cut it), Gas mask (immune to gas), Map (shows room layout), Dynamite
-(opens blocked passages, hurts, triggers rockfalls), Bear trap (placeable).
+Pickaxe, Lantern, Rope, Gas mask, Map, Dynamite, Bear trap (as v1). Dynamite and bear traps stun monsters
+briefly; they never kill them.
 
-## Monsters
-- **Stone Golem** — slow, hits hard, armoured from the front. Glowing crystal on its back is the weak
-  point: one miner distracts, another strikes. Drops gems.
-- **Ember Elemental** — fast, burns; dies when lured into water.
-- **Gas Wisp** — drifting poison cloud; harmless with a gas mask.
-- **Dragon** — sleeps on a hoard in the deepest room of late rounds. Unkillable. Noise wakes it.
+## Monsters — all unkillable
+- **The Assessor** — the Goblin's bailiff. Drawn to the miner carrying the most weight. Pins them, takes
+  their heaviest item back to the Goblin, credited to nobody.
+- **The Plug** — fills a narrow tunnel completely and creeps forward. Cannot be passed.
+- **The Owed** — visible only to the miner who is currently lightest. Hunts only them.
+- **Wicks** — small pale swarm drawn to flame; drink lantern oil. Leave when the flame is out.
+- **The Lamplighter** — a tall figure carrying a light identical to a miner's lantern.
+- **Hatchlings** — some geodes are eggs; the hatchling rides your back and makes your tribute weigh less.
+  Passed on by touching another miner.
+- **The Hands** — the giant Goblin's hand reaches down certain shafts and gropes for a miner.
+- **Waking veins** — some rich veins are sleeping stone golems.
+- **The Dragon** — sleeps on a hoard in the deepest room of late rounds; noise wakes it.
+- Removed from v1: Ember Elemental, Gas Wisp. Until the new monsters exist, the v1 Golem (made unkillable:
+  a hit on its back crystal only stuns it) and the Dragon are the only monsters.
 
 ## Traps and hazards
-- **Built-in:** spike pits, rockfall zones (rumble warning first), gas vents, tripwire darts.
-- **Player-activated:** levers that drop gates, collapse ceilings or open trapdoors; cuttable rope
-  bridges; placed bear traps.
+As v1: spike plates, rockfalls, gas vents, dart tripwires, trapdoor pits, levers (gate, collapse, trapdoor).
 
-## Trials (stein shrines)
-Two-player pressure plate (one must stay on the plate while the other takes the stein), timed gauntlet,
-blood altar (pay health), guardian golem.
+## Cooperation and betrayal (step 4)
+- **Winch** — one miner lowers another on a rope into a rich pit and decides whether to pull them up.
+- **Gate** — one holds it open while the other crawls under, there and back.
+- **Mother geode** — needs two carriers; counts for whoever lays it in the Goblin's palm.
+- **Pact stone** — two miners bind. At the weighing each secretly picks Share or Steal. Both share: pooled and
+  split. One steals: takes all. Both steal: both lose half.
+- **Gifting** — during the weighing any miner may throw stones onto another's pile.
+- **Single file** — tunnels are one miner wide; a crouching miner blocks a crawl.
+- **Downed** — drag a downed miner to safety, revive, or loot and leave.
+- **Pickpocket and plant** — from behind, take a stone from a sack or slip an egg into it.
 
-## The Goblin
-Boss at the camp: takes ore, pays money, announces quota/time/poorest. A goblin caricature in a polo
-shirt with swept grey hair.
+## The cave
+- Mostly tunnels **one miner wide** with the ceiling just above head height, crawls (crouch only) and sideways
+  squeezes. Open rooms are rare and feel exposed.
+- Rooms: Hall of the Scale (hub), cage lift, the Vault (big chest, several miners to open, one prize), the
+  Black Gallery (lanterns do not work; glowing ore only), flooded crawl, the Altar (a legendary that unlocks
+  when a miner dies on it), plus v1 modules narrowed.
+
+## The Goblin and the Hall of the Scale
+- A **giant**: seated, about 9 m tall, filling the end of the Hall; the face alone is about 3 m high and lit
+  from below. Green goblin caricature of a rich financier: swept-back grey hair, heavy eyebrows, big nose,
+  long pointed ears, smug half-smile, navy quarter-zip with a popped collar. Eyes follow miners.
+- One huge open palm rests at miner height: the place to feed him.
+- The giant Scale stands in front of him. The shaft he throws miners into is beside it.
+- He talks: greedy, bored, cruel-funny.
 
 ## Art direction
-Low-poly, flat-shaded, built from code and primitive meshes. Very dark; lantern light and glowing ore,
-fog, warm camp light versus cold cave.
+Low-poly, flat-shaded, **much darker**: near-black caves, desaturated cold rock, strong fog, no fill light.
+Light comes from lanterns, glowing ore, geode reveals and the Hall's sickly glow. Film grain and vignette.
+
+## Later
+HUD redesign; real recorded sounds (owner will supply); character animation.
 
 ## Build order
-1. **Foundation:** project, networking/lobby, first-person miner, health/melee/death/ghost, slots,
-   interaction, round + match loop, goblin deposit, HUD, grey-box test cave, automated smoke test.
-2. **Content (parallel):** cave generator + room modules + lighting; ore/steins/utilities/trials;
-   monsters; traps/rockfalls; menus/goblin/round-end screens.
-3. Balance, sound, polish, Windows build.
+1. **Core loop:** tribute weight, the Scale and weighing ceremony, elimination, downed state, lantern oil,
+   unkillable monsters; then the giant Goblin and Hall, narrow caves, darker look.
+2. Geodes, chests, mimics.
+3. The Turned and the new monsters.
+4. Cooperation pieces.
+5. New steins and rooms.
