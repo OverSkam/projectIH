@@ -1,6 +1,6 @@
 # App Stein
 
-App Stein is a first-person multiplayer mining game for 2 to 8 players. You and your friends climb down into a dark mineshaft, dig out stones and feed them to a giant Goblin, while monsters, traps and each other get in the way. After every round the Goblin weighs everybody's tribute and throws the lightest miner down the shaft. Only one miner wins: the last one left, or whoever holds the cursed Infinity Stein long enough.
+App Stein is a first-person multiplayer mining game for 2 to 8 players. You and your friends climb down into a dark mineshaft, dig out stones and feed them to a giant Goblin, while monsters, traps and each other get in the way. After every round the Goblin weighs everybody's tribute and throws the lightest miner down the shaft. Only one miner wins: the last one left, or whoever holds the Infinity Stein long enough.
 
 ## What you need (Windows)
 
