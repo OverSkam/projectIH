@@ -32,6 +32,12 @@ public partial class Hud : CanvasLayer
     DamageRing _ring;
     Control _deathOverlay;
     PanelContainer _scorePanel; VBoxContainer _scoreRows; double _scoreT;
+    // items overlay (notices, key hints, owl tint, map)
+    Label _notice, _hint;
+    PanelContainer _steinInfo; VBoxContainer _steinInfoRows; string _steinInfoSig = "";
+    ColorRect _tint;
+    MapView _map;
+    OmniLight3D _owl;
 
     float _prevHp = 100f, _flash, _shownMoney; int _prevMoney, _lastSackCap = -1;
     double _timeNow;
@@ -64,6 +70,7 @@ public partial class Hud : CanvasLayer
         BuildFeed();
         BuildDeath();
         BuildScoreboard();
+        BuildItemOverlays();
 
         Miner.Knocked += v => { _lastKnock = v; _lastKnockT = Time.GetTicksMsec() / 1000.0; };
         GoblinVoice.Said += OnSaid;
@@ -142,14 +149,14 @@ void fragment(){
     {
         _bl = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
         _bl.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
-        _bl.OffsetLeft = 20; _bl.OffsetTop = -112; _bl.OffsetRight = 290; _bl.OffsetBottom = -18;
+        _bl.OffsetLeft = 20; _bl.OffsetTop = -112; _bl.OffsetRight = 250; _bl.OffsetBottom = -18;
         _root.AddChild(_bl);
         var v = UiKit.VBox(6); UiKit.FullRect(v); _bl.AddChild(v);
 
         var hh = UiKit.HBox(8);
         v.AddChild(hh);
         hh.AddChild(new HeartIcon());
-        _hpBar = new FillBar { CustomMinimumSize = new Vector2(220, 28), Fill = new Color(0.82f, 0.18f, 0.18f), FontSize = 18, Max = 100 };
+        _hpBar = new FillBar { CustomMinimumSize = new Vector2(185, 28), Fill = new Color(0.82f, 0.18f, 0.18f), FontSize = 18, Max = 100 };
         hh.AddChild(_hpBar);
 
         var mh = UiKit.HBox(8);
@@ -206,8 +213,44 @@ void fragment(){
         _sackBox = Group("SACK", out _);
         _steinBox = Group("STEINS", out _);
         _utilBox = Group("UTILITY", out _);
-        for (int i = 0; i < Inventory.SteinSlots; i++) _steins.Add(MakeSlot(_steinBox));
+        for (int i = 0; i < Inventory.SteinSlots; i++) _steins.Add(MakeSlot(_steinBox, ""));
         for (int i = 0; i < Inventory.UtilSlots; i++) _utils.Add(MakeSlot(_utilBox, (i + 1).ToString()));
+    }
+
+    void BuildItemOverlays()
+    {
+        _tint = new ColorRect { Color = new Color(0.4f, 0.6f, 1f, 0.07f), MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
+        UiKit.FullRect(_tint); _root.AddChild(_tint); _root.MoveChild(_tint, 0);
+
+        // one compact context key-hint line, centred above the slot row
+        _hint = UiKit.MakeLabel("", 14, new Color(0.85f, 0.88f, 0.95f, 0.9f), HorizontalAlignment.Center, 4);
+        _hint.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
+        _hint.GrowHorizontal = Control.GrowDirection.Both; _hint.GrowVertical = Control.GrowDirection.Begin;
+        _hint.OffsetTop = -138; _hint.OffsetBottom = -116;
+        _root.AddChild(_hint);
+
+        // held steins: name (rarity colour) + one-line description, always visible, bottom right
+        _steinInfo = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        _steinInfo.AddThemeStyleboxOverride("panel", UiTheme.Box(new Color(0.05f, 0.045f, 0.04f, 0.62f), new Color(UiTheme.BrassDark, 0.6f), 8, 1, 8, 5));
+        _steinInfo.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
+        _steinInfo.GrowHorizontal = Control.GrowDirection.Begin; _steinInfo.GrowVertical = Control.GrowDirection.Begin;
+        _steinInfo.OffsetLeft = -256; _steinInfo.OffsetRight = -16; _steinInfo.OffsetTop = -150; _steinInfo.OffsetBottom = -14;
+        _steinInfoRows = UiKit.VBox(4); _steinInfo.AddChild(_steinInfoRows);
+        _root.AddChild(_steinInfo);
+
+        // short notices from the item systems, just above the crosshair
+        _notice = UiKit.MakeLabel("", 22, new Color(1f, 0.95f, 0.6f), HorizontalAlignment.Center, 6);
+        _notice.SetAnchorsPreset(Control.LayoutPreset.Center);
+        _notice.GrowHorizontal = Control.GrowDirection.Both; _notice.GrowVertical = Control.GrowDirection.Begin;
+        _notice.OffsetTop = -130; _notice.OffsetBottom = -90;
+        _notice.AutowrapMode = TextServer.AutowrapMode.WordSmart; _notice.CustomMinimumSize = new Vector2(720, 0);
+        _root.AddChild(_notice);
+
+        _map = new MapView { Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
+        _map.SetAnchorsPreset(Control.LayoutPreset.Center);
+        _map.CustomMinimumSize = new Vector2(420, 420);
+        _map.OffsetLeft = -210; _map.OffsetRight = 210; _map.OffsetTop = -210; _map.OffsetBottom = 210;
+        _root.AddChild(_map);
     }
 
     HBoxContainer Group(string title, out Label caption)
@@ -365,6 +408,7 @@ void fragment(){
         _money.Modulate = Mathf.Abs(_shownMoney - money) > 0.5f ? new Color(1.4f, 1.3f, 0.8f) : Colors.White;
 
         UpdateSlots(g, alive);
+        UpdateItemOverlays(g, alive);
 
         // prompt
         string prompt = alive && !PauseMenu.I.IsOpen ? g.LocalMiner.PromptText : "";
@@ -451,7 +495,20 @@ void fragment(){
             string id = i < inv.Steins.Count ? inv.Steins[i] : "";
             var d = id == "" ? null : Steins.Get(id);
             Color border = d == null ? UiTheme.BrassDark : d.Rarity == Rarity.Legendary ? new Color(1f, 0.55f, 0.15f) : d.Rarity == Rarity.Rare ? new Color(0.35f, 0.65f, 1f) : new Color(0.75f, 0.7f, 0.6f);
-            Fill(_steins[i], "stein", id, border, d == null ? "" : d.Name.Replace(" Stein", ""), false);
+            bool sel = inv.SteinSel == i && inv.Steins.Count > 1;
+            string cap = d == null ? "" : d.Name.Replace(" Stein", "");
+            string key = "";
+            Color? capCol = null;
+            if (d != null && d.Ability != null && d.Ability == g.OwnAbility)
+            {
+                double now = Time.GetTicksMsec() / 1000.0, cd = g.OwnAbilityReadyAt - now, act = g.OwnEtherealUntil - now;
+                cap = act > 0 ? $"ACTIVE {act:0}s" : cd > 0 ? $"{Mathf.CeilToInt((float)cd)}s" : "READY";
+                key = "Q";
+                capCol = act > 0 ? UiTheme.Good : cd > 0 ? UiTheme.Dim : UiTheme.Gold;
+            }
+            Fill(_steins[i], "stein", id, border, cap, sel);
+            if (_steins[i].Key != null) { _steins[i].Key.Text = key; _steins[i].Key.AddThemeColorOverride("font_color", UiTheme.Gold); }
+            if (capCol.HasValue) _steins[i].Caption.AddThemeColorOverride("font_color", capCol.Value);
         }
         for (int i = 0; i < _utils.Count; i++)
         {
@@ -460,6 +517,60 @@ void fragment(){
             bool sel = inv.Selected == i;
             Fill(_utils[i], "util", id, sel ? UiTheme.Gold : UiTheme.BrassDark, d?.Name ?? "", sel);
         }
+    }
+
+    void UpdateSteinInfo(Inventory inv, bool alive)
+    {
+        string sig = alive ? string.Join(",", inv.Steins) : "";
+        _steinInfo.Visible = sig != "";
+        if (sig == _steinInfoSig) return;
+        _steinInfoSig = sig;
+        foreach (var c in _steinInfoRows.GetChildren()) c.QueueFree();
+        foreach (var id in inv.Steins)
+        {
+            var d = Steins.Get(id); if (d == null) continue;
+            var col = ItemInfo.RarityColor(d.Rarity);
+            _steinInfoRows.AddChild(UiKit.MakeLabel($"{d.Name}  ({ItemInfo.RarityName(d.Rarity)})", 14, col, HorizontalAlignment.Left, 3));
+            var t = UiKit.MakeLabel(d.Description, 12, UiTheme.Parchment, HorizontalAlignment.Left, 2);
+            t.AutowrapMode = TextServer.AutowrapMode.WordSmart; t.CustomMinimumSize = new Vector2(224, 0);
+            _steinInfoRows.AddChild(t);
+        }
+    }
+
+    void UpdateItemOverlays(Game g, bool alive)
+    {
+        double now = Time.GetTicksMsec() / 1000.0;
+        var inv = g.OwnInv;
+        var parts = new List<string>();
+        if (alive)
+        {
+            var held = Utilities.Get(inv.Held);
+            parts.Add("1/2 item");
+            if (held != null && held.IsPickaxe) parts.Add("LMB mine / strike");
+            else if (held != null && held.Id != "lantern") parts.Add("RMB use " + held.Name.ToLower());
+            if (inv.Steins.Count > 1) parts.Add("F stein slot");
+            if (g.OwnAbility != "") parts.Add("Q " + char.ToUpper(g.OwnAbility[0]) + g.OwnAbility.Substring(1));
+            if (inv.Sack.Count > 0) parts.Add("T drop ore");
+        }
+        _hint.Text = string.Join("   |   ", parts);
+        _hint.Visible = alive && !PauseMenu.I.IsOpen;
+        _notice.Text = alive && now - g.ItemNoticeAt < 4 + g.ItemNotice.Length / 25.0 ? g.ItemNotice : "";
+        UpdateSteinInfo(inv, alive);
+        _tint.Visible = false;   // night vision is only a faint light on the miner, never a screen-wide wash
+        _map.Visible = alive && inv.Held == "map" && Input.IsActionPressed("use_utility");
+
+        // Owl stein: faint light that only exists on the local miner (never replicated).
+        var m = g.LocalMiner;
+        if (alive && g.OwnDark)
+        {
+            if (_owl == null || !IsInstanceValid(_owl) || _owl.GetParent() != m)
+            {
+                _owl = new OmniLight3D { LightColor = new Color(0.45f, 0.62f, 1f), LightEnergy = 0.4f, OmniRange = 24f, OmniAttenuation = 1.4f, ShadowEnabled = false, Position = new Vector3(0, 1.6f, 0) };
+                m.AddChild(_owl);
+            }
+            _owl.LightEnergy = g.World.Cave.InCamp(m.GlobalPosition) ? 0f : 0.4f;   // lit areas (the camp) stay exactly as they are
+        }
+        else if (_owl != null) { if (IsInstanceValid(_owl)) _owl.QueueFree(); _owl = null; }
     }
 
     void Fill(SlotView s, string kind, string id, Color border, string caption, bool selected)

@@ -32,7 +32,7 @@ public static class ItemsDebug
     public static void OnRoundPopulated(Game g)
     {
         if (!Net.I.IsServer) return;
-        if (g.Round == 1 && Util.HasArg("give")) ApplyGive(g, Util.Arg("give"));
+        if ((g.Round == 1 || Util.HasArg("giveeach")) && Util.HasArg("give")) ApplyGive(g, Util.Arg("give"));
         if (Util.HasArg("debugspawn")) DebugSpawn(g, Util.Arg("debugspawn"));
     }
 

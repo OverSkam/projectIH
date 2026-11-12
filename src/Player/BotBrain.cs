@@ -22,7 +22,7 @@ public class BotBrain : IMinerController
     bool _statedMine;
 
     readonly IMinerController _ext; // monsters workstream test bot (--bot=mon)
-    public BotBrain(string routine) { _routine = routine; if (routine == "mon") _ext = new MonsterBot(); }
+    public BotBrain(string routine) { _routine = routine; if (routine == "mon") _ext = new MonsterBot(); else if (routine.StartsWith("explorer")) _ext = new ExplorerBot(routine); }
 
     public virtual MinerInput Poll(float dt, Miner m)
     {

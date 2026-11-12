@@ -96,6 +96,7 @@ public partial class MenuUI : CanvasLayer
     VBoxContainer _menuBox, _lobbyBox, _playerList, _connectingBox;
     PanelContainer _mainPanel;
     SettingsPanel _settings;
+    GuidePanel _guide;
     VBoxContainer _titleBox;
     Label _startHint, _roundsLabel, _ipLabel;
 
@@ -144,7 +145,8 @@ public partial class MenuUI : CanvasLayer
         var hb = UiKit.HBox(10);
         var sb = UiKit.MakeButton("Settings", () => ShowSettings(true), 100); sb.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         var qb = UiKit.MakeButton("Quit", () => GetTree().Quit(), 100); qb.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        hb.AddChild(sb); hb.AddChild(qb);
+        var gb = UiKit.MakeButton("Guide", () => ShowGuide(true), 100); gb.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        hb.AddChild(gb); hb.AddChild(sb); hb.AddChild(qb);
         _menuBox.AddChild(hb);
 
         // ---- connecting
@@ -179,6 +181,8 @@ public partial class MenuUI : CanvasLayer
         _settings = new SettingsPanel(() => ShowSettings(false)) { Visible = false };
         var sc = new CenterContainer(); UiKit.FullRect(sc); sc.MouseFilter = Control.MouseFilterEnum.Ignore;
         _root.AddChild(sc); sc.AddChild(_settings);
+        _guide = new GuidePanel(() => ShowGuide(false)) { Visible = false };
+        sc.AddChild(_guide);
 
         Net.I.LobbyChanged += Refresh;
         Net.I.ConnectionFailed += () => { _status.Text = $"Could not reach the host at {_ip.Text.Trim()}. Check the address and that the host is running (UDP port {Net.DefaultPort})."; Refresh(); };
@@ -187,6 +191,12 @@ public partial class MenuUI : CanvasLayer
         Game.I.ReturnedToMenu += Refresh;
         Refresh();
         UiDebug.Ensure(this);
+    }
+
+    public void ShowGuide(bool on)
+    {
+        _guide.Visible = on;
+        _mainPanel.GetParent<Control>().GetParent<Control>().Visible = !on;
     }
 
     public void ShowSettings(bool on)

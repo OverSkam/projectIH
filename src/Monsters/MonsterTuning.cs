@@ -13,7 +13,11 @@ public static class MonsterTuning
     public const float DeadLinger = 2.2f;          // corpse stays this long before despawn
 
     // ---- spawning (monster markers)
-    public const float SpawnChanceBase = 0.40f, SpawnChancePerRound = 0.10f, SpawnChancePerDepth = 0.08f;
+    public const float SpawnChanceBase = 0.32f, SpawnChancePerRound = 0.12f, SpawnChancePerDepth = 0.07f;
+    public const int SafeDepth = 1;                // rooms this close to the camp (depth <= 1) never hold monsters
+    static readonly int[] TotalCap = { 2, 3, 5, 7, 9 };
+    public static int MaxTotal(int round) => TotalCap[System.Math.Clamp(round - 1, 0, TotalCap.Length - 1)];   // monsters per round
+    public static int MaxPerRoom(int round) => round <= 2 ? 1 : round <= 4 ? 2 : 3;
     public const float GolemWeight = 5f;           // always eligible
     public const float EmberWeightLate = 2.5f;     // round >= 2 or depth >= 3
     public const float WispWeightLate = 2f;        // round >= 2

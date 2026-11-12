@@ -6,7 +6,7 @@ namespace AppStein;
 public partial class PauseMenu : CanvasLayer
 {
     public static PauseMenu I;
-    Control _root, _menuBox, _settingsBox;
+    Control _root, _menuBox, _settingsBox, _guideBox;
     public bool IsOpen => _root.Visible;
 
     public override void _Ready()
@@ -32,17 +32,26 @@ public partial class PauseMenu : CanvasLayer
         _menuBox.AddChild(UiKit.MakeLabel("The cave does not wait for you.", 15, UiTheme.Dim, HorizontalAlignment.Center));
         _menuBox.AddChild(UiKit.Rule());
         _menuBox.AddChild(UiKit.MakeButton("Resume", () => Open(false), 280, true));
+        _menuBox.AddChild(UiKit.MakeButton("Guide", () => ShowGuide(true), 280));
         _menuBox.AddChild(UiKit.MakeButton("Settings", () => ShowSettings(true), 280));
         _menuBox.AddChild(UiKit.MakeButton("Leave match", () => { Open(false); Game.I.LeaveToMenu(); }, 280));
 
         _settingsBox = new SettingsPanel(() => ShowSettings(false)) { Visible = false };
         center.AddChild(_settingsBox);
+        _guideBox = new GuidePanel(() => ShowGuide(false)) { Visible = false };
+        center.AddChild(_guideBox);
         panel.Visible = true;
         _menuPanel = panel;
         Game.I.PhaseChanged += OnPhase;
     }
 
     PanelContainer _menuPanel;
+
+    void ShowGuide(bool on)
+    {
+        _guideBox.Visible = on;
+        _menuPanel.Visible = !on;
+    }
 
     void ShowSettings(bool on)
     {
@@ -59,7 +68,7 @@ public partial class PauseMenu : CanvasLayer
     {
         if (on == _root.Visible) return;
         _root.Visible = on;
-        ShowSettings(false);
+        ShowSettings(false); ShowGuide(false);
         Sfx.Play(on ? SfxNames.UiOpen : SfxNames.UiClose);
         if (on) Input.MouseMode = Input.MouseModeEnum.Visible;
         else if (DisplayServer.GetName() != "headless" && Game.I.Phase == GamePhase.Round && (Game.I.LocalMiner != null || Game.I.LocalGhost != null))
@@ -70,7 +79,7 @@ public partial class PauseMenu : CanvasLayer
     {
         if (!e.IsActionPressed("pause")) return;
         if (Game.I.Phase != GamePhase.Round || DisplayServer.GetName() == "headless") return;
-        if (_settingsBox.Visible) ShowSettings(false); else Open(!IsOpen);
+        if (_guideBox.Visible) ShowGuide(false); else if (_settingsBox.Visible) ShowSettings(false); else Open(!IsOpen);
         GetViewport().SetInputAsHandled();
     }
 

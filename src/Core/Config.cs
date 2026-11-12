@@ -40,5 +40,19 @@ public class MatchConfig
         AllowSolo = true,
     };
 
-    public static MatchConfig FromName(string n) => n == "debug" ? Debug : Default;
+    /// <summary>Full-game soak test: normal rules, short rounds.</summary>
+    public static MatchConfig Soak => new MatchConfig
+    {
+        Name = "soak",
+        Rounds = 3,
+        BaseRoundSeconds = 105f,
+        RoundSecondsGrowth = 0f,
+        QuotaPerPlayer = 30,
+        QuotaGrowth = 0.3f,
+        SummarySeconds = 4f,
+        MatchEndSeconds = 6f,
+        AllowSolo = true,
+    };
+
+    public static MatchConfig FromName(string n) => n == "debug" ? Debug : n == "soak" ? Soak : Default;
 }

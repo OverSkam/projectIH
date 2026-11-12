@@ -422,7 +422,7 @@ public abstract partial class MonsterObj : NetObject
         if (dir.LengthSquared() < 0.0001f) return false;
         dir = dir.Normalized();
         float want = Mathf.Atan2(-dir.X, -dir.Z);
-        if (!Flying && !FreeAhead(pos, dir))
+        if (!FreeAhead(pos, dir))
         {
             foreach (var a in new[] { 0.7f, -0.7f, 1.4f, -1.4f, 2.1f, -2.1f })
             {
@@ -448,6 +448,7 @@ public abstract partial class MonsterObj : NetObject
         }
         else
         {
+            if (Ray(pos + new Vector3(0, 0.6f, 0), np + new Vector3(0, 0.6f, 0))) return false;   // flyers do not pass through rock either
             float target = (gy ?? pos.Y - Hover) + Hover;
             np.Y = Mathf.MoveToward(pos.Y, target, 1.5f * dt);
         }
