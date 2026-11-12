@@ -19,5 +19,9 @@ public static class EliminatedRole
     public static void OnRoundStart(Game g, ServerPlayer p) { }
 
     /// <summary>Client (the local player is eliminated; the round world exists, or a throw animation just ended): take control of whatever the role is.</summary>
-    public static void ClientEnter(Game g, Vector3 at) => g.EnterGhost(at);
+    public static void ClientEnter(Game g, Vector3 at)
+    {
+        Util.Pass("eliminated_ghost", $"round={g.Round}");
+        g.EnterGhost(at);
+    }
 }

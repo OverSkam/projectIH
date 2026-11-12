@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Monster tests: for each scenario runs a headless host (idle bot, scripted by --montest=NAME) plus bot client(s) as separate
+# Monster tests (monsters are unkillable: golem back crystal / dynamite / bear traps only stun): for each scenario runs a headless host (idle bot, scripted by --montest=NAME) plus bot client(s) as separate
 # processes on localhost (debug preset, --nomonsters so only the scenario's monsters exist), and checks PASS lines.
 # Usage: tools/monsters_test.sh   (env: PORT=7777 LOGDIR=<dir> TIMEOUT=120)
 set -u
@@ -52,15 +52,15 @@ run_scenario() {
 }
 
 run_scenario golem 2 \
-  "alice_in_position golem_hears_noise golem_approaches golem_damages_miner golem_front_armoured golem_back_hit_hurts golem_dies_from_behind golem_drops_loot montest_done" \
+  "alice_in_position golem_hears_noise golem_approaches golem_damages_miner golem_front_hit_ignored golem_stunned_by_back_hit golem_stunned_stays_put golem_recovers_after_stun golem_unkillable_no_loot golem_stunned_by_blast golem_blast_stun_ends golem_stunned_by_beartrap montest_done" \
   "monster_replicated monster_moved_on_client miner_hurt_seen" 0 --monpos=36:-2
 
 run_scenario golemhit 2 \
-  "alice_in_position golem_front_hit_registered golem_front_real_hits_barely_hurt golem_back_real_hit_hurts golem_killed_by_bot golem_loot_dropped montest_done" \
+  "alice_in_position golem_front_real_hits_do_nothing golem_back_real_hit_stuns golem_survives_no_loot montest_done" \
   "monster_replicated" 0 --monpos=36:-2 --monhit
 
 run_scenario ember 2 \
-  "alice_in_position ember_dies_in_water ember_drops_ruby ember_burns_miner ember_burn_damage_over_time ember_weak_to_melee ember_dies_chasing_into_water montest_done" \
+  "alice_in_position ember_doused_in_water ember_burns_miner ember_burn_damage_over_time ember_unkillable_by_melee ember_doused_chasing_into_water montest_done" \
   "monster_replicated miner_hurt_seen" 0 --monpos=36:-2 --monface=36:5
 
 run_scenario wisp 3 \
@@ -68,7 +68,7 @@ run_scenario wisp 3 \
   "monster_replicated miner_hurt_seen" 1 --monpos=36:-2 --monface=38:-2
 
 run_scenario dragon 2 \
-  "alice_in_lair dragon_hoard_spawned dragon_sleeps_when_quiet dragon_stage dragon_woke dragon_wakes_from_noise dragon_breath_damages_miner dragon_stays_in_lair dragon_unkillable montest_done" \
+  "alice_in_lair dragon_hoard_spawned dragon_sleeps_when_quiet dragon_stage dragon_woke dragon_wakes_from_noise dragon_breath_damages_miner dragon_stays_in_lair dragon_unaffected_by_hits_blasts_traps montest_done" \
   "monster_replicated miner_hurt_seen" 0 --monpos=36:36
 
 if [ $RC -eq 0 ]; then echo "MONSTERS PASS"; else echo "MONSTERS FAILED (see $LOGDIR)"; fi

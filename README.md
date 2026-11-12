@@ -1,6 +1,6 @@
 # App Stein
 
-App Stein is a first-person multiplayer mining game for 2 to 8 players. You and your friends climb down into a dark mineshaft, dig out ore and hand it to the boss Goblin for money, while monsters, traps and each other get in the way. Everyone shares the same cave but only one miner wins: the richest after five rounds, or whoever holds the cursed Infinity Stein long enough.
+App Stein is a first-person multiplayer mining game for 2 to 8 players. You and your friends climb down into a dark mineshaft, dig out stones and feed them to a giant Goblin, while monsters, traps and each other get in the way. After every round the Goblin weighs everybody's tribute and throws the lightest miner down the shaft. Only one miner wins: the last one left, or whoever holds the cursed Infinity Stein long enough.
 
 ## What you need (Windows)
 
@@ -46,28 +46,32 @@ Without the editor you can also start two copies of the Godot program with `--pa
 | Jump | Space |
 | Sprint | Left Shift |
 | Crouch / crawl | Left Ctrl |
-| Use / pick up / open / deliver to the Goblin | E |
+| Use / pick up / open / loot a downed miner | E |
+| Feed the Goblin: tap E for all stones in your sack, hold E (about 1 second) for the selected power stein | E at the Goblin |
+| Lantern on / off (saves oil) | L |
 | Mine (pickaxe) / strike | Left mouse button |
 | Use the held item (place dynamite, bear trap or rope; look at the map) | Right mouse button |
 | Select utility slot 1 / 2 | 1 / 2 |
 | Use the active power of your selected stein (e.g. Ethereal) | Q |
 | Choose which stein slot is highlighted (the one swapped when you pick up a new stein) | F |
 | Drop the held utility item | G |
-| Drop a piece of ore from your sack | T |
+| Drop a stone from your sack | T |
 | Show the miners list | Tab (hold) |
 | Pause menu / settings | Esc |
 | As a ghost: fly | W A S D, Space (up), Ctrl (down) |
-| As a ghost: rattle something (blow out a lantern or knock a pebble) | Right mouse button |
+| As a ghost: snuff the nearest lantern | Right mouse button |
+| As a ghost: knock a pebble (noise) | E |
 
 Mouse sensitivity and field of view are in **Settings** (main menu or pause menu).
 
 ## How a match works
 
-- A match is **5 rounds**. Every round is a new, deeper cave and starts and ends at the **Goblin's camp**. The camp is safe: no fighting between players, no monsters and no traps work there.
-- Each round has a **timer** (6 minutes in round 1, growing to 12 minutes). When it hits zero the Goblin **collapses the mine** and every miner who is not back in the camp dies. Be home in time.
-- You start with a **pickaxe**, a **lantern** and one random **power stein**. Mine ore from veins with the pickaxe or pick up loose ore, keep it in your **sack** (4 slots) and **deliver it to the Goblin** with E to turn it into money. The cave is nearly black without the lantern.
-- The whole group must deliver a **quota** each round. If the quota is missed, everybody loses 20% of their money. The Goblin also names the **poorest miner** of the round and curses them: they start the next round with less health.
-- Other miners can see where you are but **nobody can see your money, sack or steins**. When someone dies, everything they carry drops in a **bag** that any living miner can loot. Dead miners become **ghosts** until the next round and can only meddle a little.
-- Dangers: **Stone Golems** (hit hard, weak from behind), **Ember Elementals** (fast and burning), **Gas Wisps** (poison; a gas mask helps), the **Dragon** (round 3 and later, asleep in the deepest room; noise wakes it), and traps such as spikes, rockfalls, gas vents, dart tripwires, trapdoors, levers and cuttable rope bridges.
-- **Power steins** are found in shrine trials, rare chests and monster drops. The **Blood Stein** is powerful but you must kill a miner each round or you lose it and half your money. The **Infinity Stein** does nothing, but whoever carries it at the end of 3 rounds in a row wins on the spot.
-- After round 5 (or an Infinity win) the **richest miner wins**.
+- With N miners a match has **N-1 rounds**. Every round is a new, deeper cave. Round 1 lasts **6 minutes**, every later round one minute more (up to 10).
+- You start with a **pickaxe**, a **lantern** and one random **power stein**. Mine stones from veins with the pickaxe or pick up loose ones, carry up to **4 in your sack**, and bring them to the Goblin in the **Hall**. Interact (E) to feed him every stone in your sack. Each stone adds its **weight** to *your tribute for this round*: Coal 1, Iron 2, Silver 4, Gold 7, Ruby 10, Diamond 14. A power stein can be fed too (hold E on the Goblin with that stein selected, F picks the slot): Common 6, Rare 12, Legendary 20. Fed items are gone.
+- When the timer ends the **lift leaves**. A miner who is not inside the Hall weighs **zero** and loses everything they carry. Then the **weighing**: every miner stands in the Hall facing the Scale and the piles are revealed one at a time, heaviest first, the lightest last. The **lightest miner is thrown down the shaft** and is out of the match (if several are tied for lightest, all of them are thrown, unless that would leave nobody; then one of them, picked at random). With two miners left, the heavier pile wins the match. Tribute starts from zero again every round.
+- **Nobody can see anyone else's tribute weight, sack or steins.** Weights become public only during the weighing.
+- Your **lantern burns oil**: about 4 minutes when full, and it starts every round full. Press **L** to switch it off and save oil (or to hide). When the oil runs low the light flickers; at zero it goes out. **Oil drums** in the cave refill it (a few refills each). The cave is nearly black without light.
+- At 0 health you are **downed** for 30 seconds: you can only crawl very slowly, anyone may rob you (E, one item at a time), and any further hit kills you. If you die, everything you carry drops in a **bag** that any living miner can loot; you become a **ghost** until the next round and return with only a pickaxe and a lantern. Dying in the cave is not elimination: tribute you already fed this round still counts. Only the Scale eliminates.
+- Thrown miners stay in the match as ghosts. The Hall is safe: no fighting, and monsters, traps and explosions do nothing there.
+- **Monsters cannot be killed.** The Stone Golem is stunned for a few seconds by a hit on the glowing crystal on its back; dynamite and bear traps stun monsters briefly. The Dragon (round 3 and later) sleeps on a hoard in the deepest room and wakes on noise. Traps: spikes, rockfalls, gas vents, dart tripwires, trapdoors, levers and cuttable rope bridges.
+- **Power steins** are found in shrine trials, chests and geodes. The **Blood Stein** is powerful but you must kill a miner each round or you lose it and half of that round's tribute. The **Midas Stein** turns a miner you kill into a gold statue stone (weight 15). The **Infinity Stein** does nothing, but whoever carries it at the end of 3 rounds in a row wins on the spot.
