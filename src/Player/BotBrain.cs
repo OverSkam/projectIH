@@ -52,7 +52,6 @@ public class BotBrain : IMinerController
     {
         var inv = g.OwnInv;
         var world = g.World;
-        var camp = world.Cave.HallZone;
         bool lateRound = g.TimeLeft < 16f;
         NetObject goblin = world.Objects.Values.FirstOrDefault(o => o is GoblinObj);
         if (goblin == null) return;
@@ -109,7 +108,7 @@ public class BotBrain : IMinerController
         var world = g.World;
         if (g.Round < 2)
         {
-            // Round 1: stand in a far room (gets buried when the mine collapses).
+            // Round 1: stand in a far room (outside the Hall when the timer ends: weighs zero).
             { var c = world.Cave; var far = c.Rooms[Math.Min(1, c.Rooms.Count - 1)].Center; int ni = c.NearestNode(far); WalkTo(m, ref inp, ni >= 0 ? c.NavNodes[ni] : far, 1f); }
             return;
         }
@@ -117,7 +116,7 @@ public class BotBrain : IMinerController
         foreach (var o in world.Miners())
         {
             if (o == m || !g.Alive.GetValueOrDefault(o.PeerId)) continue;
-            if (world.Cave.InHall(o.GlobalPosition)) continue; // no PvP in camp
+            if (world.Cave.InHall(o.GlobalPosition)) continue; // no fighting in the Hall
             float d = o.GlobalPosition.DistanceTo(m.GlobalPosition);
             if (d < bd) { bd = d; target = o; }
         }

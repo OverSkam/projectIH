@@ -1,4 +1,4 @@
-# App Stein — Architecture (foundation)
+# App Stein — Architecture (v2 rules)
 
 Godot 4.7.2 .NET, C# only. Everything (scenes, meshes, UI) is built in code; `scenes/Main.tscn` is a single node with `src/Core/Main.cs`.
 Game data lives in static C# registries (`src/Items/Defs.cs`), not `.tres`.
@@ -7,16 +7,20 @@ Game data lives in static C# registries (`src/Items/Defs.cs`), not `.tres`.
 - Editor: open the folder in Godot 4.7.2 .NET, press Play (the editor builds the C# project itself). Main menu: Host / Join.
 - CLI build: `dotnet build AppStein.csproj` (must end with 0 errors). First-time/CI import: `godot --headless --path . --import`.
 - Command-line args (after `--`): `--host`, `--join=<ip>`, `--name=X`, `--port=N`, `--autostart=N` (host starts when N players are present),
-  `--preset=debug` (2 short rounds, tiny quota), `--bot=<routine>` (`idle`, `miner`, `killer`, `pit`), `--timeout=<sec>`, `--botdebug`.
+  `--preset=debug` (60 s rounds, quick weighing ceremony, 10 s downed time), `--preset=soak`, `--roundsecs=N` (round length override), `--tribute=Name=N,...`
+  (server: sets that tribute weight at every round start; test/screenshot staging), `--give=[Name=]stein:id|util:id|ore:id`,
+  `--bot=<routine>` (`idle`, `miner`, `killer`, `pit`, `explorer`, `t_*` item-test bots), `--timeout=<sec>`, `--botdebug`, `-- --weighcheck` (headless self-check of the elimination rules).
   Any of host/join/bot = "automated": the process quits itself after the match ends or the host disappears.
-- Smoke test: `tools/smoke_test.sh` (env `PORT`, `LOGDIR`, `TIMEOUT`). Builds, imports, runs host (idle bot) + `Alice` (miner bot) + `Bob` (killer bot)
-  as separate headless processes, debug preset, ~2.5 min. Processes print `PASS: <name>` / `FAIL: <name>`; the script requires every expected PASS, no
-  FAIL, no `ERROR`/exception text, matching final money on server and clients, winner = Alice. Exit code non-zero on any problem.
+- Smoke test: `tools/smoke_test.sh` (env `PORT`, `LOGDIR`, `TIMEOUT`). Builds, imports, runs the weighing-rules self-check, then host (idle bot) + `Alice` (miner bot)
+  + `Bob` (killer bot) as separate headless processes, debug preset, ~3 min: Alice feeds (tribute credited to her client only), Bob hides outside the Hall and
+  weighs zero, the reveal sequence is identical on every peer, Bob is thrown and stays a ghost, round 2 is the final two, Alice wins. Processes print
+  `PASS: <name>` / `FAIL: <name>`; the script requires every expected PASS, no FAIL, no `ERROR`/exception text. Exit code non-zero on any problem.
   **Run it before every commit that touches gameplay or networking.** When adding a feature, add a PASS line in the code and the name to the script's list.
 
 ## Autoloads and nodes
 - `Net` (`src/Net/Net.cs`): ENet listen-server (port 7777, 8 peers), lobby roster `Net.Names` (peer id -> name), events `LobbyChanged/Connected/ServerLost/PeerLeft`.
-- `Game` (`src/Core/Game.cs`): match/round state machine (server) + **all in-round RPCs**. Phases: Lobby -> Round -> Summary -> (next Round | MatchEnd) -> Lobby.
+- `Game` (`src/Core/Game.cs` + partials `Game.Weighing.cs`, `Game.Downed.cs`, `Items/Game.Items.cs`): match/round state machine (server) + **all in-round RPCs**.
+  Phases: Lobby -> Round -> Weighing -> (next Round | MatchEnd) -> Lobby. Public per-miner state: `Game.Status` (Alive / Downed / Dead / Eliminated).
 - `World` (`src/World/World.cs`, child of `/root/Game/World`, re-created every round on every peer): `Geometry` (cave), `Miners` (children named by peer id),
   `Objects` (networked objects), registry `World.Objects[id]`.
 - `Main` (scene root) owns UI layers: `MenuUI` (menu+lobby), `Hud`, `Screens` (round summary / match end). UI only reads `Game`/`Net` state and events.
@@ -29,17 +33,21 @@ Game data lives in static C# registries (`src/Items/Defs.cs`), not `.tres`.
 - `Client*`: server -> clients. `[Rpc(Authority, CallLocal = true, Reliable)]`; the server's own process runs the same handler, so the host is just another client.
 - Movement: the owner simulates its miner and sends `ReportState` (unreliable, ~20 Hz); the server stores it in `ServerPlayer.Pos` and forwards `ClientState`
   to the other peers, which interpolate. Fall damage is reported by the owner (`ReportFall`) and clamped/validated by the server.
-- Server-authoritative: health, damage, death, inventory, money, round state, world objects, loot bags.
-- **Hidden information:** money and inventory go only to their owner via `RpcId(peer, nameof(ClientOwnState), ...)` (`SendOwnState`). The handler asserts
-  `owner == MyId` and logs `FAIL: foreign_state_received` otherwise (the smoke test would catch a leak). Public: position, alive/dead, held utility, announcements,
-  group quota, poorest miner name. Loot-bag contents stay on the server (`BagObj.Items`) until looted.
-- Late joiners: `OnPeerRegistered` -> `ServerSendSnapshot` (begin-round as spectator + all objects + all living miners). They are ghosts until the next round.
+- Server-authoritative: health, damage, downed/death, inventory, tribute weight, lantern oil, round state, the weighing, world objects, loot bags.
+- **Hidden information:** tribute weight, inventory and oil go only to their owner via `RpcId(peer, nameof(ClientOwnState), ...)` (`SendOwnState`) and
+  `ClientFeedAck`. The handlers assert `owner == MyId` and log `FAIL: foreign_state_received` / `foreign_feed_ack` otherwise (the smoke test would catch a leak).
+  Public: position, status, downed, held utility, whether a lantern is lit / flickering / out, announcements, Goblin cues (`ClientGoblinCue`: category + seed, every peer picks the same line),
+  and everything the weighing reveals (a pile's weight is sent only when it is revealed). Loot-bag contents stay on the server (`BagObj.Items`) until looted.
+- Late joiners: `OnPeerRegistered` -> they never were miners: marked `Eliminated` (ghost for the rest of the match), `ServerSendSnapshot` if a round is running.
+  A miner who disconnects is eliminated at once (`OnPeerLeft`); if at most one miner remains at any moment the match ends with them as winner (`CheckMatchOver`).
 - Physics layers: 1 world, 2 miners, 4 solid objects (veins, goblin), 8 pickups/bags (interaction rays only).
 
 ## Adding content
-**Ore**: add an `OreDef` in `Ores` (`Defs.cs`): id, value, colour, glow, `MinDepth`, `Weight`. Veins/loose ore pick via `Ores.Pick(rng, roomDepth, round)`.
+**Ore**: add an `OreDef` in `Ores` (`Defs.cs`): id, `TributeWeight` (weight on the Scale), colour, glow, `MinDepth`, `SpawnWeight` (relative pick chance; 0 = never spawns, e.g. the Midas `statue`).
+Veins/loose ore pick via `Ores.Pick(rng, roomDepth, round)`. Power steins weigh `Steins.TributeOf(id)` when fed (Common 6, Rare 12, Legendary 20).
 **Stein**: add a `SteinDef` in `Steins`: `Modify(StatBlock)` for passive stats (speed, jump, damage taken, melee, mining speed, sack bonus, regen, no-fall),
-`OnTick(ServerPlayer, dt)` for per-tick server logic, `OnEvent(ServerPlayer, SteinEvent)` for `RoundStart/RoundEnd/DamageTaken/DamageDealt/Kill/Death/Deposit/Mined`.
+`OnTick(ServerPlayer, dt)` for per-tick server logic, `OnEvent(ServerPlayer, SteinEvent)` for `RoundStart/RoundEnd/DamageTaken/DamageDealt/Kill/Death/Fed/Mined`
+(`RoundEnd` fires after the lock-out, before the weighing piles are built: the Blood penalty lives there).
 Stats are recomputed by `ServerPlayer.RecalcStats()` whenever steins change; the owner receives speed/jump/no-fall in `ClientOwnState`. New stat = add a field to `StatBlock`
 and use it where the server (or the owner via OwnState) applies it. `Steins.RandomCommon` picks the starting stein, so a new Common is automatically in the pool.
 **Utility**: add a `UtilityDef` in `Utilities` (placeholders for Rope, Gas mask, Map, Dynamite, Bear trap exist with `Stub = true`). Held visuals are in `Miner.SetHeld`.
@@ -50,20 +58,41 @@ Spawn on the server with `Game.I.ServerSpawnObject(kind, pos, data)` (assigns th
 `Data` is a string (`Kv()` helper); anything secret must stay in server-only fields. `ApplyData` runs on every peer.
 **Server-driven monster / trap**: make it a `NetObject` kind; the server runs its AI in `_PhysicsProcess` only when `Net.I.IsServer`, moves it, and replicates
 position/state either through `ServerSetObjectData` at low rate or a new `Client*` RPC (unreliable for position). Damage goes through `ServerPlayer.TakeDamage(amount, source, cause)`
-(applies stein modifiers and kills correctly). Spawn from cave markers in `Game.PopulateWorld` (markers `monster`, `trap`, `loot` already exist in the grey-box cave).
+(applies stein modifiers and kills correctly). Spawn from cave markers (`Game.MarkerSpawners`). Monsters are unkillable: derive from `MonsterObj`, use `Stun(seconds)` for anything that should interrupt them.
 Use `World.Cave.FindPath` / `NavNodes` for coarse navigation.
 
 ## Cave builder
 `ICaveBuilder.Build(Node3D parent, int seed, int round)` -> `CaveInfo` (`src/World/CaveInfo.cs`). It runs on **every peer** and must be deterministic for a given seed
 (geometry only; networked objects are spawned by the server from the markers). Swap the implementation via `World.Builder`. `CaveInfo` contains:
-`CampZone` (AABB; no PvP, safe from the collapse), `GoblinPos`, `MinerSpawns` (>= 8), `Rooms[]` (`Bounds`, `Center`, `Depth` from camp, `Markers[]` with
-`Kind` = `vein | ore | monster | trap | loot` and `Pos`), and a waypoint graph `NavNodes/NavEdges` (`FindPath`) used by the bots. Keep the camp lit (OmniLights) and everything else dark;
-the world environment has no ambient light (`World.BuildCave`). The current `GreyBoxCave` is a grid of axis-aligned rooms/tunnels with one pit (ramp out).
+the **Hall of the Scale seams**: `HallZone` (AABB; the miners inside it when the timer ends are counted; no PvP, monsters/traps/explosions do nothing there; `InHall(p)`; the old name
+`CampZone` is kept as an alias property on `CaveInfo`), `GoblinPos`, `PalmPos` (the Goblin's open palm: the feeding point; stones are fed by interacting with the Goblin object, steins by
+holding interact, validated within 5.5 m of the palm), `ScalePos` (centre of the weighing platform; `HallScale` builds placeholder visuals there), `WeighSpots` (>= 8 standing places inside the Hall,
+one per miner in peer-id order, all facing `ScalePos`; `MakeWeighSpots` lays them on an arc), `ShaftPos` (where the thrown miner falls into the dark),
+`MinerSpawns` (>= 8), `Rooms[]` (`Bounds`, `Center`, `Depth` from the Hall, `Markers[]` with `Kind` = `vein | ore | monster | dragon | trap | lever | loot | chest | shrine | oil` and `Pos`),
+and a waypoint graph `NavNodes/NavEdges` (`FindPath`) used by the bots. Keep the Hall lit (OmniLights) and everything else dark; the world environment has no ambient light (`World.BuildCave`).
+`--cavecheck` verifies the seams (spots inside the Hall, >= 8, distinct). `ModularCave` uses the `camp` module as the Hall (legend char `i` = oil drum marker); `GreyBoxCave` is the old grid cave.
 
 ## Round/match rules implemented (`Game`, `MatchConfig`)
-5 rounds (config), timer, shared quota (miss = 20% money loss for everyone), Goblin deposit (`GoblinObj`), collapse at timer end (everyone outside `CampZone` dies),
-early end when all are dead, poorest-of-round cursed (60% health next round), survivor bonus when exactly one is alive, dead -> ghost (`Ghost`) -> respawn next round with the
-start kit (Pickaxe + Lantern; survivors keep their carried items), match winner = most money. Tuning in `src/Core/Config.cs` (`Default`, `Debug`).
+- N miners = N-1 rounds (`MatchConfig.RoundsFor`). Round timer: 6 min +1 per round up to 10 (`Config.cs`; presets `debug`, `soak`).
+- **Tribute:** `ServerPlayer.TributeWeight` (server-authoritative, owner-only, reset to 0 after every weighing). `Game.ServerFeed` feeds the whole sack (tap interact on the Goblin),
+  `Game.ServerFeedStein` one stein (hold interact ~1 s at the Goblin, `RequestFeedStein`, shows a hold bar). Fed items are gone. Goblin cues `feed_small/feed_large/feed_stein` are public.
+- **Timer end -> `ServerBeginWeighing`** (phase `Weighing`): a living miner outside `HallZone` weighs zero and loses everything carried (`NeedsKit`: back next round with pickaxe + lantern, no stein);
+  `RoundEnd` stein events run (Blood, Infinity; an Infinity win ends the match before any weighing); piles are built; everyone left in the match (also ghosts) is revived and placed on `WeighSpots`.
+  Early end when every miner in the cave is dead.
+- **Weighing ceremony** (`Game.Weighing.cs`, server timeline in `AdvanceWeighing`, client state `Game.Weigh` + `WeighChanged`): Intro -> Reveal x N (heaviest first, lightest last; `ClientWeighReveal`
+  carries the weight) -> Verdict (`Weighing.Resolve`) -> Throw (`ClientWeighThrow`: `Miner.StartThrow` lifts the miner to the palm, over `ShaftPos` and drops them; the victim's camera is on the miner) -> "N miners remain" card
+  -> next round, or match end after a final weighing. Presentation: `WeighingUi` (overlay), `HallScale` (placeholder platform + number in the world), Goblin lines via `GoblinCue`. Timings are in `MatchConfig`.
+  Rules (`Weighing.Resolve`, unit-checked by `--weighcheck`): lightest thrown; ties: all tied thrown unless that leaves nobody (then one at random); final two: heavier wins (tie: random).
+- **Hooks for later steps** (server): `Weighing.Prepare(WeighingContext)` once before the first reveal (Liar swap, gifting, Pact stone: change piles only through `WeighingContext.Add/Set/Swap`),
+  `Weighing.BeforeReveal(WeighingContext, WeighPile)` right before each miner's pile is revealed (per-miner step).
+- **Eliminated players** stay as ghosts: everything the role does is behind `EliminatedRole` (`OnEliminated`, `OnRoundStart` on the server, `ClientEnter` on the client). The Turned replace its bodies.
+- **Downed** (`Game.Downed.cs`): at 0 health `DownMiner` -> `ServerPlayer.Downed` for `Config.DownedSeconds` (30): crawls at 12% speed, cannot act (`Game.CanAct`), visible lying pose (`Miner.IsDowned`),
+  HUD countdown; `RequestLoot` takes one item per press (sack, steins, utilities); further damage or the timer kills (`KillMiner`: bag, ghost, back next round). Seam for dragging / reviving: `ServerRevive`,
+  `ServerPlayer.DownedBy`, `Miner.LootTarget`.
+- **Lantern oil** (`ItemsServer.TickLantern`): `ServerPlayer.Oil` (seconds, `Config.LanternOilSeconds` = 240, full at every round start, owner-only), `LanternOn` (toggle key L, `RequestToggleLantern`).
+  Oil burns only while the lantern is lit and held. The public light state (0 lit, 1 out, 2 flickering at <= 25%) goes through `ClientLantern`. `OilDrumObj` (marker `oil`, `Config.OilDrumRefills` each) refills.
+- **Monsters are unkillable:** `MonsterObj.Stun(seconds)` (state `Stunned`); Golem back-crystal hit 6 s, dynamite 2.5 s, bear trap 3 s. Ember Elemental and Gas Wisp classes stay but are no longer spawned. Dragon unchanged.
+- Death in the cave is not elimination. Midas: a miner killed by the holder leaves a `statue` stone (weight 15) instead of a bag. Blood: no kill by the weighing -> stein lost and half of this round's tribute.
 
 ## Folder ownership for parallel work
 | Workstream | Owns (edit freely) | Touch only via small, announced changes |
@@ -72,18 +101,18 @@ start kit (Pickaxe + Lantern; survivors keep their carried items), match winner 
 | Items / steins / trials | `src/Items/*` (new files preferred over growing `Defs.cs`), new `NetObject` kinds for shrines/chests in a new file `src/Items/*Objects.cs` | `ServerPlayer`, `Game.RequestDrop`, `Miner.SetHeld` |
 | Monsters | `src/Monsters/*` | `NetObject.Factories` registration line, `Game.PopulateWorld` spawn lines |
 | Traps / hazards | `src/Traps/*` | same as monsters |
-| UI / Goblin / screens | `src/UI/*`, `src/Goblin/*` (real Goblin model/dialogue replaces `GoblinObj` visuals) | `Game` events (`PhaseChanged`, `FeedChanged`, `OwnChanged`) |
+| UI / Goblin / screens | `src/UI/*`, `src/Goblin/*` (real Goblin model/dialogue replaces `GoblinObj` visuals; `HallScale` replaces the placeholder Scale) | `Game` events (`PhaseChanged`, `FeedChanged`, `OwnChanged`, `WeighChanged`, `GoblinCue`) |
 | Core (networking, match loop, miner) | `src/Core/Game.cs`, `src/Net/*`, `src/Player/*` | everyone: coordinate before editing |
 To avoid merge conflicts in `Game.cs`, put new gameplay RPCs in a `partial class Game` in your own file (e.g. `src/Monsters/Game.Monsters.cs`);
 `Game` is already `partial`.
 
 ## Known limitations / stubs
-- Ghost meddling is a stub (`RequestMeddle`: cooldown + announcement only). Utility "use" (RMB) and stein/legendary mechanics (Blood, Infinity), Hush/Owl/Strongarm/Feather etc. are not implemented.
-- Respawned players get only the start kit (no stein) — design leaves this open.
+- Ghost meddling is small: right mouse snuffs the nearest lantern for 6 s, E knocks a pebble (cooldown 6 s). Eliminated players are ghosts until the Turned exist.
 - Hit detection is a single server ray from the reported eye position; remote miners on the server are interpolated, so very fast movers can be slightly off. No lag compensation.
 - Movement is client-authoritative (speed/teleport are not validated). Fall damage is trusted within clamps.
-- Peer ids are Godot's random ints (not 1..8). Quota/round-time numbers are first guesses (see `MatchConfig.Default`).
-- Not verifiable headless: visuals, lighting, input feel, mouse capture/pause menu behaviour, HUD layout. Bots navigate only the grey-box cave via its waypoint graph.
+- Peer ids are Godot's random ints (not 1..8). Timings and tribute numbers are first guesses (`Config.cs`, `Defs.cs`).
+- The Scale, shaft and thrown-miner animation are placeholders (`HallScale`, `Miner.StartThrow`); the Goblin is still the small v1 model behind `PalmPos`.
+- Not verifiable headless: visuals, lighting, input feel, mouse capture/pause menu behaviour, HUD layout. Bots navigate only via the nav graph.
 - A hard-killed host is noticed by clients only after the ENet timeout (~30 s); a normal quit disconnects immediately.
 
 ## Extension points for parallel content work (`src/Core/Seams.cs`) — use these instead of editing shared files
@@ -93,7 +122,7 @@ To avoid merge conflicts in `Game.cs`, put new gameplay RPCs in a `partial class
 - **Marker spawners:** `Game.MarkerSpawners[kind] = (game, room, marker, rng) => ...` is called on the server for every cave marker of that kind each round.
   Kinds: `monster`, `dragon` (Monsters); `trap`, `lever` (Traps); `loot`, `chest`, `shrine` (Items). `Game.RoundPopulated` fires afterwards.
 - **Noise:** call `Game.ServerNoise(pos, loudnessMetres, byPlayer)` on the server when something is loud; subscribe to `Game.NoiseMade` to react (monsters, rockfalls).
-- **Damage causes:** pass a cause string to `ServerPlayer.TakeDamage`: `melee`, `fall`, `gas`, `fire`, `crush`, `spikes`, `monster`, `explosion`, `collapse`.
+- **Damage causes:** pass a cause string to `ServerPlayer.TakeDamage`: `melee`, `fall`, `gas`, `fire`, `crush`, `spikes`, `monster`, `explosion`, `collapse` (the rockfall lever). Damage that takes health to 0 downs the miner.
   `gas` is ignored when `Stats.GasImmune`.
 - **StatBlock** already has `GasImmune`, `DarkVision`, `Luck`, `NoiseMul` (owned by the Items workstream; others only read them).
 - **Physics layers:** `Layers.World/Miners/Solid/Pickup/ThinWall/Monsters`. Thin (Ethereal) walls are StaticBodies on `Layers.ThinWall` built by the cave.
@@ -106,9 +135,9 @@ visuals. Software rendering is slow: keep it to a few hundred frames.
 
 ## Items workstream (src/Items)
 Registered by `ItemsModule` ([ContentModule]). Steins incl. Blood/Infinity (`ItemsServer`, `InfinityTracker`), chests/shrines/loose loot (`Loot`, `WorldObjects.cs`),
-utilities via RMB (`Game.RequestUseUtility` -> `ItemsServer.UseHeld`: dynamite, bear trap, rope), active stein key Q (`stein_ability`), F cycles the highlighted stein slot
-(swap target), drop ore moved to T. Monsters can implement `IRootable` (bear trap) and `IExplodable` (dynamite). Owner-only item state goes through `ClientItemState`.
-Tests: `tools/items_test.sh` (scripted by `--itest=util|infinity`, `--give=`, `--debugspawn=`, `--rounds=`; bots `--bot=t_*`, see `ItemsDebug.cs`).
+utilities via RMB (`Game.RequestUseUtility` -> `ItemsServer.UseHeld`: dynamite, bear trap, rope), active stein key Q (`stein_ability`), L toggles the lantern, F cycles the highlighted stein slot
+(swap target), drop ore moved to T. Monsters can implement `IRootable` (bear trap: stun) and `IExplodable` (dynamite: stun). Owner-only item state goes through `ClientItemState`.
+Tests: `tools/items_test.sh` (scripted by `--itest=util|infinity|tie|disconnect`, `--give=`, `--debugspawn=`; bots `--bot=t_*`, see `ItemsDebug.cs`; elimination is steered by setting tribute weights).
 ## Modular cave (src/World/Cave)
 Default builder `ModularCave` (`--cave=greybox` selects the old one). 14x14-cell (2 m) hand-built modules in `CaveModules.cs` (ASCII legend in the file), rotated and joined on an 18-cell slot grid.
 Debug: `-- --cavecheck` (headless self-check, seeds 1-20 x rounds 1-5), `--caveseed=N --caveround=N`, `--cavelist`, screenshots with `--camroom=N [--camat=<marker kind>] [--camoff=x,y,z --camyaw=deg --campitch=deg]` or `--cam=x,y,z`.

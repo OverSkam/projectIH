@@ -73,7 +73,8 @@ grep -q "^PASS: blood_kept_with_kill name=Alice" "$LOGDIR/util/host.log" || fail
 grep -q "^PASS: midas_statue victim=Dave killer=Bob" "$LOGDIR/util/host.log" || fail "Midas statue not left for Dave by Bob"
 grep -q "^PASS: looted_downed looter=Alice victim=Host" "$LOGDIR/util/host.log" || fail "Alice did not loot the downed Host"
 grep -q "^PASS: lantern_low_seen" "$LOGDIR/util/host.log" || fail "the low-oil flicker was not visible on another client"
-grep -q "^PASS: death_bag_dropped victim=Host cause=bleed" "$LOGDIR/util/host.log" || fail "Host did not bleed out"
+grep -q "^PASS: death_bag_dropped victim=Host cause=bleed.*downed=True" "$LOGDIR/util/host.log" || fail "Host did not bleed out"
+grep -q "^PASS: death_bag_dropped victim=Alice cause=test.*downed=True" "$LOGDIR/util/host.log" || fail "a further hit did not kill the downed Alice"
 # the oil level is private: no client's own-state log ever shows another miner's oil (each log has only its owner's OWNSTATE lines)
 [ "$(grep -c '^PASS: miner_eliminated' "$LOGDIR/util/host.log")" = "4" ] || fail "expected 4 eliminations in the util match (Carol, Dave, Bob, then Host in the final two)"
 grep -q "^WINNER=Alice" "$LOGDIR/util/host.log" || fail "util winner is not Alice"

@@ -198,6 +198,7 @@ public partial class Game : Node
     void ServerEndMatch()
     {
         Phase = GamePhase.MatchEnd;
+        _weigh = null;
         var present = Players.Values.Where(p => Net.I.Names.ContainsKey(p.Peer)).ToList();
         var alive = present.Where(p => !p.Eliminated).ToList();
         string winner = ForcedWinner ?? (alive.Count > 0 ? alive.OrderBy(p => p.Peer).First().Name : "");
@@ -706,6 +707,7 @@ public partial class Game : Node
     void ClientReturnLobby()
     {
         FreeWorld();
+        Weigh = null;
         Phase = GamePhase.Lobby;
         PhaseChanged?.Invoke();
     }
@@ -736,6 +738,7 @@ public partial class Game : Node
     public void TearDown()
     {
         FreeWorld();
+        Weigh = null;
         Phase = GamePhase.Lobby;
         Players.Clear();
         Feed.Clear();

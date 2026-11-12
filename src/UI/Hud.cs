@@ -645,7 +645,7 @@ void fragment(){
         if (s.Key != null) s.Key.AddThemeColorOverride("font_color", selected ? UiTheme.Gold : UiTheme.Dim);
     }
 
-    // ------------------------------------------------------------------ scoreboard (only the local player's money is ever shown)
+    // ------------------------------------------------------------------ scoreboard (never any weights: names and status only)
     void RebuildScoreboard(Game g)
     {
         foreach (var c in _scoreRows.GetChildren()) c.QueueFree();

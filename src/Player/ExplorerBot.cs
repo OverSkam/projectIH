@@ -86,14 +86,14 @@ public class ExplorerBot : IMinerController
         if (_mode == "flee")
         {
             if (cave.InHall(pos) && _clock > _flee) _mode = "explore";
-            else { GoDeposit(m, ref inp, g, goblin, stand, inv); return; }
+            else { GoFeed(m, ref inp, g, goblin, stand, inv); return; }
         }
         if (late || (full && inv.Sack.Count > 0))
         {
             if (inv.Sack.Count == 0 && late) { Walk(m, ref inp, new Vector3(0, 0, 4), 2.5f); return; }  // wait in camp
-            GoDeposit(m, ref inp, g, goblin, stand, inv); return;
+            GoFeed(m, ref inp, g, goblin, stand, inv); return;
         }
-        if (_mode == "deposit" && inv.Sack.Count == 0) _mode = "explore";   // "deposit" = walking to the Goblin to feed him
+        if (_mode == "feed" && inv.Sack.Count == 0) _mode = "explore";   // "feed" = walking to the Goblin to feed him
 
         // cautious bot backs off from awake monsters
         if (!_brave)
@@ -118,7 +118,7 @@ public class ExplorerBot : IMinerController
     {
         if (_clock - _lanternT < 2.0 || g.OwnOil <= 0f || Array.IndexOf(inv.Utils, "lantern") < 0) return;
         bool inHall = cave.InHall(m.GlobalPosition);
-        if (inHall != m.LanternOut) return;   // already as wanted (off in the Hall, on elsewhere)
+        if (inHall == m.LanternOut) return;   // already as wanted (off in the Hall, on elsewhere)
         _lanternT = _clock; inp.ToggleLantern = true;
         Util.Pass("explorer_lantern_toggle", $"inHall={inHall}");
     }
@@ -139,9 +139,9 @@ public class ExplorerBot : IMinerController
         return _roam;
     }
 
-    void GoDeposit(Miner m, ref MinerInput inp, Game g, NetObject goblin, Vector3 stand, Inventory inv)
+    void GoFeed(Miner m, ref MinerInput inp, Game g, NetObject goblin, Vector3 stand, Inventory inv)
     {
-        _mode = _mode == "flee" ? "flee" : "deposit";
+        _mode = _mode == "flee" ? "flee" : "feed";
         if (Walk(m, ref inp, stand, 1.0f) || m.GlobalPosition.DistanceTo(goblin.GlobalPosition) < 3.2f)
         {
             Face(m, ref inp, goblin.GlobalPosition + Vector3.Up);

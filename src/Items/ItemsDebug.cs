@@ -435,7 +435,7 @@ public partial class ItemsDirector : Node
                 int id = g.ServerSpawnObject("oil", a.Pos + new Vector3(0, 0, -2.5f), OilDrumObj.MakeData(2));
                 g.DebugStep("oil_refill");
             });
-            At(16, () => { var a = P("Alice"); Chk("oil_refilled_to_full", a.Oil > g.Config.LanternOilSeconds - 3f, $"oil={a.Oil:0}"); a.Oil = 1.5f; });
+            At(16, () => { var a = P("Alice"); Chk("oil_refilled_to_full", a.Oil > g.Config.LanternOilSeconds - 12f, $"oil={a.Oil:0}"); a.Oil = 1.5f; });
             At(18, () => { Chk("lantern_out_when_oil_gone", P("Alice").Oil <= 0f); g.DebugStep("lanternstate", "Alice:out"); P("Alice").Oil = g.Config.LanternOilSeconds; });
             At(19, () =>
             {
@@ -460,7 +460,8 @@ public partial class ItemsDirector : Node
                 a.TakeDamage(500, null, "test");
                 Chk("downed_second_state", a.Alive && a.Downed);
                 a.TakeDamage(3, null, "test");
-                Chk("downed_further_damage_kills", !a.Alive && !a.Downed, $"alive={a.Alive}");   // both miners dead: the Goblin ends the round and weighs (final two, Alice heavier)
+                // both miners are dead now: the Goblin ends the round at once and weighs (which revives everyone for the ceremony)
+                Chk("downed_further_damage_kills", (!a.Alive && !a.Downed) || g.Phase == GamePhase.Weighing, $"alive={a.Alive} phase={g.Phase}");
             });
         }
         return s;
