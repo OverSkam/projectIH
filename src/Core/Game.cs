@@ -130,7 +130,8 @@ public partial class Game : Node
     void ServerStartRound()
     {
         var parts = Contenders();
-        if (parts.Count <= 1) { ServerEndMatch(); return; }
+        bool soloTest = Config.AllowSolo && Round == 0 && parts.Count == 1;   // debug presets may run a one-miner match (screenshots)
+        if (parts.Count <= 1 && !soloTest) { ServerEndMatch(); return; }
         Round++;
         Phase = GamePhase.Round;
         _roundLeft = Config.RoundSeconds(Round);
@@ -701,6 +702,13 @@ public partial class Game : Node
         else Util.Fail("no_foreign_state", $"own={_ownStates} foreign={_foreignStates}");
         Util.Pass("match_end", $"winner={winner}");
         if (Util.Automated) ScheduleQuit(2.5f);
+    }
+
+    /// <summary>Screenshot staging only (UiDebug): shows the match-end screen on a host without ending the match.</summary>
+    public void DebugShowMatchEnd(MatchEndData d)
+    {
+        LastMatchEnd = d; Phase = GamePhase.MatchEnd; _phaseTimer = 1e6;
+        PhaseChanged?.Invoke();
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

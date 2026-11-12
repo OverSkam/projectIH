@@ -60,12 +60,11 @@ public partial class UiDebug : Node
                 if (_t > 0.5) { MenuUI.I?.ShowSettings(true); _done = true; }
                 break;
             case "matchend":
-                if (_t < 0.5) return;
+                if (!inRound || _t < 1.0) return;
                 Net.I.Names[11] = "Cam"; Net.I.Names[22] = "Alice"; Net.I.Names[33] = "Bob";
                 g.TotalRounds = 2;
-                g.LastMatchEnd = new MatchEndData { Winner = "Alice", Names = new[] { "Alice", "Cam", "Bob" }, ThrownRound = new[] { 0, 2, 1 } };
-                g.Phase = GamePhase.MatchEnd;
-                MenuUI.I.Visible = false; Screens.I.Refresh();
+                g.DebugShowMatchEnd(new MatchEndData { Winner = "Alice", Names = new[] { "Alice", "Cam", "Bob" }, ThrownRound = new[] { 0, 2, 1 } });
+                MenuUI.I.Visible = false;
                 _done = true; break;
             case "pause":
                 if (!inRound || _t < 1.0) return;

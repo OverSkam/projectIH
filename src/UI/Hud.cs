@@ -324,7 +324,7 @@ void fragment(){
         var box = UiKit.VBox(4);
         box.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         box.GrowHorizontal = Control.GrowDirection.Both;
-        box.OffsetTop = 120;
+        box.OffsetTop = 150;
         _downedOverlay.AddChild(box);
         box.AddChild(UiKit.MakeTitle("YOU ARE DOWN", 64, UiTheme.Danger));
         _downedLabel = UiKit.MakeLabel("Bleeding out in 30 s", 30, new Color(1f, 0.8f, 0.75f), HorizontalAlignment.Center, 6);
@@ -614,7 +614,7 @@ void fragment(){
         }
         _hint.Text = string.Join("   |   ", parts);
         _hint.Visible = alive && !PauseMenu.I.IsOpen;
-        _notice.Text = alive && now - g.ItemNoticeAt < 4 + g.ItemNotice.Length / 25.0 ? g.ItemNotice : "";
+        _notice.Text = alive && !g.OwnDowned && now - g.ItemNoticeAt < 4 + g.ItemNotice.Length / 25.0 ? g.ItemNotice : "";
         UpdateSteinInfo(inv, alive);
         _tint.Visible = false;   // night vision is only a faint light on the miner, never a screen-wide wash
         _map.Visible = alive && inv.Held == "map" && Input.IsActionPressed("use_utility");

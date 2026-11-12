@@ -322,7 +322,7 @@ public class ModularCave : ICaveBuilder
         info.GoblinPos = CellPos(camp.OX + 4, camp.OY + 2);
         info.PalmPos = info.GoblinPos + new Vector3(0, 1.2f, 2.0f);
         info.ScalePos = CellPos(camp.OX + 7, camp.OY + 5);
-        info.ShaftPos = CellPos(camp.OX + 11, camp.OY + 4);
+        info.ShaftPos = info.ScalePos + new Vector3(5f, 0, -1.5f);
         info.MakeWeighSpots();
         for (int c = 3; c <= 10; c++) info.MinerSpawns.Add(CellPos(camp.OX + c, camp.OY + 9, 0.3f));
         for (int c = 4; c <= 9; c++) info.MinerSpawns.Add(CellPos(camp.OX + c, camp.OY + 10, 0.3f));

@@ -43,14 +43,14 @@ public partial class HallScale : Node3D
         // big number floating above the pan (the number is only shown while a pile is being revealed)
         _num = new Label3D
         {
-            Text = "", PixelSize = 0.018f, FontSize = 220, Billboard = BaseMaterial3D.BillboardModeEnum.FixedY, Position = new Vector3(0, 3.5f, 0),
-            Modulate = new Color(1f, 0.85f, 0.35f), OutlineSize = 40, OutlineModulate = new Color(0, 0, 0, 0.95f), NoDepthTest = true, Font = UiTheme.Chunky,
+            Text = "", PixelSize = 0.007f, FontSize = 220, Billboard = BaseMaterial3D.BillboardModeEnum.FixedY, Position = new Vector3(0, 3.0f, 0),
+            Modulate = new Color(1f, 0.85f, 0.35f), OutlineSize = 40, OutlineModulate = new Color(0, 0, 0, 0.95f), Font = UiTheme.Chunky,
         };
         AddChild(_num);
         _name = new Label3D
         {
-            Text = "", PixelSize = 0.008f, FontSize = 160, Billboard = BaseMaterial3D.BillboardModeEnum.FixedY, Position = new Vector3(0, 5.6f, 0),
-            Modulate = new Color(0.95f, 0.9f, 0.8f), OutlineSize = 30, OutlineModulate = new Color(0, 0, 0, 0.95f), NoDepthTest = true, Font = UiTheme.Chunky,
+            Text = "", PixelSize = 0.004f, FontSize = 160, Billboard = BaseMaterial3D.BillboardModeEnum.FixedY, Position = new Vector3(0, 4.15f, 0),
+            Modulate = new Color(0.95f, 0.9f, 0.8f), OutlineSize = 30, OutlineModulate = new Color(0, 0, 0, 0.95f), Font = UiTheme.Chunky,
         };
         AddChild(_name);
         _light = new OmniLight3D { Position = new Vector3(0, 4.5f, 0), LightColor = new Color(1f, 0.85f, 0.55f), LightEnergy = 1.6f, OmniRange = 14f };

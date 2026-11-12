@@ -136,7 +136,7 @@ public class GreyBoxCave : ICaveBuilder
         info.GoblinPos = new Vector3(-5, 0, -7); // off the north tunnel axis
         info.PalmPos = info.GoblinPos + new Vector3(0, 1.2f, 2.0f);
         info.ScalePos = new Vector3(3, 0, -4);
-        info.ShaftPos = new Vector3(7.5f, 0, -6.5f);
+        info.ShaftPos = info.ScalePos + new Vector3(5f, 0, -1.5f);
         info.MakeWeighSpots(8, 4.2f, 1.0f);
         for (int i = 0; i < 8; i++) info.MinerSpawns.Add(new Vector3(-7 + 2 * i, 0.3f, 6.5f));
         var markerOffs = new (string k, float x, float z)[]

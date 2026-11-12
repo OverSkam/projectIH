@@ -91,7 +91,7 @@ public partial class WeighingUi : CanvasLayer
         _victim = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
         UiKit.FullRect(_victim); _root.AddChild(_victim);
         _victimLabel = UiKit.MakeTitle("YOU ARE THROWN", 80, UiTheme.Danger);
-        _victimLabel.SetAnchorsPreset(Control.LayoutPreset.CenterTop); _victimLabel.GrowHorizontal = Control.GrowDirection.Both; _victimLabel.OffsetTop = 240;
+        _victimLabel.SetAnchorsPreset(Control.LayoutPreset.CenterTop); _victimLabel.GrowHorizontal = Control.GrowDirection.Both; _victimLabel.OffsetTop = 340;
         _victim.AddChild(_victimLabel);
 
         GoblinVoice.Said += OnSaid;
