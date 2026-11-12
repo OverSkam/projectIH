@@ -7,8 +7,8 @@ namespace AppStein;
 
 /// <summary>
 /// Server-only debug arguments (ignored on clients):
-///   --spawntrap=spikes@near,gas@near,darts@camp,lever_gate@near   kinds: spikes gas darts rockfall trapdoor lever_gate lever_collapse lever_trapdoor cuttable
-///                                                                   places: near (first walkable nav node outside the camp, default) | camp (every miner spawn)
+///   --spawntrap=spikes@near,gas@near,darts@hall,lever_gate@near   kinds: spikes gas darts rockfall trapdoor lever_gate lever_collapse lever_trapdoor cuttable
+///                                                                   places: near (first walkable nav node outside the Hall, default) | hall (every miner spawn)
 ///   --trapfast        short idle timers (gas) and no random rockfall
 ///   --trapnoise=SEC   SEC seconds after the round was populated the server makes noise (Game.ServerNoise) on the first non-lever rockfall zone
 /// </summary>
@@ -32,7 +32,7 @@ public static class TrapDebug
             {
                 var parts = spec.Split('@');
                 string kind = parts[0], place = parts.Length > 1 ? parts[1] : "near";
-                var spots = place == "camp" ? g.World.Cave.MinerSpawns.ToList() : new List<Vector3> { NearPos(g) };
+                var spots = place == "hall" ? g.World.Cave.MinerSpawns.ToList() : new List<Vector3> { NearPos(g) };
                 foreach (var pos in spots) SpawnOne(g, kind, pos, rng, fast);
             }
         }
@@ -70,7 +70,7 @@ public static class TrapDebug
         if (TrapSpawner.Spawn(g, kind, pos, rng, true, fast) == null) Util.Fail("spawntrap", kind);
     }
 
-    /// <summary>First nav node (nearest to the first miner spawn) that is outside the camp, so traps can act there.</summary>
+    /// <summary>First nav node (nearest to the first miner spawn) that is outside the Hall, so traps can act there.</summary>
     public static Vector3 NearPos(Game g)
     {
         var cave = g.World.Cave;

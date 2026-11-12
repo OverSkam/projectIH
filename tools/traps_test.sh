@@ -75,13 +75,13 @@ scenario trapdoor "--spawntrap=trapdoor@near" trapstand idle "" 0
 REQ=("host:^PASS: lever_pulled" "bob:^PASS: gate_blocked" "bob:^PASS: gate_reopened" "carol:${S}gate .*state=down" "carol:${S}gate .*state=up")
 scenario lever_gate "--spawntrap=lever_gate@near" trapleverpull trapgate idle 0
 
-REQ=("host:^PASS: lever_pulled" "host:TRAPKILL kind=rockfall victim=Bob cause=crush killer=Alice" "carol:${S}rockfall .*state=rubble")
+REQ=("host:^PASS: lever_pulled" "host:TRAPDOWN kind=rockfall victim=Bob cause=crush killer=Alice" "carol:${S}rockfall .*state=rubble")
 scenario lever_collapse "--spawntrap=lever_collapse@near" trapleverpull trapstand idle 0
 
-# nothing triggers inside the camp: traps are live (state changes) but nobody is hurt
+# nothing triggers inside the Hall: traps are live (state changes) but nobody is hurt
 REQ=("host:${S}gas .*state=vent" "host:${S}rockfall .*state=rubble" "host:${S}spikes .*state=armed")
 FORB=("host:TRAPDMG" "alice:^PASS: trap_hurt" "bob:^PASS: trap_hurt" "host:TRAPSTATE kind=trap_(spikes|trapdoor|darts) .*state=(click|creak|fire)")
-scenario camp "--spawntrap=spikes@camp,gas@camp,trapdoor@camp,darts@camp,rockfall@camp --trapfast --trapnoise=6" idle idle "" 30
+scenario hall "--spawntrap=spikes@hall,gas@hall,trapdoor@hall,darts@hall,rockfall@hall --trapfast --trapnoise=6" idle idle "" 30
 
 if [ $RC -eq 0 ]; then echo "TRAPS PASS"; else echo "TRAPS FAILED (see $LOGDIR)"; fi
 exit $RC

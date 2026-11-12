@@ -42,7 +42,7 @@ public static class TrapUtil
     public static string F(float v) => v.ToString("0.###", Inv);
     public static float ToF(string s, float def = 0f) => float.TryParse(s, NumberStyles.Float, Inv, out var v) ? v : def;
 
-    /// <summary>Alive round participants outside the Goblin camp (traps never hurt or trigger inside the camp).</summary>
+    /// <summary>Alive (or downed) round participants outside the Hall (traps never hurt or trigger inside the Hall).</summary>
     public static IEnumerable<ServerPlayer> Miners()
     {
         var g = Game.I;
@@ -56,6 +56,7 @@ public static class TrapUtil
         float d = v.TakeDamage(amount, by, cause);
         Util.Log($"TRAPDMG kind={kind} victim={v.Name} cause={cause} dmg={d:0.#} hp={v.Health:0.#} source={by?.Name ?? "-"}");
         if (!v.Alive) Util.Log($"TRAPKILL kind={kind} victim={v.Name} cause={cause} killer={by?.Name ?? "-"}");
+        else if (v.Downed) Util.Log($"TRAPDOWN kind={kind} victim={v.Name} cause={cause} killer={by?.Name ?? "-"}");   // lethal damage downs a miner first
         return d;
     }
 
