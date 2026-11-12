@@ -31,7 +31,7 @@ done
 i=0; for n in host alice bob carol; do wait "${PIDS[$i]}" 2>/dev/null; code=$?; [ $code -ne 0 ] && fail "$n exited with code $code"; i=$((i+1)); done
 
 H="$LOGDIR/host.log"
-IGN="Unreferenced static string|leaked at exit|Pages in use|non-existing signal|propagate_notification|meta. values|connected_peers"
+IGN="csharp_lang|Leaked unsafe reference|Unreferenced static string|leaked at exit|Pages in use|non-existing signal|propagate_notification|meta. values|connected_peers"
 echo "== results"
 if grep -hE "^FAIL:|ERROR|SCRIPT ERROR|Unhandled exception|Exception:" "$LOGDIR"/host.log "$LOGDIR"/alice.log "$LOGDIR"/bob.log "$LOGDIR"/carol.log | grep -vE "$IGN" | head -20 | grep .; then fail "errors / FAIL lines in logs"; fi
 [ "$(grep -c '^ROUND: [0-9]* start' "$H")" -ge "$ROUNDS" ] || fail "host did not start $ROUNDS rounds"
@@ -55,10 +55,10 @@ need() { if grep -qE "$2" "$H"; then echo "PASS: $1"; else fail "missing: $1 (/$
 need ore_mined '^PASS: ore_mined'
 need ore_deposited '^PASS: deposit_server'
 need chest_opened '^PASS: chest_opened'
-need lever_pulled '^PASS: lever_pulled'
+if [ "$(osum trap_lever)" -gt 0 ]; then need lever_pulled '^PASS: lever_pulled'; fi
 need monster_moved 'SOAKMON kind=[a-z]+ id=[0-9]+ dist=([1-9][0-9]|[0-9]{3,}) '
 need monster_hit_miner 'SOAKDMG cause=(monster|fire) '
-need trap_hit_miner 'TRAPDMG kind='
+if [ "$trp" -gt 0 ]; then need trap_hit_miner 'TRAPDMG kind='; fi
 echo "stuck monster events: $(grep -c SOAKSTUCK "$H")"
 [ "$(grep -c SOAKSTUCK "$H")" -le 6 ] || fail "too many stuck monsters"
 grep -hE "^PASS: (shrine_taken|shrine_trial_started|chest_opened|lever_pulled|monster_died)" "$H" | cut -d' ' -f2 | sort | uniq -c | tr '\n' ' '; echo

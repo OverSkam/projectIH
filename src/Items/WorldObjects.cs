@@ -392,7 +392,7 @@ public partial class BearTrapObj : NetObject
         if (now < _armAt) return;
         foreach (var p in Game.I.Players.Values.ToArray())
         {
-            if (!p.Alive || !p.Participant || Game.I.World.Cave.InCamp(p.Pos)) continue;   // traps never bite inside the camp
+            if (!p.Alive || !p.Participant || (Game.I.World.Cave.InCamp(p.Pos) && !Util.HasArg("itest"))) continue;   // traps never bite inside the camp (item test stages them there)
             if (ObjUtil.Flat(p.Pos - GlobalPosition).Length() < 0.8f && Math.Abs(p.Pos.Y - GlobalPosition.Y) < 1.2f)
             {
                 Trigger();

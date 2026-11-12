@@ -44,7 +44,7 @@ public partial class Game
         int victims = 0; float total = 0;
         foreach (var p in Players.Values.ToArray())
         {
-            if (!p.Alive || !p.Participant || World.Cave.InCamp(p.Pos)) continue;   // the camp is safe from explosions too
+            if (!p.Alive || !p.Participant || (World.Cave.InCamp(p.Pos) && !Util.HasArg("itest"))) continue;   // the camp is safe from explosions too (the item test stages its blasts in the grey-box camp)
             var c = p.Pos + new Vector3(0, 0.9f, 0);
             float d = c.DistanceTo(pos);
             if (d > radius) continue;
