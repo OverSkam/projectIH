@@ -6,7 +6,7 @@ namespace AppStein;
 public struct MinerInput
 {
     public Vector2 Move;      // x = right, y = forward
-    public bool Jump, Sprint, Crouch, Attack, Interact, Drop, DropOre, UseUtility, Ability, SteinCycle;
+    public bool Jump, Sprint, Crouch, Attack, Interact, InteractHeld, Drop, DropOre, UseUtility, Ability, SteinCycle, ToggleLantern;
     public int UtilSlot;      // -1 none
     public float Yaw, Pitch;  // absolute look angles (radians)
 }
@@ -22,6 +22,9 @@ public class HumanController : IMinerController
     float _yaw, _pitch;
     /// <summary>Radians per mouse pixel; comes from UserSettings (UI settings screen).</summary>
     public float Sensitivity => UserSettings.SensitivityRad;
+
+    /// <summary>Looking is the one thing that stays free during the weighing; the ceremony turns every miner towards the Scale.</summary>
+    public void SetLook(float yaw, float pitch) { _yaw = yaw; _pitch = pitch; }
 
     public void OnInput(InputEvent e)
     {
@@ -43,6 +46,8 @@ public class HumanController : IMinerController
         i.Crouch = Input.IsActionPressed("crouch");
         i.Attack = Input.IsActionPressed("attack");
         i.Interact = Input.IsActionJustPressed("interact");
+        i.InteractHeld = Input.IsActionPressed("interact");
+        i.ToggleLantern = Input.IsActionJustPressed("toggle_lantern");
         i.Drop = Input.IsActionJustPressed("drop");
         i.DropOre = Input.IsActionJustPressed("drop_ore");
         i.UseUtility = Input.IsActionJustPressed("use_utility");
@@ -65,7 +70,21 @@ public partial class Miner : CharacterBody3D
     // Local-only stats pushed from the server (private OwnState)
     public float SpeedMul = 1f, JumpMul = 1f;
     public bool NoFall;
-    public bool HasMask, LanternOut;
+    public bool HasMask, LanternOut, LanternLow;
+    /// <summary>Public: lying downed (crawling, lootable). See Game.Downed.cs.</summary>
+    public bool IsDowned { get; private set; }
+    /// <summary>Client: the downed miner under the crosshair that E would loot (set by UpdateTarget).</summary>
+    public Miner LootTarget;
+    /// <summary>Client: 0..1 progress of the hold-interact (feeding a stein to the Goblin).</summary>
+    public float HoldProgress;
+    /// <summary>Screenshot staging only.</summary>
+    public void DebugHoldProgress(float v) { _dbgHold = v; }
+    float _dbgHold;
+    public const float HoldFeedSeconds = 1.0f, TapSeconds = 0.35f, DownedSpeedMul = 0.12f;
+    float _holdT; bool _holding; NetObject _holdTarget;
+    // thrown by the Goblin: scripted flight (no physics, no input)
+    bool _thrown; double _throwT; float _throwLen; Vector3 _throwFrom, _throwPalm, _throwShaft;
+    float _lightBase = 1f;
     float _rootLeft, _ropeDetach;
     bool _ethereal;
     Node3D _mask;
@@ -161,7 +180,7 @@ public partial class Miner : CharacterBody3D
             if (def != null)
             {
                 _light = HeldVisuals.BuildFp(_tool, def.Id, def.Color, out _toolBase, out _toolRest);
-                if (_light != null) _light.Visible = !LanternOut;
+                if (_light != null) { _lightBase = _light.LightEnergy; _light.Visible = !LanternOut; }
             }
             else { _toolBase = new Vector3(0.3f, -0.34f, -0.5f); _toolRest = Vector3.Zero; }
             _swing?.Kill();
@@ -178,6 +197,7 @@ public partial class Miner : CharacterBody3D
             else if (def.IsLight)
             {
                 _light = HeldVisuals.Lantern(_tool);
+                _lightBase = _light.LightEnergy;
                 _light.Visible = !LanternOut;
             }
             else
@@ -196,7 +216,76 @@ public partial class Miner : CharacterBody3D
         if (on && _body != null) { _mask = ItemVisuals.Mask(); _body.AddChild(_mask); }
     }
 
-    public void SetLanternOut(bool o) { if (_light != null && LanternOut != o) Sfx.Play(o ? SfxNames.LanternOut : SfxNames.LanternOn, GlobalPosition + Vector3.Up); LanternOut = o; if (_light != null) _light.Visible = !o; }
+    /// <summary>0 lit, 1 out, 2 lit but flickering (low oil). Public information.</summary>
+    public void SetLanternState(int state)
+    {
+        bool o = state == 1;
+        if (_light != null && LanternOut != o) Sfx.Play(o ? SfxNames.LanternOut : SfxNames.LanternOn, GlobalPosition + Vector3.Up);
+        LanternOut = o; LanternLow = state == 2;
+        if (_light != null) _light.Visible = !o;
+    }
+
+    public void SetDowned(bool d)
+    {
+        if (IsDowned == d) return;
+        IsDowned = d;
+        _rig?.SetDowned(d);
+        if (!IsLocal || _shape == null) return;
+        ((CapsuleShape3D)_shape.Shape).Height = d ? 0.7f : (_crouching ? 1.2f : 1.8f);
+        _shape.Position = new Vector3(0, d ? 0.35f : (_crouching ? 0.6f : 0.9f), 0);
+        _head.Position = new Vector3(0, d ? 0.45f : (_crouching ? 1.1f : 1.6f), 0);
+    }
+
+    /// <summary>Weighing ceremony: turn to face a direction (the Scale).</summary>
+    public void FaceYaw(float yaw)
+    {
+        _yaw = yaw; _netYaw = yaw; Rotation = new Vector3(0, yaw, 0);
+        (Controller as HumanController)?.SetLook(yaw, 0.05f);
+    }
+
+    /// <summary>The Goblin picks this miner up, swings them over the shaft and drops them. Runs on every peer; at the end the node is removed.</summary>
+    public void StartThrow(Vector3 palm, Vector3 shaft, float seconds)
+    {
+        _thrown = true; _throwT = 0; _throwLen = Math.Max(1f, seconds);
+        _throwFrom = GlobalPosition; _throwPalm = palm + new Vector3(0, 1.2f, 0); _throwShaft = shaft;
+        CollisionMask = 0; CollisionLayer = 0; Velocity = Vector3.Zero;
+    }
+
+    void ThrowStep(float dt)
+    {
+        _throwT += dt;
+        float u = Mathf.Clamp((float)_throwT / _throwLen, 0f, 1f);
+        Vector3 pos;
+        const float liftEnd = 0.30f, swingEnd = 0.46f;
+        if (u < liftEnd) pos = _throwFrom.Lerp(_throwPalm, Mathf.SmoothStep(0f, 1f, u / liftEnd));
+        else if (u < swingEnd) { float k = Mathf.SmoothStep(0f, 1f, (u - liftEnd) / (swingEnd - liftEnd)); pos = _throwPalm.Lerp(_throwShaft + new Vector3(0, 3.2f, 0), k) + new Vector3(0, Mathf.Sin(k * Mathf.Pi) * 1.4f, 0); }
+        else
+        {
+            float f = (u - swingEnd) / (1f - swingEnd);
+            pos = _throwShaft + new Vector3(0, 3.2f - 70f * f * f, 0);
+        }
+        GlobalPosition = pos;
+        float spin = Mathf.Max(0f, (u - liftEnd)) * 14f;
+        Rotation = new Vector3(Mathf.Sin(spin * 0.9f) * 0.9f, Rotation.Y, spin * 0.6f);
+        if (u >= 1f)
+        {
+            _thrown = false;
+            Game.I.NotifyThrownDone(PeerId);
+            QueueFree();
+        }
+    }
+
+    public override void _Process(double delta)
+    {
+        // low oil: the light stutters (public: everyone sees a miner's light flicker)
+        if (_light == null) return;
+        if (LanternOut) { _light.Visible = false; return; }
+        if (!LanternLow) { _light.Visible = true; _light.LightEnergy = _lightBase; return; }
+        double t = Time.GetTicksMsec() / 1000.0;
+        float f = (float)(Math.Sin(t * 23.0) * Math.Sin(t * 7.3 + PeerId));
+        _light.Visible = f > -0.55f;
+        _light.LightEnergy = _lightBase * (0.55f + 0.4f * (float)Math.Abs(Math.Sin(t * 13.0)));
+    }
 
     public float RootLeft => _rootLeft;
     public void Root(float seconds) { _rootLeft = seconds; }
@@ -263,6 +352,7 @@ public partial class Miner : CharacterBody3D
     public override void _PhysicsProcess(double delta)
     {
         float dt = (float)delta;
+        if (_thrown) { ThrowStep(dt); return; }
         if (!IsLocal)
         {
             GlobalPosition = GlobalPosition.Lerp(_netPos, Mathf.Min(1f, dt * 15f));
@@ -278,11 +368,19 @@ public partial class Miner : CharacterBody3D
         AnimateLocalHands(dt);
         var c = Controller.Poll(dt, this);
         _yaw = c.Yaw; _pitch = c.Pitch;
+        // weighing: input is locked except looking; downed: crawl only
+        bool weighing = Game.I.Phase == GamePhase.Weighing;
+        if (weighing || IsDowned)
+        {
+            if (weighing) c.Move = Vector2.Zero;
+            c.Jump = c.Sprint = c.Crouch = c.Attack = c.Interact = c.InteractHeld = c.Drop = c.DropOre = c.UseUtility = c.Ability = c.SteinCycle = c.ToggleLantern = false;
+            c.UtilSlot = -1;
+        }
         Rotation = new Vector3(0, _yaw, 0);
         _head.Rotation = new Vector3(_pitch, 0, 0);
 
         // crouch
-        bool wantCrouch = c.Crouch;
+        bool wantCrouch = c.Crouch && !IsDowned;
         if (wantCrouch != _crouching)
         {
             _crouching = wantCrouch;
@@ -291,7 +389,7 @@ public partial class Miner : CharacterBody3D
             _head.Position = new Vector3(0, _crouching ? 1.1f : 1.6f, 0);
         }
 
-        float speed = (_crouching ? CrouchSpeed : (c.Sprint ? SprintSpeed : WalkSpeed)) * SpeedMul;
+        float speed = (_crouching ? CrouchSpeed : (c.Sprint ? SprintSpeed : WalkSpeed)) * SpeedMul * (IsDowned ? DownedSpeedMul : 1f);
         var wish = Transform.Basis * new Vector3(c.Move.X, 0, -c.Move.Y);
         wish = wish.LengthSquared() > 1f ? wish.Normalized() : wish;
         UpdateEthereal();
@@ -347,13 +445,14 @@ public partial class Miner : CharacterBody3D
         }
         if (c.UtilSlot >= 0) Game.I.SendSelectUtil(c.UtilSlot);
         if (c.UseUtility) Game.I.SendUseUtility();
+        if (c.ToggleLantern) Game.I.SendToggleLantern();
         if (c.Ability) Game.I.SendAbility();
         if (c.SteinCycle) Game.I.SendSteinSel((Game.I.OwnInv.SteinSel + 1) % Inventory.SteinSlots);
         if (c.Drop) Game.I.SendDrop("util", Game.I.OwnInv.Selected);
         if (c.DropOre) Game.I.SendDrop("ore", Game.I.OwnInv.Sack.Count - 1);
 
         if (!(Controller is BotBrain)) UpdateTarget();
-        if (c.Interact && Target != null) Game.I.SendInteract(Target.Id);
+        HandleInteract(c, dt);
 
         // state report ~20 Hz
         _sendTimer -= dt;
@@ -373,7 +472,7 @@ public partial class Miner : CharacterBody3D
         var d = GlobalPosition - _lastPos; _lastPos = GlobalPosition;
         float spd = dt > 0 ? new Vector2(d.X, d.Z).Length() / dt : 0f;
         _vel = Mathf.Lerp(_vel, Mathf.Min(spd, 10f), Mathf.Min(1f, dt * 12f));
-        _rig.Animate(dt, _vel < 0.15f ? 0f : _vel, (_flags & 1) != 0, (_flags & 2) != 0, (_flags & 4) == 0);
+        _rig.Animate(dt, IsDowned ? 0f : (_vel < 0.15f ? 0f : _vel), (_flags & 1) != 0, (_flags & 2) != 0, (_flags & 4) == 0);
         if (_tool != null) _tool.Rotation = _toolRest;
         UpdateTag();
     }
@@ -420,16 +519,56 @@ public partial class Miner : CharacterBody3D
         }
     }
 
+    /// <summary>E on a normal object interacts at once. At the Goblin: a tap feeds all sack stones; holding E for a second feeds the selected power stein (deliberate, separate).
+    /// E on a downed miner takes one item from them.</summary>
+    void HandleInteract(MinerInput c, float dt)
+    {
+        var g = Game.I;
+        bool canStein = g.OwnInv.Steins.Count > 0;
+        if (c.Interact)
+        {
+            if (Target is GoblinObj && canStein) { _holding = true; _holdT = 0; _holdTarget = Target; }
+            else if (Target != null) g.SendInteract(Target.Id);
+            else if (LootTarget != null && IsInstanceValid(LootTarget)) g.SendLoot(LootTarget.PeerId);
+        }
+        if (_holding)
+        {
+            bool still = c.InteractHeld && Target == _holdTarget && IsInstanceValid(_holdTarget);
+            if (still)
+            {
+                _holdT += dt;
+                if (_holdT >= HoldFeedSeconds)
+                {
+                    _holding = false; _holdT = 0;
+                    g.SendFeedStein(Math.Clamp(g.OwnInv.SteinSel, 0, Math.Max(0, g.OwnInv.Steins.Count - 1)));
+                }
+            }
+            else
+            {
+                if (_holdT < TapSeconds && IsInstanceValid(_holdTarget)) g.SendInteract(_holdTarget.Id);
+                _holding = false; _holdT = 0;
+            }
+        }
+        HoldProgress = _dbgHold > 0f ? _dbgHold : (_holding && _holdT > TapSeconds ? Mathf.Clamp(_holdT / HoldFeedSeconds, 0f, 1f) : 0f);
+    }
+
     void UpdateTarget()
     {
-        Target = null; PromptText = "";
+        Target = null; PromptText = ""; LootTarget = null;
         var space = GetWorld3D().DirectSpaceState;
-        var q = PhysicsRayQueryParameters3D.Create(EyePos, EyePos + LookDir * 3.2f, 1 | 4 | 8);
+        var q = PhysicsRayQueryParameters3D.Create(EyePos, EyePos + LookDir * 3.2f, 1 | 2 | 4 | 8);
         q.CollideWithAreas = false;
         q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
         var r = space.IntersectRay(q);
         if (r.Count == 0) return;
-        if (r["collider"].As<GodotObject>() is NetObject o)
+        var hitObj = r["collider"].As<GodotObject>();
+        if (hitObj is Miner dm && dm != this && dm.IsDowned && !IsDowned && Game.I.Phase == GamePhase.Round)
+        {
+            PromptText = "E  Loot " + dm.PlayerName; LootTarget = dm;
+            return;
+        }
+        if (IsDowned || Game.I.Phase != GamePhase.Round) return;
+        if (hitObj is NetObject o)
         {
             string p = o.Prompt(Game.I.OwnInv);
             if (p == null) return;

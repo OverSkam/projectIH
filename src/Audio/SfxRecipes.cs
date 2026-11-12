@@ -218,7 +218,7 @@ public static class SfxRecipes
         }, 1, 0f, 0f, "UI");
 
         // ---------- goblin
-        Add(Deposit, 1, -3, (r, v) =>
+        Add(Feed, 1, -3, (r, v) =>
         {
             var o = Burst(r, 0.03f, 1000, 5000, 150f);
             o = Mix(o, Bell(2093, 0.5f, 7f, 0.6f), 0.08f, 0.7f);
@@ -258,7 +258,7 @@ public static class SfxRecipes
             o = Mix(o, Filt(Thump(65, 40, 0.18f, 18f), Ft.Lp, 200f), 0.24f, 0.7f);
             return Reverb(o, 0.3f, 0.15f);
         }, 1, 0.02f, 0.5f, "UI");
-        Add(CollapseRumble, 1, 0, (r, v) =>
+        Add(LiftRumble, 1, 0, (r, v) =>
         {
             var o = Crumble(r, 4.2f, 140f, 2.5f, 1.2f, 14);
             o = Mix(o, Env(Thump(45, 30, 4f, 0.5f, 2f), t => MathF.Min(1f, t / 0.5f)), 0, 0.6f);
@@ -270,7 +270,7 @@ public static class SfxRecipes
             o = Mix(o, Debris(r, 0.05f, 1.6f, 18, 0.5f), 0);
             return Reverb(o, 1.0f, 0.35f);
         }, 1, 0.03f, 0f);
-        Add(StingerQuotaMet, 1, 1, (r, v) =>
+        Add(StingerSafe, 1, 1, (r, v) =>
         {
             var o = Zero(1.5f);
             float[] n = { 523f, 659f, 784f, 1047f };
@@ -278,7 +278,7 @@ public static class SfxRecipes
             for (int i = 0; i < 4; i++) o = Mix(o, Marimba(n[i], 0.9f), 0.36f, 0.5f);
             return Reverb(o, 0.5f, 0.2f);
         }, 1, 0f, 0f, "UI");
-        Add(StingerQuotaMissed, 1, -2, (r, v) =>
+        Add(StingerVerdict, 1, -2, (r, v) =>
         {
             float[] n = { 330f, 262f };
             var o = Zero(1.4f);
@@ -290,7 +290,7 @@ public static class SfxRecipes
             }
             return Reverb(o, 0.4f, 0.2f);
         }, 1, 0f, 0f, "UI");
-        Add(StingerCursed, 1, -2, (r, v) =>
+        Add(StingerThrow, 1, -2, (r, v) =>
         {
             var d = Mix(Osc(Wf.Saw, 2.5f, 82.4f), Osc(Wf.Saw, 2.5f, 116.5f), 0);
             d = Am(Filt(d, Ft.Lp, 400f), 6f, 0.5f); Swell(d);
@@ -510,7 +510,7 @@ public static class SfxRecipes
             for (int i = 0; i < 6; i++) o = Mix(o, Bell(r.Range(3000f, 6000f), 0.15f, 30f), r.Range(0.05f, 0.6f), 0.25f);
             return o;
         });
-        Add(GolemDeath, 55, 3, (r, v) =>
+        Add(GolemStun, 55, 3, (r, v) =>
         {
             var o = Crumble(r, 3.2f, 300f, 0.8f, 1.1f, 20);
             o = Mix(o, Thump(50, 25, 3f, 1f), 0, 0.7f);

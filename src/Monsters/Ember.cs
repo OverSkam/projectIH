@@ -67,18 +67,18 @@ public partial class EmberObj : MonsterObj
 
     protected override void ServerThink(float dt)
     {
-        if (State != MonsterState.Dead && Cave.InWater(GlobalPosition + new Vector3(0, 0.3f, 0)))
+        if (State != MonsterState.Stunned && Cave.InWater(GlobalPosition + new Vector3(0, 0.3f, 0)))
         {
-            Die(null, "water");
+            Stun(6f);   // doused (Ember Elemental no longer spawns; kept for a later step)
             return;
         }
-        if (State != MonsterState.Dead && !Frozen)
+        if (State != MonsterState.Stunned && !Frozen)
         {
             _auraCd -= dt;
             if (_auraCd <= 0)
                 foreach (var p in Game.I.Players.Values)
                 {
-                    if (!p.Alive || !p.Participant || Cave.InCamp(p.Pos)) continue;
+                    if (!p.Alive || !p.Participant || Cave.InHall(p.Pos)) continue;
                     if (Flat(p.Pos - GlobalPosition).Length() <= MonsterTuning.EmberAuraRadius && Mathf.Abs(p.Pos.Y - GlobalPosition.Y) < 2f)
                     {
                         _auraCd = MonsterTuning.EmberAuraInterval;
@@ -90,10 +90,6 @@ public partial class EmberObj : MonsterObj
         }
         base.ServerThink(dt);
     }
-
-    protected override float ModifyMelee(ServerPlayer p, float dmg) => dmg; // weak: any hit counts
-
-    protected override void DropLoot() => SpawnLoot("ruby", Vector3.Zero);
 
     protected override bool TryStartAttack(ServerPlayer t) { SetState(MonsterState.Windup); return true; }
 
@@ -113,7 +109,7 @@ public partial class EmberObj : MonsterObj
                 if (!_lungeHit)
                     foreach (var p in Game.I.Players.Values)
                     {
-                        if (!p.Alive || !p.Participant || Cave.InCamp(p.Pos)) continue;
+                        if (!p.Alive || !p.Participant || Cave.InHall(p.Pos)) continue;
                         if (Flat(p.Pos - GlobalPosition).Length() < 1.3f && Mathf.Abs(p.Pos.Y - GlobalPosition.Y) < 2f)
                         {
                             _lungeHit = true;
@@ -145,7 +141,7 @@ public partial class EmberObj : MonsterObj
                 { float k = Mathf.Clamp(age / MonsterTuning.EmberWindup, 0f, 1f); scale = 1f + 0.6f * k; energy = 2.4f + 4f * k; lean = -0.5f * k; break; }
             case MonsterState.Attack: scale = 1.25f; energy = 5f; lean = 0.9f; break;
             case MonsterState.Recover: scale = 0.85f; energy = 1.5f; break;
-            case MonsterState.Dead:
+            case MonsterState.Stunned:
                 scale = Mathf.Max(0.05f, 1f - age * 2.5f); energy = Mathf.Max(0f, 2f - age * 3f); break;
         }
         _core.Position = new Vector3(0, 0.75f + bob, 0);

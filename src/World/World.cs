@@ -22,6 +22,7 @@ public partial class World : Node3D
         MinersRoot = new Node3D { Name = "Miners" };
         ObjectsRoot = new Node3D { Name = "Objects" };
         AddChild(MinersRoot); AddChild(ObjectsRoot);
+        AddChild(new HallScale { Name = "HallScale" });
 
         // Pitch black: no ambient light, black background.
         var env = new Godot.Environment

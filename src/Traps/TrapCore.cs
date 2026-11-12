@@ -29,7 +29,7 @@ public static class TrapTuning
     // levers / gate
     public const float GateWarn = 1.0f, GateDown = 10f, GateRise = 0.8f, LeverCooldown = 20f, CollapseLeverCooldown = 30f;
     // placement
-    public const float MinTrapSpacing = 6.5f, MinLeverSpacing = 3.2f, MinMechSpacing = 4.5f, CampMargin = 4f;
+    public const float MinTrapSpacing = 6.5f, MinLeverSpacing = 3.2f, MinMechSpacing = 4.5f, HallMargin = 4f;
     public const int SafeDepth = 1;                  // rooms this close to the camp (depth <= 1) get no lethal traps
     static readonly int[] Budget = { 2, 3, 4, 6, 8 };
     public static int MaxTraps(int round) => Budget[Math.Clamp(round - 1, 0, Budget.Length - 1)];   // traps + levers per round
@@ -48,7 +48,7 @@ public static class TrapUtil
         var g = Game.I;
         if (g?.World?.Cave == null) yield break;
         foreach (var p in g.Players.Values)
-            if (p.Participant && p.Alive && !g.World.Cave.InCamp(p.Pos)) yield return p;
+            if (p.Participant && p.Alive && !g.World.Cave.InHall(p.Pos)) yield return p;
     }
 
     public static float Hurt(ServerPlayer v, float amount, ServerPlayer by, string cause, string kind)

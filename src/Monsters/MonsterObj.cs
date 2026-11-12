@@ -5,10 +5,10 @@ using Godot;
 
 namespace AppStein;
 
-public enum MonsterState { Idle, Wander, Investigate, Chase, Windup, Attack, Recover, Return, Dead, Dispersed, Asleep, Awake }
+public enum MonsterState { Idle, Wander, Investigate, Chase, Windup, Attack, Recover, Return, Dispersed, Asleep, Awake, Stunned }
 
 /// <summary>
-/// Shared base of every monster. AI runs on the server only (_PhysicsProcess); position replicates through
+/// Shared base of every monster. Monsters are UNKILLABLE: nothing a miner carries damages them; some things (golem back crystal, dynamite, bear traps) stun them briefly. AI runs on the server only (_PhysicsProcess); position replicates through
 /// Game.ServerMonsterSync (unreliable, 10 Hz) and is interpolated on clients; state/health/extra travel in Data.
 /// Visuals are built in code by BuildModel() and animated procedurally by Animate() on every peer.
 /// </summary>
@@ -17,7 +17,6 @@ public abstract partial class MonsterObj : NetObject
     public static readonly List<MonsterObj> Live = new(); // server-side instances
 
     public MonsterState State = MonsterState.Idle;
-    public float Hp = 1, MaxHp = 1;
     public int Extra;                       // subclass-defined small int carried in Data (dragon stage)
     public float Yaw;
     /// <summary>Debug/test: stops all AI and movement.</summary>
@@ -46,7 +45,7 @@ public abstract partial class MonsterObj : NetObject
     protected ServerPlayer Target;
     protected Vector3 LastSeen, Goal;
     protected bool VisibleNow, Arrived;
-    protected float LostT, Timer, StuckT, DeadT;
+    protected float LostT, Timer, StuckT, StunT;
     float _senseT, _syncT, _pathT, _dbgT;
     List<Vector3> _path;
     Vector3 _pathGoal;
@@ -65,7 +64,7 @@ public abstract partial class MonsterObj : NetObject
     protected abstract void Animate(float dt);
 
     public static string F(float v) => v.ToString("0.##", CultureInfo.InvariantCulture);
-    public static string MakeData(MonsterState st, float hp, float max, int extra = 0) => $"st={(int)st};hp={F(hp)};max={F(max)};x={extra}";
+    public static string MakeData(MonsterState st, int extra = 0) => $"st={(int)st};x={extra}";
 
     // ================================================================= NetObject
     public override void Build()
@@ -92,13 +91,11 @@ public abstract partial class MonsterObj : NetObject
     {
         base.ApplyData(data);
         var kv = Kv(data);
-        var old = State; float oldHp = Hp;
+        var old = State;
         if (kv.TryGetValue("st", out var s) && int.TryParse(s, out var si)) State = (MonsterState)si;
-        if (kv.TryGetValue("hp", out var h)) float.TryParse(h, NumberStyles.Float, CultureInfo.InvariantCulture, out Hp);
-        if (kv.TryGetValue("max", out var m)) float.TryParse(m, NumberStyles.Float, CultureInfo.InvariantCulture, out MaxHp);
         if (kv.TryGetValue("x", out var x)) int.TryParse(x, out Extra);
         if (!_hadData || old != State) _stateStart = Now;
-        if (_hadData && Hp < oldHp - 0.01f) Flash = 0.18f;
+        if (_hadData && State == MonsterState.Stunned && old != MonsterState.Stunned) Flash = 0.25f;
         _hadData = true;
     }
 
@@ -107,7 +104,7 @@ public abstract partial class MonsterObj : NetObject
         _netPos = pos; _netYaw = yaw; _netInit = true;
     }
 
-    protected void Broadcast() => Game.I.ServerSetObjectData(Id, MakeData(State, Hp, MaxHp, Extra));
+    protected void Broadcast() => Game.I.ServerSetObjectData(Id, MakeData(State, Extra));
 
     protected void SetState(MonsterState s)
     {
@@ -157,55 +154,24 @@ public abstract partial class MonsterObj : NetObject
     // ================================================================= server AI
     protected virtual void ServerInit() { }
 
-    /// <summary>Called by RequestAttack through the ServerHit path.</summary>
-    public override void ServerHit(ServerPlayer p, float mining, bool pickaxe)
+    /// <summary>Melee never hurts a monster. Subclasses may react (the golem is stunned by a hit on its back crystal).</summary>
+    public override void ServerHit(ServerPlayer p, float mining, bool pickaxe) { }
+
+    /// <summary>Server: the monster stops and staggers for <paramref name="seconds"/> (golem crystal, dynamite, bear trap). Never damage.</summary>
+    public void Stun(float seconds)
     {
-        if (!IsSrv || State == MonsterState.Dead) return;
-        float baseDmg = pickaxe ? (Utilities.Get("pickaxe")?.MeleeDamage ?? 20f) : 5f;
-        float dmg = baseDmg * p.Stats.MeleeDamageMul;
-        dmg = ModifyMelee(p, dmg);
-        if (dmg <= 0f) return;
-        Hurt(dmg, p);
-    }
-
-    /// <summary>Armour / weak points. Return 0 for immune monsters.</summary>
-    protected virtual float ModifyMelee(ServerPlayer p, float dmg) => dmg;
-
-    public void Hurt(float dmg, ServerPlayer by)
-    {
-        if (State == MonsterState.Dead) return;
-        Hp -= dmg;
-        Util.Log($"MONSTER: hurt kind={Kind} id={Id} dmg={dmg:0.##} hp={Hp:0.##} by={by?.Name}");
-        if (Hp <= 0f) { Die(by); return; }
-        Broadcast();
-        if (by != null && (State == MonsterState.Idle || State == MonsterState.Wander || State == MonsterState.Return || State == MonsterState.Investigate) && !Frozen)
-        {
-            Goal = by.Pos; Arrived = false; Timer = 0; SetState(MonsterState.Investigate);
-        }
-    }
-
-    public void Die(ServerPlayer by, string how = "melee")
-    {
-        if (State == MonsterState.Dead) return;
-        Hp = 0; State = MonsterState.Dead; _stateStart = Now; DeadT = MonsterTuning.DeadLinger;
-        Broadcast();
-        Util.Pass("monster_died", $"kind={Kind} id={Id} how={how} by={by?.Name}");
-        DropLoot();
-    }
-
-    protected virtual void DropLoot() { }
-
-    protected void SpawnLoot(string ore, Vector3 offset)
-    {
-        Game.I.ServerSpawnObject("pickup", GlobalPosition + offset + new Vector3(0, 0.45f, 0), "ore:" + ore);
+        if (!IsSrv || State == MonsterState.Stunned) return;
+        StunT = seconds; Target = null; VisibleNow = false;
+        SetState(MonsterState.Stunned);
+        Util.Pass("monster_stunned", $"kind={Kind} id={Id} secs={seconds:0.#}");
     }
 
     protected virtual void ServerThink(float dt)
     {
-        if (State == MonsterState.Dead)
+        if (State == MonsterState.Stunned)
         {
-            DeadT -= dt;
-            if (DeadT <= 0) { DeadT = 999; Game.I.ServerDespawnObject(Id); }
+            StunT -= dt;
+            if (StunT <= 0) { Timer = 1f; StuckT = 0; SetState(MonsterState.Idle); }
             return;
         }
         if (Frozen) return;
@@ -260,7 +226,7 @@ public abstract partial class MonsterObj : NetObject
 
     protected virtual bool WanderOk(Vector3 g)
     {
-        if (CampBlock(g)) return false;
+        if (HallBlock(g)) return false;
         var r = Cave.RoomAt(Home);
         if (r != null && !r.Bounds.Grow(-1.5f).HasPoint(new Vector3(g.X, r.Bounds.Position.Y + 1f, g.Z))) return false;
         return Flying || GroundAt(g) != null;
@@ -269,7 +235,7 @@ public abstract partial class MonsterObj : NetObject
     protected virtual void ChaseTick(float dt)
     {
         var pos = GlobalPosition;
-        if (Target != null && (!Target.Alive || Cave.InCamp(Target.Pos))) { Target = null; VisibleNow = false; }
+        if (Target != null && (!Target.Alive || Cave.InHall(Target.Pos))) { Target = null; VisibleNow = false; }
         if (Flat(pos - Home).Length() > MonsterTuning.LeashDistance) { Target = null; SetState(MonsterState.Return); return; }
         if (VisibleNow && Target != null)
         {
@@ -324,7 +290,7 @@ public abstract partial class MonsterObj : NetObject
         if (!Blind)
             foreach (var p in Game.I.Players.Values)
             {
-                if (!p.Alive || !p.Participant || Cave.InCamp(p.Pos)) continue;
+                if (!p.Alive || !p.Participant || Cave.InHall(p.Pos)) continue;
                 if (CanSee(p, out var d) && d < bd) { best = p; bd = d; }
             }
         VisibleNow = best != null;
@@ -339,10 +305,10 @@ public abstract partial class MonsterObj : NetObject
 
     public virtual void OnNoise(Vector3 pos, float loud, ServerPlayer by)
     {
-        if (!IsSrv || Frozen || State == MonsterState.Dead || State == MonsterState.Dispersed) return;
+        if (!IsSrv || Frozen || State == MonsterState.Stunned || State == MonsterState.Dispersed) return;
         if (State == MonsterState.Chase || State == MonsterState.Windup || State == MonsterState.Attack || State == MonsterState.Recover) return;
         if (GlobalPosition.DistanceTo(pos) > loud * HearMul) return;
-        if (Cave.InCamp(pos)) return;
+        if (Cave.InHall(pos)) return;
         Goal = pos; Arrived = false; Timer = 0; StuckT = 0;
         if (State == MonsterState.Investigate) return;
         SetState(MonsterState.Investigate);
@@ -369,16 +335,16 @@ public abstract partial class MonsterObj : NetObject
         return r["position"].AsVector3().Y;
     }
 
-    protected bool CampBlock(Vector3 p)
+    protected bool HallBlock(Vector3 p)
     {
-        var zone = Cave.CampZone.Grow(MonsterTuning.CampBuffer);
-        return zone.HasPoint(new Vector3(p.X, Cave.CampZone.Position.Y + 1f, p.Z));
+        var zone = Cave.HallZone.Grow(MonsterTuning.HallBuffer);
+        return zone.HasPoint(new Vector3(p.X, Cave.HallZone.Position.Y + 1f, p.Z));
     }
 
     /// <summary>Extra veto on a step (water, lair bounds...). Camp is always vetoed.</summary>
     protected virtual bool Allowed(Vector3 np, bool chasing)
     {
-        if (CampBlock(np) && !CampBlock(GlobalPosition)) return false;
+        if (HallBlock(np) && !HallBlock(GlobalPosition)) return false;
         return true;
     }
 

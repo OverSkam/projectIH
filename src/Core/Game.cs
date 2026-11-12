@@ -5,24 +5,21 @@ using Godot;
 
 namespace AppStein;
 
-public enum GamePhase { Lobby, Round, Summary, MatchEnd }
+public enum GamePhase { Lobby, Round, Weighing, MatchEnd }
 
-public class SummaryData
-{
-    public int Round, Delivered, Quota, Bonus;
-    public bool QuotaMet, Last;
-    public string Poorest = "", Survivor = "";
-}
+/// <summary>Public per-miner status (scoreboard, HUD counts).</summary>
+public enum MinerStatus { Alive, Downed, Dead, Eliminated }
 
 public class MatchEndData
 {
-    public string[] Names; public int[] Money; public string Winner;
+    /// <summary>Placement order: winner first, then the last miner thrown, ... Names of everyone still connected.</summary>
+    public string[] Names; public int[] ThrownRound; public string Winner;
 }
 
 /// <summary>
 /// Autoload: match + round state machine (server-authoritative) and all in-round RPCs.
 /// Conventions: Request*/Report* = client -> server (AnyPeer, validated). Client* = server -> clients (Authority).
-/// Private per-miner data (money, inventory) only ever leaves the server via RpcId(owner, ClientOwnState).
+/// Private per-miner data (tribute weight, inventory, oil) only ever leaves the server via RpcId(owner, ClientOwnState).
 /// </summary>
 public partial class Game : Node
 {
@@ -34,13 +31,19 @@ public partial class Game : Node
     public World World;
     public int Round, TotalRounds;
     public float TimeLeft;
-    public int Quota, Delivered;
-    public readonly Dictionary<int, bool> Alive = new(); // public: who is alive this round
-    public SummaryData LastSummary;
+    /// <summary>Public: whether a miner is up (alive or downed) this round.</summary>
+    public readonly Dictionary<int, bool> Alive = new();
+    /// <summary>Public: alive / downed / dead / eliminated per peer.</summary>
+    public readonly Dictionary<int, MinerStatus> Status = new();
     public MatchEndData LastMatchEnd;
+    /// <summary>Miners still in the match (not eliminated).</summary>
+    public int Remaining { get { int n = 0; foreach (var id in Net.I.Names.Keys) if (Status.GetValueOrDefault(id) != MinerStatus.Eliminated) n++; return n; } }
 
     // private (own) state, only filled from ClientOwnState
-    public int OwnMoney, OwnSackCap = 4;
+    public int OwnTribute, OwnSackCap = 4;
+    public float OwnOil, OwnOilMax = 240f;
+    /// <summary>Public lantern state of the local miner mirrored for the HUD (the oil level itself is private).</summary>
+    public bool OwnDowned; public double OwnDownedUntil;
     public float OwnHealth = 100f;
     public Inventory OwnInv = new();
     public Miner LocalMiner;
@@ -59,8 +62,8 @@ public partial class Game : Node
     readonly RandomNumberGenerator _rng = new();
     double _roundLeft, _phaseTimer, _syncTimer;
     int _seed;
-    bool _collapsing;
     bool _autoQuitScheduled;
+    int _elimSeq;
 
     static double Now => Time.GetTicksMsec() / 1000.0;
     int MyId => Net.I.MyId;
@@ -89,9 +92,23 @@ public partial class Game : Node
     MatchConfig PresetConfig()
     {
         var c = MatchConfig.FromName(Util.Arg("preset", "default"));
-        if (int.TryParse(Util.Arg("rounds", ""), out var r) && r > 0) c.Rounds = r; // debug override
+        if (float.TryParse(Util.Arg("roundsecs", ""), out var rs) && rs > 0) { c.BaseRoundSeconds = rs; c.RoundSecondsGrowth = 0; }   // test/screenshot only
         return c;
     }
+
+    /// <summary>Test only: --tribute=Alice=40,Host=6 sets tribute weight at every round start (the miners' own feeding adds to it).</summary>
+    void ApplyDebugTribute(ServerPlayer p)
+    {
+        foreach (var tok in Util.Arg("tribute", "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            int eq = tok.IndexOf('=');
+            if (eq > 0 && tok.Substring(0, eq) == p.Name && int.TryParse(tok.Substring(eq + 1), out var w)) p.TributeWeight = w;
+        }
+    }
+
+    /// <summary>Miners still in the match (not eliminated, still connected), by peer id.</summary>
+    public List<ServerPlayer> Contenders() =>
+        Players.Values.Where(p => !p.Eliminated && Net.I.Names.ContainsKey(p.Peer)).OrderBy(p => p.Peer).ToList();
 
     public void ServerStartMatch()
     {
@@ -102,59 +119,61 @@ public partial class Game : Node
         foreach (var id in Net.I.Names.Keys)
         {
             var p = GetPlayer(id);
-            p.Money = 0; p.Cursed = false; p.Initialized = false;
+            p.TributeWeight = 0; p.Eliminated = false; p.Initialized = false; p.EliminatedRound = 0;
         }
-        Round = 0; ForcedWinner = null; InfinityTracker.NewMatch();
-        Rpc(nameof(ClientMatchStart), Config.Rounds);
+        Round = 0; ForcedWinner = null; _elimSeq = 0; InfinityTracker.NewMatch();
+        TotalRounds = MatchConfig.RoundsFor(Net.I.Names.Count);
+        Rpc(nameof(ClientMatchStart), TotalRounds);
         ServerStartRound();
     }
 
     void ServerStartRound()
     {
-        if (Round == 0 && int.TryParse(Util.Arg("startround", ""), out var sr) && sr > 1) Round = sr - 1;   // test only: begin the match at a later round
+        var parts = Contenders();
+        if (parts.Count <= 1) { ServerEndMatch(); return; }
         Round++;
         Phase = GamePhase.Round;
-        _collapsing = false;
         _roundLeft = Config.RoundSeconds(Round);
         _syncTimer = 0;
         _seed = (int)(_rng.Randi() & 0x7fffffff);
         if (int.TryParse(Util.Arg("seedbase", ""), out var sb)) _seed = sb * 131 + Round * 17; // test: reproducible caves
-        var parts = Net.I.Names.Keys.ToList();
+        foreach (var p in Players.Values) p.Participant = false;
         var fresh = new List<ServerPlayer>();
-        foreach (var id in parts)
+        foreach (var p in parts)
         {
-            var p = GetPlayer(id);
-            p.Participant = true; p.Alive = true;
-            if (!p.Initialized || p.DiedLastRound) fresh.Add(p);
+            p.Participant = true; p.Alive = true; p.Downed = false;
             if (!p.Initialized)
             {
-                // Match start (or mid-match joiner): start kit + one random Common stein.
+                // Match start: start kit + one random Common stein.
                 p.Initialized = true;
                 p.Inv.Clear(); p.Inv.GiveStartKit();
                 p.Inv.Steins.Add(Steins.RandomCommon(_rng));
+                fresh.Add(p);
             }
-            p.Health = ServerPlayer.MaxHealth * (p.Cursed ? Config.CurseHealthFraction : 1f);
-            p.Cursed = false;
-            p.DeliveredThisRound = 0; p.KillsThisRound = 0;
+            else if (p.NeedsKit) { p.Inv.Clear(); p.Inv.GiveStartKit(); }   // died or was locked out: back with only pickaxe + lantern
+            p.NeedsKit = false;
+            p.Health = ServerPlayer.MaxHealth;
+            p.Oil = Config.LanternOilSeconds; p.LanternOn = true;
+            p.TributeWeight = 0; p.KillsThisRound = 0;
+            ApplyDebugTribute(p);
             p.RecalcStats();
         }
-        Quota = Config.Quota(Round, parts.Count);
-        Delivered = 0;
-        Rpc(nameof(ClientBeginRound), Round, _seed, (float)_roundLeft, Quota, false);
+        var elim = Players.Values.Where(p => p.Eliminated).Select(p => p.Peer).ToArray();
+        Rpc(nameof(ClientBeginRound), Round, _seed, (float)_roundLeft, elim, TotalRounds);
         PopulateWorld();
         int i = 0;
-        foreach (var id in parts)
+        foreach (var p in parts)
         {
-            var p = Players[id];
             var pos = World.Cave.MinerSpawns[i++ % World.Cave.MinerSpawns.Count];
             p.Pos = pos;
-            Rpc(nameof(ClientSpawnMiner), id, pos, p.Name, p.Inv.Held);
+            Rpc(nameof(ClientSpawnMiner), p.Peer, pos, p.Name, p.Inv.Held);
             p.Fire(new SteinEvent { Kind = SteinEventKind.RoundStart });
             p.Dirty = true;
         }
+        foreach (var p in Players.Values.Where(p => p.Eliminated && Net.I.Names.ContainsKey(p.Peer))) EliminatedRole.OnRoundStart(this, p);
         foreach (var p in fresh)
             if (p.Inv.Steins.Count > 0) ServerNotice(p, "You start with: " + ItemInfo.Line("stein:" + p.Inv.Steins[0]));
-        Util.Log($"ROUND: {Round} start quota={Quota} time={_roundLeft}");
+        Util.Log($"ROUND: {Round} start miners={parts.Count} time={_roundLeft}");
     }
 
     void PopulateWorld()
@@ -167,7 +186,7 @@ public partial class Game : Node
                 if (m.Kind == "vein")
                 {
                     string ore = Ores.Pick(rng, room.Depth, Round);
-                    float hp = Ores.ValueOf(ore) >= 100 ? 4 : 3;
+                    float hp = Ores.WeightOf(ore) >= 7 ? 4 : 3;
                     ServerSpawnObject("vein", m.Pos, VeinObj.MakeData(ore, hp, hp));
                 }
                 else if (m.Kind == "ore")
@@ -176,46 +195,20 @@ public partial class Game : Node
         RunMarkerSpawners(rng);
     }
 
-    void ServerEndRound()
-    {
-        if (Phase != GamePhase.Round) return;
-        Phase = GamePhase.Summary;
-        var parts = Players.Values.Where(p => p.Participant).ToList();
-        bool met = Delivered >= Quota;
-        if (!met) foreach (var p in parts) p.Money -= (int)(p.Money * Config.QuotaMissMoneyLoss);
-        string poorest = "";
-        if (parts.Count > 0)
-        {
-            var poor = parts.OrderBy(p => p.DeliveredThisRound).ThenBy(p => p.Money).ThenBy(p => p.Peer).First();
-            poor.Cursed = true; poorest = poor.Name;
-        }
-        var alive = parts.Where(p => p.Alive).ToList();
-        string survivor = ""; int bonus = 0;
-        if (alive.Count == 1) { survivor = alive[0].Name; bonus = Config.SurvivorBonus; alive[0].Money += bonus; }
-        foreach (var p in parts)
-        {
-            p.Fire(new SteinEvent { Kind = SteinEventKind.RoundEnd });
-            p.DiedLastRound = !p.Alive;
-            if (!p.Alive) { p.Inv.Clear(); p.Inv.GiveStartKit(); p.Inv.Steins.Add(Steins.RandomCommon(_rng)); p.RecalcStats(); }
-            p.Dirty = true;
-        }
-        _phaseTimer = Config.SummarySeconds;
-        Util.Log($"ROUND: {Round} end quotaMet={met} delivered={Delivered}/{Quota} poorest={poorest} survivor={survivor}");
-        Rpc(nameof(ClientRoundSummary), Round, met, Delivered, Quota, poorest, survivor, bonus, Round >= Config.Rounds || ForcedWinner != null);
-        foreach (var p in parts) SendOwnState(p);
-    }
-
     void ServerEndMatch()
     {
         Phase = GamePhase.MatchEnd;
-        var list = Players.Values.Where(p => Net.I.Names.ContainsKey(p.Peer)).OrderByDescending(p => p.Money).ThenBy(p => p.Peer).ToList();
-        string winner = ForcedWinner ?? (list.Count > 0 ? list[0].Name : "");
-        foreach (var p in list) Util.Log($"FINAL: peer={p.Peer} name={p.Name} money={p.Money}");
+        var present = Players.Values.Where(p => Net.I.Names.ContainsKey(p.Peer)).ToList();
+        var alive = present.Where(p => !p.Eliminated).ToList();
+        string winner = ForcedWinner ?? (alive.Count > 0 ? alive.OrderBy(p => p.Peer).First().Name : "");
+        // placement: the winner, then the most recently thrown first
+        var list = present.OrderByDescending(p => p.Name == winner).ThenByDescending(p => p.EliminatedRound).ThenByDescending(p => p.EliminationSeq).ToList();
+        foreach (var p in list) Util.Log($"FINAL: peer={p.Peer} name={p.Name} thrown_round={(p.Name == winner ? 0 : p.EliminatedRound)}");
         Util.Log($"WINNER={winner}");
         if (ForcedWinner != null) Util.Pass("infinity_match_end", $"winner={winner}");
-        else if (list.Count > 0 && list.All(p => p.Money <= list[0].Money)) Util.Pass("winner_correct", $"winner={winner} money={list[0].Money}");
+        else if (winner != "") Util.Pass("winner_server", $"winner={winner} rounds={Round}");
         _phaseTimer = Config.MatchEndSeconds;
-        Rpc(nameof(ClientMatchEnd), list.Select(p => p.Name).ToArray(), list.Select(p => p.Money).ToArray(), winner);
+        Rpc(nameof(ClientMatchEnd), list.Select(p => p.Name).ToArray(), list.Select(p => p.Name == winner ? 0 : p.EliminatedRound).ToArray(), winner);
     }
 
     void ServerReturnToLobby()
@@ -241,12 +234,11 @@ public partial class Game : Node
                     p.Tick(dt);
                     if (p.Dirty && Now - p.LastOwnSend > 0.1) SendOwnState(p);
                 }
-                if (_roundLeft <= 0) ServerCollapse();
+                if (_roundLeft <= 0) ServerBeginWeighing();
                 break;
-            case GamePhase.Summary:
-                _phaseTimer -= dt;
+            case GamePhase.Weighing:
                 foreach (var p in Players.Values) if (p.Dirty && Now - p.LastOwnSend > 0.1) SendOwnState(p);
-                if (_phaseTimer <= 0) { if (Round >= Config.Rounds || ForcedWinner != null) ServerEndMatch(); else ServerStartRound(); }
+                ServerWeighTick(dt);
                 break;
             case GamePhase.MatchEnd:
                 _phaseTimer -= dt;
@@ -255,23 +247,15 @@ public partial class Game : Node
         }
     }
 
-    void ServerCollapse()
-    {
-        _collapsing = true;
-        Rpc(nameof(ClientAnnounce), "The Goblin collapses the mine! Everyone outside the camp is buried.");
-        foreach (var p in Players.Values.Where(p => p.Participant && p.Alive).ToArray())
-            if (!World.Cave.InCamp(p.Pos)) KillMiner(p, null, "collapse");
-        _collapsing = false;
-        ServerEndRound();
-    }
-
+    /// <summary>Every miner still in the cave is dead: the Goblin ends the round early.</summary>
     void CheckAllDead()
     {
-        if (Phase != GamePhase.Round || _collapsing) return;
+        if (Phase != GamePhase.Round) return;
         if (!Players.Values.Any(p => p.Participant && p.Alive))
         {
-            Rpc(nameof(ClientAnnounce), "Every miner is dead. The Goblin ends the round.");
-            ServerEndRound();
+            ServerCue("all_dead", "r" + Round);
+            ServerAnnounce("Every miner is dead. The Goblin ends the round.");
+            ServerBeginWeighing();
         }
     }
 
@@ -279,32 +263,58 @@ public partial class Game : Node
     {
         var p = GetPlayer(id);
         if (Phase == GamePhase.Lobby) return;
-        // Mid-match joiner: ghost until the next round.
-        p.Participant = false; p.Alive = false;
-        RpcId(id, nameof(ClientAnnounce), "A match is in progress. You will join as a ghost until the next round.");
+        // Mid-match joiner: never was a miner. Spectates as an eliminated player for the rest of the match.
+        p.Participant = false; p.Alive = false; p.Eliminated = true; p.EliminatedRound = Round;
+        p.EliminationSeq = ++_elimSeq;
+        RpcId(id, nameof(ClientAnnounce), "A match is in progress. You watch as a ghost.");
+        RpcId(id, nameof(ClientMatchStart), TotalRounds);
         if (Phase == GamePhase.Round) ServerSendSnapshot(id);
     }
 
     void ServerSendSnapshot(int peer)
     {
-        RpcId(peer, nameof(ClientBeginRound), Round, _seed, (float)_roundLeft, Quota, true);
-        RpcId(peer, nameof(ClientQuota), Delivered);
+        var elim = Players.Values.Where(p => p.Eliminated).Select(p => p.Peer).ToArray();
+        RpcId(peer, nameof(ClientBeginRound), Round, _seed, (float)_roundLeft, elim, TotalRounds);
         foreach (var o in World.Objects.Values) RpcId(peer, nameof(ClientSpawnObject), o.Id, o.Kind, o.Position, o.Data);
         foreach (var p in Players.Values)
             if (p.Participant && p.Alive && p.Peer != peer)
+            {
                 RpcId(peer, nameof(ClientSpawnMiner), p.Peer, p.Pos, p.Name, p.Inv.Held);
+                if (p.Downed) RpcId(peer, nameof(ClientDowned), p.Peer, true, p.DownedLeft);
+            }
+        foreach (var p in Players.Values) if (p.Participant && !p.Alive) RpcId(peer, nameof(ClientStatus), p.Peer, (int)MinerStatus.Dead);
     }
 
     void OnPeerLeft(int id)
     {
         if (!Players.TryGetValue(id, out var p)) return;
         Util.Log($"GAME: peer {id} ({p.Name}) left");
+        bool wasContender = !p.Eliminated && Phase is GamePhase.Round or GamePhase.Weighing;
         if (p.Alive && Phase == GamePhase.Round) KillMiner(p, null, "left");   // drops everything in a lootable bag, Death event resets the Infinity counter
         else if (p.Inv.Steins.Contains("infinity")) { InfinityTracker.Reset(); InfinityTracker.Spawned = false; }   // left between rounds: the stein is gone, a new one may appear
         p.Participant = false;
+        if (!p.Eliminated) { p.Eliminated = true; p.EliminatedRound = Round; p.EliminationSeq = ++_elimSeq; }
         Players.Remove(id);
         Rpc(nameof(ClientRemoveMiner), id);
+        if (wasContender)
+        {
+            Util.Pass("disconnect_eliminated", $"peer={id} name={p.Name} round={Round}");
+            ServerAnnounce($"{p.Name} has left the mine for good.");
+            Rpc(nameof(ClientStatus), id, (int)MinerStatus.Eliminated);
+            CheckMatchOver();
+        }
         CheckAllDead();
+    }
+
+    /// <summary>If at most one miner remains at any moment, the match ends with them as the winner.</summary>
+    void CheckMatchOver()
+    {
+        if (Phase != GamePhase.Round && Phase != GamePhase.Weighing) return;
+        if (Contenders().Count <= 1)
+        {
+            Util.Pass("last_miner_standing", $"round={Round}");
+            ServerEndMatch();
+        }
     }
 
     // ============================================================ SERVER: world mutation helpers
@@ -317,50 +327,86 @@ public partial class Game : Node
     public void ServerSetObjectData(int id, string data) => Rpc(nameof(ClientObjectData), id, data);
     public void ServerDespawnObject(int id) => Rpc(nameof(ClientDespawnObject), id);
 
+    /// <summary>A miner dies in the cave (not an elimination): everything they carry drops in a bag (or becomes a Midas statue), they haunt as a ghost until next round.</summary>
     public void KillMiner(ServerPlayer v, ServerPlayer killer, string cause)
     {
         if (!v.Alive) return;
-        v.Alive = false; v.Health = 0;
+        bool wasDowned = v.Downed;
+        v.Alive = false; v.Downed = false; v.Health = 0; v.NeedsKit = true;
         v.Fire(new SteinEvent { Kind = SteinEventKind.Death, Other = killer });
         if (killer != null) { killer.KillsThisRound++; killer.Fire(new SteinEvent { Kind = SteinEventKind.Kill, Other = v }); }
         var items = v.Inv.ToItemList();
-        if (items.Count > 0)
+        bool statue = killer != null && killer != v && killer.Inv.Steins.Contains("midas");
+        if (statue)
+        {
+            ServerSpawnObject("pickup", v.Pos + new Vector3(0, 0.4f, 0), "ore:statue");
+            Util.Pass("midas_statue", $"victim={v.Name} killer={killer.Name} dropped_bag=0");
+        }
+        else if (items.Count > 0)
         {
             int id = ServerSpawnObject("bag", v.Pos, "");
             if (World.Objects.TryGetValue(id, out var o) && o is BagObj bag) bag.Items = items;
         }
         v.Inv.Clear(); v.RecalcStats();
-        Util.Pass("death_bag_dropped", $"victim={v.Name} cause={cause} items={items.Count}");
+        Util.Pass("death_bag_dropped", $"victim={v.Name} cause={cause} items={items.Count} downed={wasDowned}");
         Rpc(nameof(ClientMinerDied), v.Peer);
-        Rpc(nameof(ClientAnnounce), $"{v.Name} has perished.");
+        ServerCue("death", $"{Round}{v.Name}", v.Name);
         SendOwnState(v);
         CheckAllDead();
     }
 
-    public void ServerDeposit(ServerPlayer p)
+    /// <summary>Feeding: every stone in the sack goes into the Goblin's palm at once. Fed stones are gone.</summary>
+    public void ServerFeed(ServerPlayer p)
     {
         if (p.Inv.Sack.Count == 0) return;
-        int total = 0; foreach (var o in p.Inv.Sack) total += Ores.ValueOf(o);
+        int total = 0; foreach (var o in p.Inv.Sack) total += Ores.WeightOf(o);
         int n = p.Inv.Sack.Count;
         p.Inv.Sack.Clear();
-        p.Money += total; p.DeliveredThisRound += total; Delivered += total;
+        p.TributeWeight += total;
         p.Dirty = true;
-        p.Fire(new SteinEvent { Kind = SteinEventKind.Deposit, Amount = total });
-        Util.Pass("deposit_server", $"peer={p.Peer} name={p.Name} ore={n} amount={total} money={p.Money}");
-        Rpc(nameof(ClientQuota), Delivered);
-        Rpc(nameof(ClientAnnounce), $"The Goblin takes ore from a miner. Quota: {Delivered}/{Quota}.");
+        p.Fire(new SteinEvent { Kind = SteinEventKind.Fed, Amount = total });
+        Util.Pass("feed_server", $"peer={p.Peer} name={p.Name} stones={n} weight={total} tribute={p.TributeWeight}");
+        ServerCue(total >= LargeFeedWeight ? "feed_large" : "feed_small", $"{Round}:{++_feedSeq}");
         SendOwnState(p);
+        RpcId(p.Peer, nameof(ClientFeedAck), p.Peer, total);
+    }
+    public const int LargeFeedWeight = 12;
+    int _feedSeq;
+
+    /// <summary>Deliberate separate action: feed the stein in slot <paramref name="slot"/> (hold interact at the Goblin).</summary>
+    public void ServerFeedStein(ServerPlayer p, int slot)
+    {
+        if (slot < 0 || slot >= p.Inv.Steins.Count) return;
+        string id = p.Inv.Steins[slot];
+        int w = Steins.TributeOf(id);
+        p.Inv.Steins.RemoveAt(slot);
+        if (p.Inv.SteinSel >= p.Inv.Steins.Count) p.Inv.SteinSel = 0;
+        ItemsServer.OnSteinLeft(p, id);
+        p.TributeWeight += w;
+        p.RecalcStats();
+        p.Fire(new SteinEvent { Kind = SteinEventKind.Fed, Amount = w });
+        Util.Pass("feed_stein_server", $"peer={p.Peer} name={p.Name} stein={id} weight={w} tribute={p.TributeWeight}");
+        ServerCue("feed_stein", $"{Round}:{++_feedSeq}", Steins.Get(id)?.Name ?? id);
+        SendOwnState(p);
+        RpcId(p.Peer, nameof(ClientFeedAck), p.Peer, w);
     }
 
     void SendOwnState(ServerPlayer p)
     {
         p.Dirty = false; p.LastOwnSend = Now;
         if (!Net.I.Names.ContainsKey(p.Peer)) return;
-        // HIDDEN INFORMATION: only the owner ever receives money/inventory.
-        RpcId(p.Peer, nameof(ClientOwnState), p.Peer, p.Money, p.Inv.Encode(), (int)Math.Ceiling(p.Health), p.Stats.SpeedMul, p.Stats.JumpMul, p.Stats.NoFallDamage, p.SackCap);
+        // HIDDEN INFORMATION: only the owner ever receives tribute weight / inventory / oil.
+        RpcId(p.Peer, nameof(ClientOwnState), p.Peer, p.TributeWeight, p.Inv.Encode(), (int)Math.Ceiling(p.Health), p.Stats.SpeedMul, p.Stats.JumpMul, p.Stats.NoFallDamage, p.SackCap, p.Oil, Config.LanternOilSeconds);
     }
 
+    /// <summary>Server: the Goblin says something. Every peer picks the same line from (category, seed).</summary>
+    public void ServerCue(string category, string seed, string a0 = "", string a1 = "", string mood = "") =>
+        Rpc(nameof(ClientGoblinCue), category, seed, a0, a1, mood);
+
     void SyncHeld(ServerPlayer p) => Rpc(nameof(ClientHeld), p.Peer, p.Inv.Held);
+
+    /// <summary>A miner that may act: alive, not downed, round in progress.</summary>
+    public bool CanAct(ServerPlayer p) => p != null && p.Alive && !p.Downed && Phase == GamePhase.Round;
 
     ServerPlayer Sender()
     {
@@ -383,7 +429,7 @@ public partial class Game : Node
     {
         if (!Net.I.IsServer) return;
         var p = Sender();
-        if (p == null || !p.Alive || Phase != GamePhase.Round) return;
+        if (p == null || !p.Alive || (Phase != GamePhase.Round && Phase != GamePhase.Weighing)) return;
         p.Pos = pos; p.Yaw = yaw; p.Pitch = pitch;
         ItemsServer.OnState(p, flags);
         foreach (var other in Net.I.Names.Keys)
@@ -399,7 +445,7 @@ public partial class Game : Node
     {
         if (!Net.I.IsServer) return;
         var p = Sender();
-        if (p == null || !p.Alive || Phase != GamePhase.Round || Now < p.NextAttack) return;
+        if (!CanAct(p) || Now < p.NextAttack) return;
         var def = Utilities.Get(p.Inv.Held);
         bool pick = def?.IsPickaxe == true;
         p.NextAttack = Now + (pick ? 0.75 : 0.38);
@@ -416,7 +462,7 @@ public partial class Game : Node
         if (col is Miner vm)
         {
             if (!Players.TryGetValue(vm.PeerId, out var v) || !v.Alive) return;
-            if (World.Cave.InCamp(v.Pos) || World.Cave.InCamp(p.Pos)) return; // no PvP in camp
+            if (World.Cave.InHall(v.Pos) || World.Cave.InHall(p.Pos)) return; // no fighting inside the Hall
             float dmg = (pick ? def.MeleeDamage : 5f) * p.Stats.MeleeDamageMul;
             var kb = dir with { Y = 0 };
             kb = kb.Normalized() * (pick ? 4f : 9f) + new Vector3(0, pick ? 1f : 3f, 0);
@@ -435,7 +481,7 @@ public partial class Game : Node
     {
         if (!Net.I.IsServer) return;
         var p = Sender();
-        if (p == null || !p.Alive || Phase != GamePhase.Round) return;
+        if (!CanAct(p)) return;
         if (!World.Objects.TryGetValue(objId, out var o)) return;
         if (p.Pos.DistanceTo(o.GlobalPosition) > o.InteractRange + 1.0f) return;
         o.ServerInteract(p);
@@ -446,7 +492,7 @@ public partial class Game : Node
     {
         if (!Net.I.IsServer) return;
         var p = Sender();
-        if (p == null || !p.Alive || slot < 0 || slot >= Inventory.UtilSlots) return;
+        if (!CanAct(p) || slot < 0 || slot >= Inventory.UtilSlots) return;
         p.Inv.Selected = slot; p.Dirty = true;
         SyncHeld(p);
     }
@@ -456,7 +502,7 @@ public partial class Game : Node
     {
         if (!Net.I.IsServer) return;
         var p = Sender();
-        if (p == null || !p.Alive || Phase != GamePhase.Round || idx < 0) return;
+        if (!CanAct(p) || idx < 0) return;
         string item = null;
         if (kind == "util" && idx < Inventory.UtilSlots && !string.IsNullOrEmpty(p.Inv.Utils[idx])) { item = "util:" + p.Inv.Utils[idx]; p.Inv.Utils[idx] = null; }
         else if (kind == "ore" && idx < p.Inv.Sack.Count) { item = "ore:" + p.Inv.Sack[idx]; p.Inv.Sack.RemoveAt(idx); }
@@ -472,7 +518,7 @@ public partial class Game : Node
     {
         if (!Net.I.IsServer) return;
         var p = Sender();
-        if (p == null || !p.Alive || Phase != GamePhase.Round || p.Stats.NoFallDamage) return;
+        if (!CanAct(p) || p.Stats.NoFallDamage) return;
         speed = Mathf.Clamp(speed, 0, 40);
         if (speed <= Miner.FallSafeSpeed) return;
         p.TakeDamage((speed - Miner.FallSafeSpeed) * 6f, null, "fall");
@@ -482,32 +528,40 @@ public partial class Game : Node
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void ClientMatchStart(int rounds)
     {
-        TotalRounds = rounds; Round = 0; OwnMoney = 0; LocalWasKilled = false; Feed.Clear();
+        TotalRounds = rounds; Round = 0; OwnTribute = 0; LocalWasKilled = false; Feed.Clear(); Weigh = null;
         _ownStates = 0; _foreignStates = 0;
         Util.Log($"MATCH: begins, {rounds} rounds");
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void ClientBeginRound(int round, int seed, float time, int quota, bool spectator)
+    void ClientBeginRound(int round, int seed, float time, int[] eliminated, int totalRounds)
     {
         FreeWorld();
-        Round = round; TimeLeft = time; Quota = quota; Delivered = 0;
-        Alive.Clear();
-        foreach (var id in Net.I.Names.Keys) Alive[id] = !spectator;
+        Round = round; TimeLeft = time; TotalRounds = totalRounds; Weigh = null; OwnDowned = false;
+        Alive.Clear(); Status.Clear();
+        foreach (var id in Net.I.Names.Keys)
+        {
+            bool out_ = Array.IndexOf(eliminated, id) >= 0;
+            Alive[id] = !out_;
+            Status[id] = out_ ? MinerStatus.Eliminated : MinerStatus.Alive;
+        }
         World = new World { Name = "World" };
         AddChild(World);
         World.BuildCave(seed, round);
         Phase = GamePhase.Round;
-        if (spectator) EnterGhost(new Vector3(0, 2, 6));
+        if (Array.IndexOf(eliminated, MyId) >= 0) EliminatedRole.ClientEnter(this, World.Cave.MinerSpawns[0] + new Vector3(0, 1.5f, 0));
         PhaseChanged?.Invoke();
         Util.Pass("round_started", $"round={round}");
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void ClientSpawnMiner(int peer, Vector3 pos, string name, string held)
+    void ClientSpawnMiner(int peer, Vector3 pos, string name, string held) => SpawnMinerNode(peer, pos, name, held);
+
+    /// <summary>Creates (or replaces) the Miner node of a peer on this machine; the local peer's gets the controller.</summary>
+    Miner SpawnMinerNode(int peer, Vector3 pos, string name, string held)
     {
-        if (World == null) return;
-        World.GetMiner(peer)?.QueueFree();
+        if (World == null) return null;
+        World.GetMiner(peer)?.Free();
         bool local = peer == MyId;
         var m = new Miner { Name = peer.ToString(), PeerId = peer, PlayerName = name, IsLocal = local };
         m.SetMultiplayerAuthority(peer);
@@ -520,12 +574,14 @@ public partial class Game : Node
         m.GlobalPosition = pos;
         m.SetHeld(held);
         Alive[peer] = true;
+        if (Status.GetValueOrDefault(peer) != MinerStatus.Eliminated) Status[peer] = MinerStatus.Alive;
         if (local)
         {
-            LocalMiner = m;
+            LocalMiner = m; OwnDowned = false;
             if (LocalGhost != null) { LocalGhost.QueueFree(); LocalGhost = null; }
-            if (LocalWasKilled && Round >= 2) Util.Pass("respawned_next_round", $"round={Round}");
+            if (LocalWasKilled && Phase == GamePhase.Round && Round >= 2) Util.Pass("respawned_next_round", $"round={Round}");
         }
+        return m;
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -533,12 +589,14 @@ public partial class Game : Node
     {
         World?.GetMiner(peer)?.QueueFree();
         Alive.Remove(peer);
+        Status[peer] = MinerStatus.Eliminated;
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void ClientMinerDied(int peer)
     {
-        Alive[peer] = false;
+        Alive[peer] = false; Status[peer] = MinerStatus.Dead;
+        if (peer == MyId) OwnDowned = false;
         var m = World?.GetMiner(peer);
         Vector3 at = m != null ? m.GlobalPosition + Vector3.Up * 1.5f : new Vector3(0, 2, 6);
         m?.QueueFree();
@@ -551,7 +609,7 @@ public partial class Game : Node
         }
     }
 
-    void EnterGhost(Vector3 at)
+    public void EnterGhost(Vector3 at)
     {
         if (World == null) return;
         LocalGhost?.QueueFree();
@@ -590,9 +648,6 @@ public partial class Game : Node
     void ClientRoundTime(float t) { TimeLeft = t; }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void ClientQuota(int delivered) { Delivered = delivered; OwnChanged?.Invoke(); }
-
-    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void ClientAnnounce(string msg)
     {
         Feed.Add(msg);
@@ -602,7 +657,7 @@ public partial class Game : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void ClientOwnState(int owner, int money, string inv, int hp, float speedMul, float jumpMul, bool noFall, int sackCap)
+    void ClientOwnState(int owner, int tribute, string inv, int hp, float speedMul, float jumpMul, bool noFall, int sackCap, float oil, float oilMax)
     {
         if (owner != MyId)
         {
@@ -611,30 +666,36 @@ public partial class Game : Node
             return;
         }
         _ownStates++;
-        int prev = OwnMoney;
-        OwnMoney = money; OwnInv = Inventory.Decode(inv); OwnHealth = hp; OwnSackCap = sackCap;
+        int prev = OwnTribute;
+        OwnTribute = tribute; OwnInv = Inventory.Decode(inv); OwnHealth = hp; OwnSackCap = sackCap; OwnOil = oil; OwnOilMax = oilMax;
         if (LocalMiner != null) { LocalMiner.SpeedMul = speedMul; LocalMiner.JumpMul = jumpMul; LocalMiner.NoFall = noFall; }
-        Util.Log($"OWNSTATE money={money} hp={hp} inv={inv}");
-        if (money > prev) Util.Pass("deposit_credited", $"money={money}");
+        Util.Log($"OWNSTATE tribute={tribute} hp={hp} oil={oil:0} inv={inv}");
         OwnChanged?.Invoke();
     }
 
+    /// <summary>Owner only: what you just fed (the Goblin's reaction is public, the number is not).</summary>
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void ClientRoundSummary(int round, bool met, int delivered, int quota, string poorest, string survivor, int bonus, bool last)
+    void ClientFeedAck(int owner, int weight)
     {
-        LastSummary = new SummaryData { Round = round, QuotaMet = met, Delivered = delivered, Quota = quota, Poorest = poorest, Survivor = survivor, Bonus = bonus, Last = last };
-        Phase = GamePhase.Summary;
-        PhaseChanged?.Invoke();
-        Util.Pass("round_summary_shown", $"round={round} quotaMet={met} poorest={poorest}");
+        if (owner != MyId) { _foreignStates++; Util.Fail("foreign_feed_ack", $"owner={owner} me={MyId}"); return; }
+        Util.Pass("tribute_credited", $"fed={weight}");
+    }
+
+    /// <summary>Public status change of a miner (downed, dead, eliminated).</summary>
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void ClientStatus(int peer, int status)
+    {
+        Status[peer] = (MinerStatus)status;
+        Alive[peer] = (MinerStatus)status is MinerStatus.Alive or MinerStatus.Downed;
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void ClientMatchEnd(string[] names, int[] money, string winner)
+    void ClientMatchEnd(string[] names, int[] thrownRound, string winner)
     {
-        LastMatchEnd = new MatchEndData { Names = names, Money = money, Winner = winner };
+        LastMatchEnd = new MatchEndData { Names = names, ThrownRound = thrownRound, Winner = winner };
         Phase = GamePhase.MatchEnd;
         PhaseChanged?.Invoke();
-        Util.Log($"FINAL own_money={OwnMoney} name={Net.I.LocalName} winner={winner}");
+        Util.Log($"FINAL name={Net.I.LocalName} winner={winner}");
         if (_foreignStates == 0 && _ownStates > 0) Util.Pass("no_foreign_state", $"ownStates={_ownStates}");
         else Util.Fail("no_foreign_state", $"own={_ownStates} foreign={_foreignStates}");
         Util.Pass("match_end", $"winner={winner}");

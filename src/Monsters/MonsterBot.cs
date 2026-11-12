@@ -46,7 +46,7 @@ public class MonsterBot : IMinerController
         // in position: look at the interesting thing
         MonsterObj mon = null; float bd = float.MaxValue;
         foreach (var o in g.World.Objects.Values)
-            if (o is MonsterObj mo && mo.State != MonsterState.Dead && mo.Kind != "dragon" || o is DragonObj)
+            if (o is MonsterObj mo && mo.Kind != "dragon" || o is DragonObj)
             {
                 float d = o.GlobalPosition.DistanceTo(pos);
                 if (d < bd) { bd = d; mon = (MonsterObj)o; }

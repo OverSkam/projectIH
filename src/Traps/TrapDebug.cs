@@ -75,7 +75,7 @@ public static class TrapDebug
     {
         var cave = g.World.Cave;
         var from = cave.MinerSpawns.Count > 0 ? cave.MinerSpawns[0] : Vector3.Zero;
-        var node = cave.NavNodes.Where(n => !cave.CampZone.Grow(3f).HasPoint(n)).OrderBy(n => n.DistanceSquaredTo(from)).Cast<Vector3?>().FirstOrDefault();
+        var node = cave.NavNodes.Where(n => !cave.HallZone.Grow(3f).HasPoint(n)).OrderBy(n => n.DistanceSquaredTo(from)).Cast<Vector3?>().FirstOrDefault();
         return node ?? (cave.Rooms.Count > 0 ? cave.Rooms[0].Center : from + new Vector3(14, 0, 0));
     }
 }

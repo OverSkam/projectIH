@@ -70,25 +70,14 @@ public partial class GolemObj : MonsterObj
         AddBox(new Vector3(2.4f, 3.6f, 1.8f), new Vector3(0, 1.8f, 0));
     }
 
-    // ------------------------------------------------------------------ server: armour + weak point
-    protected override float ModifyMelee(ServerPlayer p, float dmg)
+    // ------------------------------------------------------------------ server: the back crystal
+    /// <summary>The golem cannot be hurt. A hit on the glowing crystal on its back (from behind) stuns it for GolemStunSeconds; hits from the front or side do nothing.</summary>
+    public override void ServerHit(ServerPlayer p, float mining, bool pickaxe)
     {
+        if (!IsSrv || State == MonsterState.Stunned || !pickaxe) return;
         var toAtt = Flat(p.Pos - GlobalPosition);
-        if (toAtt.LengthSquared() < 0.01f) return dmg * MonsterTuning.GolemFrontMul;
-        float dot = Forward.Dot(toAtt.Normalized());
-        // facing the golem (front or flank) = armour; behind = crystal
-        return dot < MonsterTuning.GolemRearDot ? dmg * MonsterTuning.GolemBackMul : dmg * MonsterTuning.GolemFrontMul;
-    }
-
-    protected override void DropLoot()
-    {
-        var rng = new RandomNumberGenerator { Seed = (ulong)(Id * 31 + 7) };
-        string[] ores = { "gold", "gold", "ruby", Ores.Pick(rng, 3, Game.I.Round) };
-        for (int i = 0; i < ores.Length; i++)
-        {
-            float a = i * Mathf.Tau / ores.Length + 0.5f;
-            SpawnLoot(ores[i], new Vector3(Mathf.Cos(a) * 1.6f, 0, Mathf.Sin(a) * 1.6f));
-        }
+        if (toAtt.LengthSquared() < 0.01f) return;
+        if (Forward.Dot(toAtt.Normalized()) < MonsterTuning.GolemRearDot) Stun(MonsterTuning.GolemStunSeconds);
     }
 
     // ------------------------------------------------------------------ server: slam
@@ -130,7 +119,7 @@ public partial class GolemObj : MonsterObj
         var pos = GlobalPosition; var fwd = Forward;
         foreach (var p in Game.I.Players.Values)
         {
-            if (!p.Alive || !p.Participant || Cave.InCamp(p.Pos)) continue;
+            if (!p.Alive || !p.Participant || Cave.InHall(p.Pos)) continue;
             var rel = Flat(p.Pos - pos);
             float d = rel.Length();
             if (d > MonsterTuning.GolemSlamReach) continue;
@@ -170,24 +159,24 @@ public partial class GolemObj : MonsterObj
                 }
             case MonsterState.Attack: armTarget = 0.5f; rate = 30f; lean = 0.25f; break;
             case MonsterState.Recover: armTarget = age < 0.9f ? 0.5f : 0.0f; rate = 4f; lean = 0.15f * Mathf.Clamp(1f - age, 0f, 1f); break;
-            case MonsterState.Dead: armTarget = 0.2f; rate = 3f; lean = 0.6f; break;
+            case MonsterState.Stunned: armTarget = 0.15f; rate = 3f; lean = 0.55f; break;
             default: armTarget = 0f; break;
         }
         if (State != MonsterState.Windup) _crystal.Scale = Vector3.One;
         _armX = Mathf.Lerp(_armX, armTarget, 1f - Mathf.Exp(-rate * dt));
         // arms swing in opposition to legs when walking; slam overrides
-        bool slam = State == MonsterState.Windup || State == MonsterState.Attack || State == MonsterState.Recover || State == MonsterState.Dead;
+        bool slam = State == MonsterState.Windup || State == MonsterState.Attack || State == MonsterState.Recover || State == MonsterState.Stunned;
         _armL.Rotation = new Vector3(slam ? _armX : -legSwing * 0.7f + swing * 0f, 0, 0.08f);
         _armR.Rotation = new Vector3(slam ? _armX : legSwing * 0.7f, 0, -0.08f);
         _torso.Rotation += new Vector3(lean, 0, 0);
-        _head.Rotation = new Vector3(State == MonsterState.Dead ? 0.5f : 0f, State == MonsterState.Investigate ? Mathf.Sin(age * 2f) * 0.5f : 0f, 0);
+        _head.Rotation = new Vector3(State == MonsterState.Stunned ? 0.5f : 0f, State == MonsterState.Investigate ? Mathf.Sin(age * 2f) * 0.5f : 0f, 0);
         float pulse = 1.2f + 0.5f * Mathf.Sin(Time.GetTicksMsec() / 300f);
         _light.LightEnergy = State == MonsterState.Windup ? 3f : pulse;
-        if (State == MonsterState.Dead)
+        if (State == MonsterState.Stunned)
         {
-            float t = Mathf.Clamp(age / MonsterTuning.DeadLinger, 0f, 1f);
-            Rig.Scale = new Vector3(1f, 1f - 0.5f * t, 1f);
-            _light.LightEnergy = 0f;
+            // slumped, crystal flickering weakly
+            Rig.Scale = new Vector3(1f, 0.93f, 1f);
+            _light.LightEnergy = 0.3f + 0.5f * Mathf.Abs(Mathf.Sin(Time.GetTicksMsec() / 90f));
         }
         else Rig.Scale = Vector3.One;
     }

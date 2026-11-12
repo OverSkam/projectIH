@@ -7,10 +7,9 @@ namespace AppStein;
 
 /// <summary>
 /// Test scaffolding (command-line only, honoured by the host / bot clients):
-///   --give=[Name=]stein:id|util:id,...   replace starting items in round 1 (no name = everybody)
-///   --debugspawn=chest,plate,blood,timed,infinity   spawn showcase objects in the camp
+///   --give=[Name=]stein:id|util:id|ore:id,...   replace starting items in round 1 (no name = everybody)
+///   --debugspawn=chest,plate,blood,timed,infinity   spawn showcase objects in the Hall
 ///   --itest=util|infinity                 host runs a scripted scenario; --bot=t_* clients follow its steps
-///   --rounds=N                            round-count override
 /// </summary>
 public static class ItemsDebug
 {
@@ -45,6 +44,7 @@ public static class ItemsDebug
             p.Inv.Steins.Add(id);
         }
         else if (kind == "util") { p.Inv.Utils[1] = id; p.Inv.Selected = 1; }
+        else if (kind == "ore") p.Inv.Sack.Add(id);
         p.RecalcStats();
         p.Dirty = true;
     }
@@ -109,6 +109,19 @@ public static class ItemsDebug
                 break;
             case "dropstein":
                 if (me == arg) { int i = g.OwnInv.Steins.IndexOf("infinity"); if (i >= 0) g.SendDropStein(i); }
+                break;
+            case "lanternstate":   // arg "Name:out|low|on": every other client checks the PUBLIC state of that miner's light
+            {
+                var kv = arg.Split(':');
+                if (me != kv[0] && g.World?.GetMiner(PeerOf(kv[0])) is Miner om)
+                {
+                    string have = om.LanternOut ? "out" : om.LanternLow ? "low" : "on";
+                    if (have == kv[1]) Util.Pass("lantern_" + kv[1] + "_seen", $"viewer={me}"); else Util.Fail("lantern_" + kv[1] + "_seen", $"viewer={me} saw={have}");
+                }
+                break;
+            }
+            case "quit":
+                if (me == arg) { Util.Log("TEST: quitting on request"); Net.I.Disconnect(); g.GetTree().Quit(); }
                 break;
         }
     }
@@ -234,6 +247,27 @@ public class ItemTestBot : BotBrain
                 if (_t > 0.8) i.Attack = true;
                 break;
             }
+            case "oil_toggle":
+                if (me == "Alice" && !_flag) { _flag = true; i.ToggleLantern = true; }
+                break;
+            case "oil_refill":
+            {
+                if (me != "Alice") break;
+                var d = Nearest<OilDrumObj>(g, m.GlobalPosition);
+                if (d != null && Walk(m, ref i, d.GlobalPosition, 1.8f) && (int)(_t * 2) % 2 == 0) { FaceTo(m, ref i, d.GlobalPosition + Vector3.Up * 0.5f); g.SendInteract(d.Id); }
+                break;
+            }
+            case "loot":
+            {
+                if (me != "Alice") break;
+                int hp = Net.I.Names.FirstOrDefault(kv => kv.Value == arg).Key;
+                if (g.World.GetMiner(hp) is Miner victim && Walk(m, ref i, victim.GlobalPosition, 1.4f))
+                {
+                    FaceTo(m, ref i, victim.GlobalPosition + Vector3.Up * 0.2f);
+                    if ((int)(_t * 1.5) != (int)((_t - dt) * 1.5)) g.SendLoot(hp);
+                }
+                break;
+            }
             case "pickstein":
             {
                 if (me != arg) break;
@@ -245,7 +279,9 @@ public class ItemTestBot : BotBrain
     }
 }
 
-/// <summary>Host-only scripted scenarios. Verifies server state and prints PASS/FAIL lines; bots on the clients do the player-side actions.</summary>
+/// <summary>Host-only scripted scenarios. Verifies server state and prints PASS/FAIL lines; bots on the clients do the player-side actions.
+/// Scenarios (--itest=): util (5 miners, 3 rounds of checks), infinity (4 miners), tie (3 miners), disconnect (3 miners).
+/// Elimination is steered by setting tribute weights (Weights(...)) shortly before the round is ended.</summary>
 public partial class ItemsDirector : Node
 {
     int _round = -1, _idx;
@@ -253,6 +289,7 @@ public partial class ItemsDirector : Node
     List<(double t, Action a)> _script = new();
     bool _noiseDyn, _noisePeb, _verified;
     float _bobMaxY;
+    double _oil0, _oil1;
     string Scenario => Util.Arg("itest");
 
     public override void _Ready()
@@ -266,30 +303,32 @@ public partial class ItemsDirector : Node
 
     ServerPlayer P(string n) => Game.I.Players.Values.FirstOrDefault(p => p.Name == n);
     void Chk(string name, bool ok, string d = "") { if (ok) Util.Pass(name, d); else Util.Fail(name, d); }
+    void Weights(params (string name, int w)[] ws) { foreach (var (n, w) in ws) if (P(n) is ServerPlayer p) { p.TributeWeight = w; p.Dirty = true; } }
 
     public override void _Process(double delta)
     {
         var g = Game.I;
         if (!Net.I.IsServer) return;
-        if (g.Phase == GamePhase.Summary && !_verified) { _verified = true; AfterRoundEnd(g); }
+        if (g.Phase == GamePhase.Weighing && !_verified) { _verified = true; AfterRoundEnd(g); }
         if (g.Phase != GamePhase.Round) return;
         if (g.Round != _round)
         {
             _round = g.Round; _t = 0; _idx = 0; _verified = false; _bobMaxY = 0;
-            _script = Scenario == "infinity" ? InfinityScript(g, _round) : UtilScript(g, _round);
+            _script = Scenario switch { "infinity" => InfinityScript(g, _round), "tie" => TieScript(g, _round), "disconnect" => DisconnectScript(g, _round), _ => UtilScript(g, _round) };
         }
         _t += delta;
         if (P("Bob") is ServerPlayer bb) _bobMaxY = Math.Max(_bobMaxY, bb.Pos.Y);
         while (_idx < _script.Count && _t >= _script[_idx].t) _script[_idx++].a();
     }
 
+    /// <summary>Called once at the start of every weighing (the lock-out and the RoundEnd events, e.g. the Blood penalty, have just run).</summary>
     void AfterRoundEnd(Game g)
     {
         if (Scenario == "util" && _round == 3)
         {
             var h = P("Host"); var a = P("Alice");
-            Chk("blood_penalty_verified", !h.Inv.Steins.Contains("blood") && h.Money == 80, $"host stein={string.Join(",", h.Inv.Steins)} money={h.Money}");
-            Chk("blood_kept_verified", a.Inv.Steins.Contains("blood") && a.Money == 160, $"alice stein={string.Join(",", a.Inv.Steins)} money={a.Money}");
+            Chk("blood_penalty_verified", !h.Inv.Steins.Contains("blood") && h.TributeWeight == 100, $"host stein={string.Join(",", h.Inv.Steins)} tribute={h.TributeWeight}");
+            Chk("blood_kept_verified", a.Inv.Steins.Contains("blood") && a.TributeWeight == 200, $"alice stein={string.Join(",", a.Inv.Steins)} tribute={a.TributeWeight}");
         }
     }
 
@@ -323,6 +362,16 @@ public partial class ItemsDirector : Node
             At(20, () => Chk("dynamite_noise", _noiseDyn));
             At(21, () => g.DebugStep("trap"));
             At(24, () => g.DebugStep("steptrap"));
+            // Midas: Bob kills Dave: a gold statue (one stone, weight 15) instead of a bag
+            At(30, () =>
+            {
+                var b = P("Bob"); b.Inv.Steins.Add("midas"); b.RecalcStats();
+                int bags0 = g.World.Objects.Values.Count(o => o is BagObj);
+                g.KillMiner(P("Dave"), b, "melee");
+                bool statue = g.World.Objects.Values.Any(o => o is PickupObj && o.Data == "ore:statue");
+                Chk("midas_statue_verified", statue && g.World.Objects.Values.Count(o => o is BagObj) == bags0 && Ores.WeightOf("statue") == 15, $"statue={statue}");
+            });
+            At(32, () => Weights(("Host", 10), ("Alice", 12), ("Bob", 9), ("Carol", 1), ("Dave", 5)));   // Carol is the lightest
             At(33, g.DebugEndRound);
         }
         else if (round == 2)
@@ -346,7 +395,8 @@ public partial class ItemsDirector : Node
             At(20, () => g.DebugStep("lanterncheck", "Bob"));
             At(25, () => { _noisePeb = false; g.DebugStep("meddle2", "Bob"); });
             At(26, () => Chk("ghost_pebble_noise", _noisePeb));
-            At(27, () => g.KillMiner(P("Alice"), null, "collapse"));
+            At(27, () => g.KillMiner(P("Alice"), null, "test"));
+            At(27.5, () => Weights(("Host", 30), ("Alice", 40), ("Bob", 25), ("Dave", 3)));   // dead miners' fed tribute still counts; Dave is the lightest
             At(28, g.DebugEndRound);
         }
         else if (round == 3)
@@ -356,12 +406,62 @@ public partial class ItemsDirector : Node
                 foreach (var n in new[] { "Alice", "Host" })
                 {
                     var p = P(n);
-                    Chk("respawn_kit_and_stein", p.Inv.Utils[0] == "pickaxe" && p.Inv.Utils[1] == "lantern" && p.Inv.Steins.Count == 1 && Steins.Get(p.Inv.Steins[0]).Rarity == Rarity.Common, $"{n} utils={string.Join(",", p.Inv.Utils)} steins={string.Join(",", p.Inv.Steins)}");
-                    p.Inv.Steins.Clear(); p.Inv.Steins.Add("blood"); p.Money = 200; p.RecalcStats();
+                    Chk("respawn_kit_only", p.Inv.Utils[0] == "pickaxe" && p.Inv.Utils[1] == "lantern" && p.Inv.Steins.Count == 0, $"{n} utils={string.Join(",", p.Inv.Utils)} steins={string.Join(",", p.Inv.Steins)}");
+                    p.Inv.Steins.Clear(); p.Inv.Steins.Add("blood"); p.TributeWeight = 200; p.RecalcStats();
                 }
+                P("Bob").TributeWeight = 50;
             });
             At(2, () => g.KillMiner(P("Bob"), P("Alice"), "melee"));
             At(5, g.DebugEndRound);
+        }
+        else if (round == 4)
+        {
+            // final two (Host, Alice): lantern oil, then downed -> looted -> bleeds out, then downed -> hit again -> dies
+            At(0.5, () =>
+            {
+                Weights(("Host", 50), ("Alice", 80));
+                var a = P("Alice");
+                Chk("oil_starts_full", Math.Abs(a.Oil - g.Config.LanternOilSeconds) < 2f && a.LanternOn && a.Inv.Held == "lantern", $"oil={a.Oil:0} held={a.Inv.Held}");
+                _oil0 = a.Oil;
+            });
+            At(4, () => { var a = P("Alice"); Chk("oil_drains_while_lit", _oil0 - a.Oil > 2.5 && _oil0 - a.Oil < 4.5, $"drained={_oil0 - a.Oil:0.0}"); g.DebugStep("oil_toggle"); });
+            At(5, () => { var a = P("Alice"); Chk("lantern_toggled_off", !a.LanternOn, $"on={a.LanternOn}"); _oil1 = a.Oil; g.DebugStep("lanternstate", "Alice:out"); });
+            At(8, () => { var a = P("Alice"); Chk("oil_not_burning_when_off", Math.Abs(_oil1 - a.Oil) < 0.2, $"oil {_oil1:0.0}->{a.Oil:0.0}"); g.DebugStep("oil_toggle"); });
+            At(9, () => { var a = P("Alice"); Chk("lantern_toggled_on", a.LanternOn, $"on={a.LanternOn}"); a.Oil = 30f; a.Dirty = true; });
+            At(10.5, () => g.DebugStep("lanternstate", "Alice:low"));
+            At(11, () =>
+            {
+                var a = P("Alice");
+                int id = g.ServerSpawnObject("oil", a.Pos + new Vector3(0, 0, -2.5f), OilDrumObj.MakeData(2));
+                g.DebugStep("oil_refill");
+            });
+            At(16, () => { var a = P("Alice"); Chk("oil_refilled_to_full", a.Oil > g.Config.LanternOilSeconds - 3f, $"oil={a.Oil:0}"); a.Oil = 1.5f; });
+            At(18, () => { Chk("lantern_out_when_oil_gone", P("Alice").Oil <= 0f); g.DebugStep("lanternstate", "Alice:out"); P("Alice").Oil = g.Config.LanternOilSeconds; });
+            At(19, () =>
+            {
+                // downed -> looted -> bleeds out
+                var h = P("Host"); var a = P("Alice");
+                h.Inv.Sack.Add("gold"); h.Inv.Sack.Add("coal"); h.Inv.Steins.Add("swift"); h.RecalcStats();
+                h.TakeDamage(500, a, "test");
+                Chk("downed_state_set", h.Alive && h.Downed && h.Health <= 0f, $"alive={h.Alive} downed={h.Downed}");
+                Chk("downed_cannot_act", !g.CanAct(h));
+                g.DebugStep("loot", "Host");
+            });
+            At(25, () =>
+            {
+                var h = P("Host"); var a = P("Alice");
+                Chk("downed_looted_by_other", a.Inv.Sack.Contains("gold") && a.Inv.Sack.Contains("coal") && a.Inv.Steins.Contains("swift") && h.Inv.Sack.Count == 0 && h.Inv.Steins.Count == 0,
+                    $"alice sack={string.Join(",", a.Inv.Sack)} steins={string.Join(",", a.Inv.Steins)} host sack={h.Inv.Sack.Count}");
+            });
+            At(31, () => { var h = P("Host"); Chk("downed_bleeds_out", !h.Alive && !h.Downed, $"alive={h.Alive}"); });
+            At(32, () =>
+            {
+                var a = P("Alice");
+                a.TakeDamage(500, null, "test");
+                Chk("downed_second_state", a.Alive && a.Downed);
+                a.TakeDamage(3, null, "test");
+                Chk("downed_further_damage_kills", !a.Alive && !a.Downed, $"alive={a.Alive}");   // both miners dead: the Goblin ends the round and weighs (final two, Alice heavier)
+            });
         }
         return s;
     }
@@ -372,13 +472,31 @@ public partial class ItemsDirector : Node
     {
         var s = new List<(double, Action)>();
         void At(double t, Action a) => s.Add((t, a));
-        if (round == 2)
+        if (round == 1)
         {
             At(1, () => g.DebugStep("dropstein", "Alice"));
             At(3, () => { Chk("infinity_reset_on_drop", InfinityTracker.Holder == -1 && InfinityTracker.Count == 0 && !P("Alice").Inv.Steins.Contains("infinity")); g.DebugStep("pickstein", "Bob"); });
-            At(8, () => { Chk("infinity_transferred", P("Bob").Inv.Steins.Contains("infinity")); g.DebugEndRound(); });
+            At(8, () => { Chk("infinity_transferred", P("Bob").Inv.Steins.Contains("infinity")); Weights(("Host", 10), ("Alice", 8), ("Bob", 12), ("Carol", 1)); g.DebugEndRound(); });   // Carol is thrown
         }
-        else At(4, g.DebugEndRound);
+        else if (round == 2) At(4, () => { Weights(("Host", 10), ("Alice", 2), ("Bob", 12)); g.DebugEndRound(); });   // Alice is thrown
+        else At(4, g.DebugEndRound);   // Bob holds the stein at the end of round 3: he wins at once (before any weighing)
+        return s;
+    }
+
+    /// <summary>Two miners tied for lightest are both thrown; the remaining miner wins.</summary>
+    List<(double, Action)> TieScript(Game g, int round)
+    {
+        var s = new List<(double, Action)>();
+        s.Add((3, () => { Weights(("Host", 5), ("Alice", 5), ("Bob", 20)); g.DebugEndRound(); }));
+        return s;
+    }
+
+    /// <summary>A miner who disconnects is eliminated; when only one miner remains the match ends with them as winner.</summary>
+    List<(double, Action)> DisconnectScript(Game g, int round)
+    {
+        var s = new List<(double, Action)>();
+        s.Add((3, () => g.DebugStep("quit", "Bob")));
+        s.Add((9, () => { Chk("one_left_after_first_leaves", g.Contenders().Count == 2, $"contenders={g.Contenders().Count}"); g.DebugStep("quit", "Alice"); }));
         return s;
     }
 }

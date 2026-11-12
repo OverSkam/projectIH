@@ -392,7 +392,7 @@ public partial class BearTrapObj : NetObject
         if (now < _armAt) return;
         foreach (var p in Game.I.Players.Values.ToArray())
         {
-            if (!p.Alive || !p.Participant || (Game.I.World.Cave.InCamp(p.Pos) && !Util.HasArg("itest"))) continue;   // traps never bite inside the camp (item test stages them there)
+            if (!p.Alive || !p.Participant || (Game.I.World.Cave.InHall(p.Pos) && !Util.HasArg("itest"))) continue;   // traps never bite inside the Hall (item test stages them there)
             if (ObjUtil.Flat(p.Pos - GlobalPosition).Length() < 0.8f && Math.Abs(p.Pos.Y - GlobalPosition.Y) < 1.2f)
             {
                 Trigger();
@@ -406,7 +406,7 @@ public partial class BearTrapObj : NetObject
             if (o is IRootable r && ObjUtil.Flat(o.GlobalPosition - GlobalPosition).Length() < 1.0f)
             {
                 Trigger();
-                r.ServerRoot(3f); r.ServerTrapDamage(15f);
+                r.ServerRoot(3f);   // stuns a monster, never hurts it
                 Util.Pass("beartrap_triggered", $"victim=monster:{o.Kind}");
                 return;
             }

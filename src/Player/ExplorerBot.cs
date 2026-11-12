@@ -7,7 +7,7 @@ namespace AppStein;
 
 /// <summary>
 /// Soak-test bot (--bot=explorer | explorer_brave). Roams the generated cave along the nav graph: mines veins, picks up loot, opens chests,
-/// tries shrines, pulls levers, (brave) walks into traps and fights monsters, and returns to the Goblin to deposit before the timer ends.
+/// tries shrines, pulls levers, (brave) walks into traps, keeps its lantern oil topped up, and returns to the Hall to feed the Goblin before the timer ends.
 /// Uses only what a real client sees (replicated object kinds/positions/data, own inventory and health).
 /// </summary>
 public class ExplorerBot : IMinerController
@@ -81,10 +81,11 @@ public class ExplorerBot : IMinerController
         bool late = g.TimeLeft < _pathLen / 3.6f + 14f;
         bool full = inv.Sack.Count >= g.OwnSackCap;
         bool hurt = g.OwnHealth < (_brave ? 28 : 50);
-        if (hurt && !cave.InCamp(pos) && _mode != "flee") { _mode = "flee"; _flee = _clock + 12; }
+        if (hurt && !cave.InHall(pos) && _mode != "flee") { _mode = "flee"; _flee = _clock + 12; }
+        LanternEconomy(m, ref inp, g, cave, inv);
         if (_mode == "flee")
         {
-            if (cave.InCamp(pos) && _clock > _flee) _mode = "explore";
+            if (cave.InHall(pos) && _clock > _flee) _mode = "explore";
             else { GoDeposit(m, ref inp, g, goblin, stand, inv); return; }
         }
         if (late || (full && inv.Sack.Count > 0))
@@ -92,22 +93,34 @@ public class ExplorerBot : IMinerController
             if (inv.Sack.Count == 0 && late) { Walk(m, ref inp, new Vector3(0, 0, 4), 2.5f); return; }  // wait in camp
             GoDeposit(m, ref inp, g, goblin, stand, inv); return;
         }
-        if (_mode == "deposit" && inv.Sack.Count == 0) _mode = "explore";
+        if (_mode == "deposit" && inv.Sack.Count == 0) _mode = "explore";   // "deposit" = walking to the Goblin to feed him
 
         // cautious bot backs off from awake monsters
         if (!_brave)
         {
             foreach (var o in world.Objects.Values)
-                if (o is MonsterObj mo && mo.State is MonsterState.Chase or MonsterState.Windup or MonsterState.Attack && mo.GlobalPosition.DistanceTo(pos) < 7f && !cave.InCamp(pos))
+                if (o is MonsterObj mo && mo.State is MonsterState.Chase or MonsterState.Windup or MonsterState.Attack && mo.GlobalPosition.DistanceTo(pos) < 7f && !cave.InHall(pos))
                 { _mode = "flee"; _flee = _clock + 8; return; }
         }
 
+        if (_target is OilDrumObj && (g.OwnOil > g.OwnOilMax * 0.8f || Kv(_target, "uses") == "0")) Drop();
         if (_target != null && (!GodotObject.IsInstanceValid(_target) || Gone(_target, world))) { _target = null; _holdUntil = 0; }
         else if (_target is ChestObj && Kv(_target, "open") == "1" || _target is LeverObj && Kv(_target, "s") != "ready" || _target is ShrineObj && Kv(_target, "state") == "done") Drop();
         if (_target != null && _clock - _targetSince > 45) { Util.Log($"EXPLORER {_name} giving up on {_target.Kind}#{_target.Id} at {_target.GlobalPosition}"); _skip.Add(_target.Id); _target = null; }
         if (_target == null) PickTarget(m, g);
         if (_target == null) { Walk(m, ref inp, RoamGoal(cave, pos), 1.5f); return; }
         Work(m, ref inp, g);
+    }
+
+    double _lanternT;
+    /// <summary>Basic oil management: lantern off while standing in the Hall (it is lit there anyway), on again in the cave.</summary>
+    void LanternEconomy(Miner m, ref MinerInput inp, Game g, CaveInfo cave, Inventory inv)
+    {
+        if (_clock - _lanternT < 2.0 || g.OwnOil <= 0f || Array.IndexOf(inv.Utils, "lantern") < 0) return;
+        bool inHall = cave.InHall(m.GlobalPosition);
+        if (inHall != m.LanternOut) return;   // already as wanted (off in the Hall, on elsewhere)
+        _lanternT = _clock; inp.ToggleLantern = true;
+        Util.Pass("explorer_lantern_toggle", $"inHall={inHall}");
     }
 
     static bool Gone(NetObject o, World w) => !w.Objects.ContainsKey(o.Id);
@@ -133,7 +146,7 @@ public class ExplorerBot : IMinerController
         {
             Face(m, ref inp, goblin.GlobalPosition + Vector3.Up);
             inp.Move = Vector2.Zero;
-            if (inv.Sack.Count > 0 && _actT <= 0) { _actT = 0.5; g.SendInteract(goblin.Id); Util.Pass("explorer_deposit_try"); }
+            if (inv.Sack.Count > 0 && _actT <= 0) { _actT = 0.5; g.SendInteract(goblin.Id); Util.Pass("explorer_feed_try"); }
         }
     }
 
@@ -156,12 +169,12 @@ public class ExplorerBot : IMinerController
                 case ShrineObj s:
                     { var t = Kv(s, "type"); if (Kv(s, "state") == "done" || t == "plate") continue; w = 1.3f; break; }
                 case LeverObj l: if (Kv(l, "s") != "ready") continue; w = _brave ? 0.7f : 1.2f; break;
-                case MonsterObj mo: if (!_brave || mo.Kind == "dragon" || mo.State == MonsterState.Dead || mo.Kind == "wisp") continue; w = 0.9f; break;
+                case OilDrumObj od: if (g.OwnOil > g.OwnOilMax * 0.3f || Kv(od, "uses") == "0") continue; w = 0.15f; break;   // monsters cannot be killed: nothing to fight
                 default:
                     if (_brave && o.Kind is "trap_spikes" or "trap_darts" or "trap_trapdoor" or "trap_gas" or "trap_rockfall") { w = 0.6f; break; }
                     continue;
             }
-            if (cave.InCamp(o.GlobalPosition) && o is not PickupObj) continue;
+            if (cave.InHall(o.GlobalPosition) && o is not PickupObj) continue;
             if (o is PickupObj && !Reachable(cave, o.GlobalPosition, 3.2f) && !InCrawl(o.GlobalPosition)) continue;   // sealed-in loot: only chests are worth the Ethereal trip
             float d = Flat(o.GlobalPosition).DistanceTo(Flat(pos));
             float jitter = 0.85f + 0.3f * ((o.Id * 2654435761u + (uint)_name.GetHashCode()) % 1000) / 1000f;
@@ -228,14 +241,9 @@ public class ExplorerBot : IMinerController
                     if (Walk(m, ref inp, op, 1.7f)) { Face(m, ref inp, op + Vector3.Up); inp.Move = Vector2.Zero; Interact(g, o, 0.8); if (++_targetTries > 10) Drop(); }
                     break;
                 }
-            case MonsterObj mo:
-                {
-                    EquipPickaxe(g);
-                    float d = Flat(mo.GlobalPosition).DistanceTo(Flat(pos));
-                    if (d > 2.6f) Walk(m, ref inp, op, 2.4f);
-                    else { Face(m, ref inp, op + Vector3.Up * 1.5f); inp.Move = Vector2.Zero; if (inv.Held == "pickaxe") inp.Attack = true; }
-                    break;
-                }
+            case OilDrumObj:
+                if (Walk(m, ref inp, op, 1.6f)) { Face(m, ref inp, op + Vector3.Up * 0.5f); inp.Move = Vector2.Zero; Interact(g, o, 0.6); if (++_targetTries > 10) Drop(); }
+                break;
             default: // trap: walk onto it, then through
                 {
                     if (!_trapPassed)

@@ -132,14 +132,18 @@ public class GreyBoxCave : ICaveBuilder
         Solid((pStart + pEnd) * 0.5f - normal * 0.2f, new Vector3(len2, 0.4f, 3f), new Color(0.4f, 0.32f, 0.2f), new Basis(Vector3.Back, ang));
 
         // metadata
-        info.CampZone = new Aabb(new Vector3(-10, -1, -10), new Vector3(20, H + 3, 20));
+        info.HallZone = new Aabb(new Vector3(-10, -1, -10), new Vector3(20, H + 3, 20));
         info.GoblinPos = new Vector3(-5, 0, -7); // off the north tunnel axis
+        info.PalmPos = info.GoblinPos + new Vector3(0, 1.2f, 2.0f);
+        info.ScalePos = new Vector3(3, 0, -4);
+        info.ShaftPos = new Vector3(7.5f, 0, -6.5f);
+        info.MakeWeighSpots(8, 4.2f, 1.0f);
         for (int i = 0; i < 8; i++) info.MinerSpawns.Add(new Vector3(-7 + 2 * i, 0.3f, 6.5f));
         var markerOffs = new (string k, float x, float z)[]
         {
             ("vein", -6, -6), ("vein", 7, -3), ("vein", 6, 6),
             ("ore", -3, -7), ("ore", 7, 2),
-            ("monster", 4, 3), ("trap", 0, -3), ("loot", -8, -8),
+            ("monster", 4, 3), ("trap", 0, -3), ("loot", -8, -8), ("oil", -3, 4),
         };
         foreach (var r in roomCells)
         {

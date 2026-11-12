@@ -253,7 +253,7 @@ public partial class MenuUI : CanvasLayer
         if (inLobby || connecting) { if (Net.I.IsServer || inLobby) { } }
         if (inLobby)
         {
-            _roundsLabel.Text = $"{Game.I.Config.Rounds} rounds  -  most money wins";
+            _roundsLabel.Text = $"{MatchConfig.RoundsFor(Net.I.Names.Count)} round{(Net.I.Names.Count == 2 ? "" : "s")}  -  the lightest miner is thrown each round, the last one wins";
             foreach (var c in _playerList.GetChildren()) c.QueueFree();
             foreach (var kv in Net.I.Names)
             {

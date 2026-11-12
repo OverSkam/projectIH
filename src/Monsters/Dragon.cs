@@ -36,10 +36,8 @@ public partial class DragonObj : MonsterObj
     Vector3 Mouth => GlobalPosition + Forward * 3.6f + new Vector3(0, 1.9f, 0);
     bool InLair(Vector3 p, float grow = 0f) => Lair.Grow(grow).HasPoint(new Vector3(p.X, Lair.Position.Y + 1f, p.Z));
 
-    protected override bool Allowed(Vector3 np, bool chasing) => InLair(np, -2.5f) && !CampBlock(np);
+    protected override bool Allowed(Vector3 np, bool chasing) => InLair(np, -2.5f) && !HallBlock(np);
 
-    protected override float ModifyMelee(ServerPlayer p, float dmg) => 0f; // unkillable
-    public override void ServerHit(ServerPlayer p, float mining, bool pickaxe) { }
 
     // ------------------------------------------------------------------ noise meter
     public override void OnNoise(Vector3 pos, float loud, ServerPlayer by)
@@ -139,7 +137,7 @@ public partial class DragonObj : MonsterObj
         ServerPlayer best = null; float bd = float.MaxValue;
         foreach (var p in Game.I.Players.Values)
         {
-            if (!p.Alive || !p.Participant || Cave.InCamp(p.Pos)) continue;
+            if (!p.Alive || !p.Participant || Cave.InHall(p.Pos)) continue;
             if (!InLair(p.Pos, MonsterTuning.DragonTunnelReach)) continue;
             float d = Flat(p.Pos - GlobalPosition).Length();
             if (d < bd) { bd = d; best = p; }
@@ -161,7 +159,7 @@ public partial class DragonObj : MonsterObj
         var mouth = Mouth; var fwd = Forward;
         foreach (var p in Game.I.Players.Values)
         {
-            if (!p.Alive || !p.Participant || Cave.InCamp(p.Pos)) continue;
+            if (!p.Alive || !p.Participant || Cave.InHall(p.Pos)) continue;
             var chest = p.Pos + new Vector3(0, 1.0f, 0);
             var rel = chest - mouth;
             float d = rel.Length();

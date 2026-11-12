@@ -73,6 +73,15 @@ public partial class MinerRig : Node3D
 
     public void Swing() { _swingT = 0f; }
 
+    /// <summary>Downed: lies face down on the floor (the whole rig tips forward), visible to everyone.</summary>
+    public void SetDowned(bool d)
+    {
+        var tw = CreateTween();
+        tw.SetParallel(true);
+        tw.TweenProperty(this, "rotation", d ? new Vector3(-1.5f, 0, 0) : Vector3.Zero, 0.35f);
+        tw.TweenProperty(this, "position", d ? new Vector3(0, 0.22f, 0.75f) : Vector3.Zero, 0.35f);
+    }
+
     /// <summary>speed = horizontal m/s, crouch/sprint from state flags.</summary>
     public void Animate(float dt, float speed, bool crouch, bool sprint, bool air)
     {

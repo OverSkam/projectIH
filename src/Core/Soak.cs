@@ -41,7 +41,7 @@ public partial class SoakDirector : Node
     {
         foreach (var o in g.World.Objects.Values.ToArray())
         {
-            if (o is not MonsterObj m || m.State == MonsterState.Dead) continue;
+            if (o is not MonsterObj m) continue;
             if (!_mon.TryGetValue(m.Id, out var t)) _mon[m.Id] = t = new MonTrack { Kind = m.Kind, Last = m.GlobalPosition, StuckRef = m.GlobalPosition, StuckSince = _t };
             var p = m.GlobalPosition;
             t.Dist += new Vector3(p.X - t.Last.X, 0, p.Z - t.Last.Z).Length();
@@ -129,7 +129,7 @@ public partial class SoakDirector : Node
                 float need = o is MonsterObj ? 2.0f : 0.6f;
                 if (uh.Count > 0 && uh["position"].AsVector3().Y - p.Y < need && !(mc != null && IsCrawl(mc, p)) && !o.Kind.StartsWith("trap_")) Bad($"{tag} no headroom ({uh["position"].AsVector3().Y - p.Y:0.0} m)");
             }
-            if (o is MonsterObj && cave.InCamp(p)) campMonsters++;
+            if (o is MonsterObj && cave.InHall(p)) campMonsters++;
             // reachability for things a miner must get to
             bool needsReach = o is ChestObj || o is ShrineObj || o is VeinObj || o is MonsterObj || o.Kind == "trap_lever" || (o is PickupObj && !flyer);
             if (needsReach)

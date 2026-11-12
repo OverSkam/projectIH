@@ -20,7 +20,7 @@ public partial class AudioDirector : Node
     public static AudioDirector I;
 
     class MT { public Vector3 Last; public float Accum, Air, MinVy; public bool Floor = true, Init; }
-    class OT { public string Kind, Data; public Vector3 Pos, Last; public MonsterState St; public float Hp; public int Extra; public float Accum; public bool Init; }
+    class OT { public string Kind, Data; public Vector3 Pos, Last; public MonsterState St; public int Extra; public float Accum; public bool Init; }
 
     readonly Dictionary<ulong, MT> _miners = new();
     readonly Dictionary<int, OT> _objs = new();
@@ -40,7 +40,7 @@ public partial class AudioDirector : Node
     {
         I = this;
         var g = Game.I;
-        g.FeedChanged += OnFeed;
+        g.WeighChanged += OnWeigh;
         g.PhaseChanged += OnPhase;
         g.OwnChanged += OnOwn;
         GoblinVoice.Said += OnSaid;
@@ -49,7 +49,7 @@ public partial class AudioDirector : Node
     public override void _ExitTree()
     {
         GoblinVoice.Said -= OnSaid;
-        if (Game.I != null) { Game.I.FeedChanged -= OnFeed; Game.I.PhaseChanged -= OnPhase; Game.I.OwnChanged -= OnOwn; }
+        if (Game.I != null) { Game.I.WeighChanged -= OnWeigh; Game.I.PhaseChanged -= OnPhase; Game.I.OwnChanged -= OnOwn; }
         if (I == this) I = null;
         Sfx.OnExit();
     }
@@ -244,7 +244,7 @@ public partial class AudioDirector : Node
             if (!_objs.TryGetValue(kv.Key, out var t))
             {
                 _objs[kv.Key] = t = new OT { Kind = o.Kind, Data = o.Data, Pos = pos, Last = pos };
-                if (o is MonsterObj m0) { t.St = m0.State; t.Hp = m0.Hp; t.Extra = m0.Extra; }
+                if (o is MonsterObj m0) { t.St = m0.State; t.Extra = m0.Extra; }
                 if (fresh) OnNew(o, t);
             }
             else if (o.Data != t.Data) { OnData(o, t, o.Data); t.Data = o.Data; }
@@ -304,8 +304,8 @@ public partial class AudioDirector : Node
         {
             case "shrine": if (Get(o.Data, "state") != "done") want = SfxNames.ShrineHum; break;
             case "dynamite": want = SfxNames.FuseHiss; break;
-            case "ember": if (o is MonsterObj e && e.State != MonsterState.Dead && e.State != MonsterState.Dispersed) want = SfxNames.EmberCrackle; break;
-            case "wisp": if (o is MonsterObj ws && ws.State != MonsterState.Dead && ws.State != MonsterState.Dispersed) want = SfxNames.WispHiss; break;
+            case "ember": if (o is MonsterObj e && e.State != MonsterState.Stunned && e.State != MonsterState.Dispersed) want = SfxNames.EmberCrackle; break;
+            case "wisp": if (o is MonsterObj ws && ws.State != MonsterState.Dispersed) want = SfxNames.WispHiss; break;
             case "dragon": if (o is MonsterObj dr && dr.State == MonsterState.Asleep) want = SfxNames.DragonBreath; break;
         }
         string key = "o" + o.Id;
@@ -316,7 +316,7 @@ public partial class AudioDirector : Node
     {
         var p = m.GlobalPosition + Vector3.Up * 1f;
         var st = m.State; var old = t.St;
-        bool alive = st != MonsterState.Dead && st != MonsterState.Dispersed;
+        bool alive = st != MonsterState.Stunned && st != MonsterState.Dispersed;
         switch (t.Kind)
         {
             case "golem":
@@ -324,9 +324,9 @@ public partial class AudioDirector : Node
                 {
                     if (st == MonsterState.Windup) Sfx.Play(SfxNames.GolemWindup, p);
                     else if (st == MonsterState.Attack) Sfx.Play(SfxNames.GolemSlam, m.GlobalPosition);
-                    else if (st == MonsterState.Dead) Sfx.Play(SfxNames.GolemDeath, p);
+                    else if (st == MonsterState.Stunned) Sfx.Play(SfxNames.GolemStun, p);
                 }
-                if (alive && m.Hp < t.Hp - 0.01f) Sfx.Play(SfxNames.GolemCrack, p + Vector3.Up);
+                if (st == MonsterState.Stunned && old != MonsterState.Stunned) Sfx.Play(SfxNames.GolemCrack, p + Vector3.Up);
                 if (alive && (st == MonsterState.Wander || st == MonsterState.Investigate || st == MonsterState.Chase || st == MonsterState.Return))
                 {
                     var d = m.GlobalPosition - t.Last;
@@ -338,7 +338,7 @@ public partial class AudioDirector : Node
                 if (st != old)
                 {
                     if (st == MonsterState.Attack) Sfx.Play(SfxNames.EmberLunge, p);
-                    else if (st == MonsterState.Dead) Sfx.Play(SfxNames.EmberSizzle, p);
+                    else if (st == MonsterState.Stunned) Sfx.Play(SfxNames.EmberSizzle, p);
                 }
                 break;
             case "dragon":
@@ -347,7 +347,7 @@ public partial class AudioDirector : Node
                 if (st == MonsterState.Asleep && m.Extra > t.Extra) Sfx.Play(SfxNames.DragonStir, p, m.Extra > 1 ? 2f : -3f);
                 break;
         }
-        t.Last = m.GlobalPosition; t.St = st; t.Hp = m.Hp; t.Extra = m.Extra;
+        t.Last = m.GlobalPosition; t.St = st; t.Extra = m.Extra;
     }
 
     // ------------------------------------------------------------ own-player checks
@@ -393,15 +393,27 @@ public partial class AudioDirector : Node
         _prevSack = inv.Sack.Count; _prevSteins = new List<string>(inv.Steins); _prevUtils = new List<string>(inv.Utils);
     }
 
-    void OnFeed()
+    string _lastWeighStage = ""; int _lastReveals;
+
+    /// <summary>Weighing ceremony sounds: the lift leaving, a tick per pile, the verdict stinger, the throw.</summary>
+    void OnWeigh()
     {
-        var g = Game.I;
-        if (g.Feed.Count == 0) return;
-        if (g.Feed[g.Feed.Count - 1].StartsWith("The Goblin collapses"))
+        var w = Game.I.Weigh;
+        if (w == null) { _lastWeighStage = ""; _lastReveals = 0; return; }
+        if (w.Stage == "intro" && _lastWeighStage != "intro")
         {
-            Sfx.Play(SfxNames.CollapseRumble);
+            Sfx.Play(SfxNames.LiftRumble);
             After(1.4f, () => Sfx.Play(SfxNames.RockCrash));
         }
+        if (w.Revealed.Count > _lastReveals) Sfx.PlayUi(w.CurWeight == 0 ? SfxNames.StingerVerdict : SfxNames.Feed);
+        _lastReveals = w.Revealed.Count;
+        if (w.Stage != _lastWeighStage)
+        {
+            if (w.Stage == "verdict") Sfx.PlayUi(SfxNames.StingerVerdict);
+            else if (w.Stage == "throw") After(0.3f, () => Sfx.PlayUi(SfxNames.StingerThrow));
+            else if (w.Stage == "remain") Sfx.PlayUi(SfxNames.StingerSafe);
+        }
+        _lastWeighStage = w.Stage;
     }
 
     void OnPhase()
@@ -411,13 +423,7 @@ public partial class AudioDirector : Node
         if (ph == _lastPhase) return;
         _lastPhase = ph;
         if (ph == GamePhase.Round) { _prevSack = -1; _roundT = 0; }
-        if (ph == GamePhase.Summary && g.LastSummary != null)
-        {
-            var s = g.LastSummary;
-            After(0.6f, () => Sfx.PlayUi(s.QuotaMet ? SfxNames.StingerQuotaMet : SfxNames.StingerQuotaMissed));
-            if (!string.IsNullOrEmpty(s.Poorest)) After(2.4f, () => Sfx.PlayUi(SfxNames.StingerCursed));
-        }
-        else if (ph == GamePhase.MatchEnd) After(0.5f, () => Sfx.PlayUi(SfxNames.Fanfare));
+        if (ph == GamePhase.MatchEnd) After(0.5f, () => Sfx.PlayUi(SfxNames.Fanfare));
     }
 
     void OnSaid(GoblinSaying s)

@@ -20,7 +20,7 @@ public static class Loot
         return "rope";
     }
 
-    /// <summary>Picks a stein by rarity. Legendary = Blood (rare) or the Infinity Stein (round 2+, at most one per match).</summary>
+    /// <summary>Picks a stein by rarity. Legendary = Blood, Midas or the Infinity Stein (round 2+, at most one per match).</summary>
     public static string RollStein(RandomNumberGenerator rng, float luck, int round, Rarity min = Rarity.Common, bool allowLegendary = true)
     {
         float wc = Math.Max(15f, 70f - 12f * luck), wr = 26f + 8f * luck, wl = allowLegendary ? 4f + 3f * luck : 0f;
@@ -32,7 +32,7 @@ public static class Loot
         {
             bool inf = round >= 2 && !InfinityTracker.Spawned && rng.Randf() < 0.45f;
             if (inf) { InfinityTracker.Spawned = true; return "infinity"; }
-            return "blood";
+            return rng.Randf() < 0.5f ? "blood" : "midas";
         }
         var pool = Steins.All.Values.Where(d => d.Rarity == rar).ToList();
         return pool[rng.RandiRange(0, pool.Count - 1)].Id;
@@ -72,8 +72,8 @@ public static class Loot
         if (p == null || p.Stats.Luck <= 0f) return ore;
         var rng = new RandomNumberGenerator(); rng.Randomize();
         if (rng.Randf() > p.Stats.Luck * 0.2f) return ore;
-        int v = Ores.ValueOf(ore);
-        var next = Ores.All.Values.Where(o => o.Value > v).OrderBy(o => o.Value).FirstOrDefault();
+        int v = Ores.WeightOf(ore);
+        var next = Ores.All.Values.Where(o => o.SpawnWeight > 0 && o.TributeWeight > v).OrderBy(o => o.TributeWeight).FirstOrDefault();
         return next?.Id ?? ore;
     }
 }

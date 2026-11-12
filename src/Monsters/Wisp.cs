@@ -62,8 +62,6 @@ public partial class WispObj : MonsterObj
         AddChild(new CollisionShape3D { Shape = new SphereShape3D { Radius = 1.0f }, Position = Vector3.Zero });
     }
 
-    protected override float ModifyMelee(ServerPlayer p, float dmg) => 0f; // melee passes through gas
-
     public override void ServerHit(ServerPlayer p, float mining, bool pickaxe)
     {
         if (IsSrv) Util.Pass("wisp_melee_ignored", $"by={p?.Name}");
@@ -72,13 +70,13 @@ public partial class WispObj : MonsterObj
     /// <summary>Server: the cloud scatters for 'seconds' (explosions). It does no damage while dispersed.</summary>
     public void Disperse(float seconds)
     {
-        if (!IsSrv || State == MonsterState.Dead) return;
+        if (!IsSrv) return;
         _disperseLeft = seconds;
         SetState(MonsterState.Dispersed);
         Util.Pass("wisp_dispersed", $"id={Id} seconds={seconds:0.#}");
     }
 
-    protected override bool WanderOk(Vector3 g) => !CampBlock(g) && Cave.RoomAt(Home)?.Bounds.Grow(-1f).HasPoint(new Vector3(g.X, Cave.RoomAt(Home).Bounds.Position.Y + 1f, g.Z)) != false;
+    protected override bool WanderOk(Vector3 g) => !HallBlock(g) && Cave.RoomAt(Home)?.Bounds.Grow(-1f).HasPoint(new Vector3(g.X, Cave.RoomAt(Home).Bounds.Position.Y + 1f, g.Z)) != false;
 
     protected override void ServerThink(float dt)
     {
@@ -88,7 +86,7 @@ public partial class WispObj : MonsterObj
             if (_disperseLeft <= 0) { Timer = 1f; SetState(MonsterState.Idle); }
             return;
         }
-        if (State != MonsterState.Dead) GasTick(dt);
+        GasTick(dt);
         base.ServerThink(dt);
     }
 
@@ -100,7 +98,7 @@ public partial class WispObj : MonsterObj
         var c = GlobalPosition;
         foreach (var p in Game.I.Players.Values)
         {
-            if (!p.Alive || !p.Participant || Cave.InCamp(p.Pos)) continue;
+            if (!p.Alive || !p.Participant || Cave.InHall(p.Pos)) continue;
             var rel = p.Pos + new Vector3(0, 1f, 0) - c;
             if (Flat(rel).Length() > MonsterTuning.WispRadius || Mathf.Abs(rel.Y) > 3f) continue;
             float dealt = p.TakeDamage(MonsterTuning.WispGasDps * MonsterTuning.WispGasInterval, null, "gas");
@@ -111,7 +109,7 @@ public partial class WispObj : MonsterObj
     // Wisp never attacks; when it reaches a sighted miner it just hovers on them.
     protected override void ChaseTick(float dt)
     {
-        if (Target != null && (!Target.Alive || Cave.InCamp(Target.Pos))) { Target = null; VisibleNow = false; }
+        if (Target != null && (!Target.Alive || Cave.InHall(Target.Pos))) { Target = null; VisibleNow = false; }
         var goal = VisibleNow && Target != null ? Target.Pos : LastSeen;
         MoveTo(goal, ChaseSpeed, dt, true, 0.8f);
         LostT += VisibleNow ? 0 : dt;
@@ -127,7 +125,7 @@ public partial class WispObj : MonsterObj
             float a = StateAge;
             k = a < 0.6f ? Mathf.Lerp(1f, 0.12f, a / 0.6f) : 0.12f;
         }
-        else if (State == MonsterState.Idle && StateAge < 1.5f && Hp > 0) k = Mathf.Lerp(0.12f, 1f, Mathf.Clamp(StateAge / 1.5f, 0f, 1f));
+        else if (State == MonsterState.Idle && StateAge < 1.5f) k = Mathf.Lerp(0.12f, 1f, Mathf.Clamp(StateAge / 1.5f, 0f, 1f));
         for (int i = 0; i < _puffs.Length; i++)
         {
             float ph = t * (0.8f + i * 0.13f) + i;

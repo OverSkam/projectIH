@@ -3,7 +3,7 @@ using Godot;
 namespace AppStein;
 
 /// <summary>Screenshot helper: `--screen=<name>` stages a state so tools/screenshot.sh can capture it. Does nothing without the arg.
-/// goblin | goblin_happy | goblin_angry | miner | hands_pick | hands_lantern | damage | score | pause | summary | summary_missed | matchend | settings | ghost</summary>
+/// goblin | goblin_happy | goblin_angry | miner | hands_pick | hands_lantern | hud | downed | feedprompt | feedprompt_stein | lowoil | score | pause | matchend | settings | guide | ghost</summary>
 public partial class UiDebug : Node
 {
     string _screen;
@@ -59,21 +59,12 @@ public partial class UiDebug : Node
             case "settings":
                 if (_t > 0.5) { MenuUI.I?.ShowSettings(true); _done = true; }
                 break;
-            case "summary": case "summary_missed": case "matchend":
+            case "matchend":
                 if (_t < 0.5) return;
                 Net.I.Names[11] = "Cam"; Net.I.Names[22] = "Alice"; Net.I.Names[33] = "Bob";
-                g.TotalRounds = 5; g.OwnMoney = 640;
-                if (_screen == "matchend")
-                {
-                    g.LastMatchEnd = new MatchEndData { Winner = "Alice", Names = new[] { "Alice", "Cam", "Bob" }, Money = new[] { 1820, 640, 215 } };
-                    g.Phase = GamePhase.MatchEnd;
-                }
-                else
-                {
-                    bool met = _screen == "summary";
-                    g.LastSummary = new SummaryData { Round = 2, Delivered = met ? 320 : 180, Quota = 300, QuotaMet = met, Poorest = "Bob", Survivor = "Alice", Bonus = 150 };
-                    g.Phase = GamePhase.Summary;
-                }
+                g.TotalRounds = 2;
+                g.LastMatchEnd = new MatchEndData { Winner = "Alice", Names = new[] { "Alice", "Cam", "Bob" }, ThrownRound = new[] { 0, 2, 1 } };
+                g.Phase = GamePhase.MatchEnd;
                 MenuUI.I.Visible = false; Screens.I.Refresh();
                 _done = true; break;
             case "pause":
@@ -81,10 +72,21 @@ public partial class UiDebug : Node
                 PauseMenu.I.Open(true); _done = true; break;
             case "score":
                 if (!inRound || _t < 1.0) return;
-                Hud.I.ForceScoreboard = true; g.OwnMoney = 640; _done = true; break;
-            case "damage":
+                Net.I.Names[11] = "Cam"; Net.I.Names[22] = "Alice"; Net.I.Names[33] = "Bob";
+                g.Status[11] = MinerStatus.Downed; g.Status[22] = MinerStatus.Dead; g.Status[33] = MinerStatus.Eliminated;
+                Hud.I.ForceScoreboard = true; _done = true; break;
+            case "hud": case "downed": case "lowoil":
                 if (!inRound || _t < 1.0) return;
-                g.OwnMoney = 1250; g.OwnHealth = _t < 1.5 ? 100 : 28; break;
+                g.OwnTribute = 14; g.OwnOil = _screen == "lowoil" ? 38 : 150;
+                if (_screen == "downed") { g.OwnDowned = true; g.OwnDownedUntil = Time.GetTicksMsec() / 1000.0 + 22; g.OwnHealth = 0; }
+                break;
+            case "feedprompt": case "feedprompt_stein":
+                if (!inRound || g.LocalMiner == null || _t < 1.0) return;
+                var gob = g.World.Cave.GoblinPos;
+                g.LocalMiner.Teleport(gob + new Vector3(0, 0, 2.6f), 0);
+                g.LocalMiner.FaceYaw(0f);
+                if (_screen == "feedprompt_stein") g.LocalMiner.DebugHoldProgress(0.6f);
+                break;
             case "hands_pick":
             case "hands_lantern":
                 if (!inRound || g.LocalMiner == null || _t < 1.0) return;

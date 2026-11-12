@@ -13,7 +13,7 @@ public class GoblinSaying
 
 /// <summary>
 /// Turns public match events into Goblin dialogue and reactions. Every peer observes the same public events
-/// (quota total, timer, round summary, announcements) and picks lines deterministically (GoblinLines.Pick), so all peers read the same text.
+/// (server cues, timer, weighing steps, announcements) and picks lines deterministically (GoblinLines.Pick), so all peers read the same text.
 /// The HUD reads <see cref="Feed"/>; the 3D Goblin listens to GoblinRig.Reaction.
 /// </summary>
 public partial class GoblinVoice : Node
@@ -22,7 +22,7 @@ public partial class GoblinVoice : Node
     public static readonly List<GoblinSaying> Feed = new();
     public static event Action<GoblinSaying> Said;
 
-    int _lastRound = -1, _lastDelivered;
+    int _lastRound = -1;
     bool _w60, _w30, _w10;
     float _roundStartTime;
 
@@ -38,7 +38,7 @@ public partial class GoblinVoice : Node
         ProcessMode = ProcessModeEnum.Always;
         var g = Game.I;
         g.FeedChanged += OnFeed;
-        g.OwnChanged += OnOwnChanged;
+        g.GoblinCue += OnCue;
         g.PhaseChanged += OnPhase;
         g.ReturnedToMenu += () => { Feed.Clear(); _lastRound = -1; };
     }
@@ -57,36 +57,24 @@ public partial class GoblinVoice : Node
     {
         var f = Game.I.Feed;
         if (f.Count == 0) return;
-        string msg = f[f.Count - 1];
-        int round = Game.I.Round;
-        if (msg.StartsWith("The Goblin takes ore")) return; // replaced by deposit lines (see OnOwnChanged)
-        if (msg.StartsWith("The Goblin collapses"))
-        {
-            Say(GoblinLines.Pick("collapse", "r" + round), "angry");
-            GoblinRig.React("angry");
-            return;
-        }
-        if (msg.EndsWith(" has perished."))
-        {
-            string name = msg.Substring(0, msg.Length - " has perished.".Length);
-            Say(GoblinLines.Pick("death", round + name, name));
-            return;
-        }
-        if (msg.StartsWith("Every miner is dead")) { Say(GoblinLines.Pick("all_dead", "r" + round), "angry"); GoblinRig.React("angry"); return; }
-        Say(msg);
+        Say(f[f.Count - 1]);   // plain announcements (e.g. the Infinity Stein count)
     }
 
-    void OnOwnChanged()
+    static string MoodOf(string cat) => cat switch
     {
-        var g = Game.I;
-        if (g.Phase != GamePhase.Round) { _lastDelivered = g.Delivered; return; }
-        int d = g.Delivered - _lastDelivered;
-        _lastDelivered = g.Delivered;
-        if (d <= 0) return;
-        bool large = d >= 120;
-        Say(GoblinLines.Pick(large ? "deposit_large" : "deposit_small", $"{g.Round}:{g.Delivered}"), "happy");
-        GoblinRig.React("happy");
-        Sfx.Play(SfxNames.Deposit);
+        "feed_large" or "feed_stein" or "winner" or "reveal_first" => "happy",
+        "reveal_last" or "reveal_zero" or "verdict" or "verdict_tie" or "throw" or "final_two" or "all_dead" or "weigh_start" or "downed" => "angry",
+        _ => "smug",
+    };
+
+    void OnCue(string cat, string seed, string a0, string a1, string mood)
+    {
+        string text = GoblinLines.Pick(cat, seed, a0, a1);
+        if (text == "") return;
+        if (mood == "") mood = MoodOf(cat);
+        Say(text, mood);
+        if (mood == "happy" || mood == "angry") GoblinRig.React(mood);
+        if (cat.StartsWith("feed")) Sfx.Play(SfxNames.Feed);
     }
 
     void OnPhase()
@@ -99,19 +87,12 @@ public partial class GoblinVoice : Node
             case GamePhase.Round:
                 if (g.Round != _lastRound)
                 {
-                    _lastRound = g.Round; _lastDelivered = 0;
+                    _lastRound = g.Round;
                     _w60 = _w30 = _w10 = false;
                     _roundStartTime = g.TimeLeft;
                     Say(GoblinLines.Pick("round_start", "r" + g.Round, g.Round.ToString()));
                     Sfx.Play(SfxNames.RoundStart);
                 }
-                break;
-            case GamePhase.Summary:
-                var s = g.LastSummary; if (s == null) break;
-                if (s.QuotaMet) { Say(GoblinLines.Pick("quota_met", "r" + s.Round), "happy"); GoblinRig.React("happy"); }
-                else { Say(GoblinLines.Pick("quota_missed", "r" + s.Round), "angry"); GoblinRig.React("angry"); }
-                if (s.Poorest != "") Say(GoblinLines.Pick("poorest", "r" + s.Round + s.Poorest, s.Poorest), "angry");
-                if (s.Survivor != "") Say(GoblinLines.Pick("survivor", "r" + s.Round + s.Survivor, s.Survivor, UiKit.Money(s.Bonus)));
                 break;
             case GamePhase.MatchEnd:
                 var m = g.LastMatchEnd; if (m == null) break;

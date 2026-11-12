@@ -53,5 +53,4 @@ public static class UiKit
     public static VBoxContainer VBox(int sep = 8) { var v = new VBoxContainer(); v.AddThemeConstantOverride("separation", sep); return v; }
     public static HBoxContainer HBox(int sep = 8) { var v = new HBoxContainer(); v.AddThemeConstantOverride("separation", sep); return v; }
 
-    public static string Money(int v) => "$" + v.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
 }

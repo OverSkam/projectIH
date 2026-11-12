@@ -22,7 +22,7 @@ public static class CaveCheck
 {
     public static int Run()
     {
-        int fails = 0, caves = 0;
+        int fails = 0, caves = 0, oilless = 0;
         var usage = new Dictionary<string, int>();
         void Bad(string m) { fails++; Util.Fail("cavecheck", m); }
         for (int seed = 1; seed <= 20; seed++)
@@ -37,6 +37,13 @@ public static class CaveCheck
                 int target = (int)(8 + (round - 1) * 2.5f + 0.5f);
                 if (info.Rooms.Count != target) Bad($"{tag} rooms={info.Rooms.Count} want {target}");
                 if (info.Rooms[0].Name != "camp") Bad($"{tag} camp missing");
+                // Hall of the Scale seams
+                if (info.WeighSpots.Count < 8) Bad($"{tag} weighspots={info.WeighSpots.Count}");
+                foreach (var ws in info.WeighSpots) if (!info.HallZone.HasPoint(ws + Vector3.Up)) Bad($"{tag} weigh spot {ws} outside the Hall");
+                foreach (var (nm, pt) in new[] { ("scale", info.ScalePos), ("palm", info.PalmPos), ("shaft", info.ShaftPos), ("goblin", info.GoblinPos) })
+                    if (!info.HallZone.HasPoint(pt + Vector3.Up)) Bad($"{tag} {nm} {pt} outside the Hall");
+                if (info.WeighSpots.Select(w => new Vector2(w.X, w.Z)).Distinct().Count() != info.WeighSpots.Count) Bad($"{tag} duplicate weigh spots");
+                if (info.Rooms.Sum(r => r.Markers.Count(m => m.Kind == "oil")) == 0 && round >= 2) oilless++;
                 if (info.MinerSpawns.Count < 8) Bad($"{tag} spawns={info.MinerSpawns.Count}");
                 if (info.Rooms.Count >= 6 && g.LoopCount < 1) Bad($"{tag} no loop");
                 if (round >= 3 && !info.Rooms.Any(r => r.Markers.Any(m => m.Kind == "dragon"))) Bad($"{tag} no dragon lair");
@@ -116,7 +123,8 @@ public static class CaveCheck
             }
         foreach (var m in CaveModule.All) if (!usage.ContainsKey(m.Name)) Bad($"module {m.Name} never used in {caves} caves");
         Util.Log("CAVECHECK modules: " + string.Join(", ", usage.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}")));
-        if (fails == 0) Util.Pass("cavecheck", $"caves={caves}");
+        if (oilless > caves / 4) Bad($"{oilless} of {caves} caves have no oil drum marker");
+        if (fails == 0) Util.Pass("cavecheck", $"caves={caves} oilless={oilless}");
         return fails;
     }
 }

@@ -11,12 +11,13 @@ public partial class Hud : CanvasLayer
 
     Control _root;
     // top
-    Label _roundLabel, _timer;
-    FillBar _quotaBar;
+    Label _roundLabel, _timer, _remaining;
     PanelContainer _topPanel;
     // bottom-left
-    FillBar _hpBar;
-    Label _money, _moneyPop;
+    FillBar _hpBar, _oilBar, _holdBar;
+    Label _tribute, _tributePop;
+    Control _downedOverlay; Label _downedLabel;
+    Label _deathTitle, _deathSub;
     Control _bl;
     // slots
     HBoxContainer _slotRow;
@@ -39,7 +40,7 @@ public partial class Hud : CanvasLayer
     MapView _map;
     OmniLight3D _owl;
 
-    float _prevHp = 100f, _flash, _shownMoney; int _prevMoney, _lastSackCap = -1;
+    float _prevHp = 100f, _flash; int _prevTribute, _lastSackCap = -1;
     double _timeNow;
     Vector3 _lastKnock; double _lastKnockT = -10;
     public bool ForceScoreboard;
@@ -69,6 +70,7 @@ public partial class Hud : CanvasLayer
         BuildSlots();
         BuildFeed();
         BuildDeath();
+        BuildDowned();
         BuildScoreboard();
         BuildItemOverlays();
 
@@ -114,8 +116,8 @@ void fragment(){
         _timer.AddThemeFontOverride("font", UiTheme.Chunky);
         _timer.CustomMinimumSize = new Vector2(150, 0);
         _timer.PivotOffset = new Vector2(75, 24);
-        _quotaBar = new FillBar { CustomMinimumSize = new Vector2(300, 22), Fill = UiTheme.Gold, ShowTrail = false, FontSize = 15 };
-        v.AddChild(_roundLabel); v.AddChild(_timer); v.AddChild(_quotaBar);
+        _remaining = UiKit.MakeLabel("3 MINERS REMAIN", 15, UiTheme.Gold, HorizontalAlignment.Center);
+        v.AddChild(_roundLabel); v.AddChild(_timer); v.AddChild(_remaining);
         _timer.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
     }
 
@@ -143,13 +145,18 @@ void fragment(){
         _promptText = UiKit.MakeLabel("", 20, UiTheme.Parchment);
         _promptText.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
         h.AddChild(_promptText);
+        _holdBar = new FillBar { CustomMinimumSize = new Vector2(200, 12), Fill = UiTheme.Gold, Max = 1, ShowTrail = false, Visible = false, FontSize = 1 };
+        _holdBar.SetAnchorsPreset(Control.LayoutPreset.Center);
+        _holdBar.GrowHorizontal = Control.GrowDirection.Both;
+        _holdBar.OffsetTop = 120; _holdBar.OffsetBottom = 132; _holdBar.OffsetLeft = -100; _holdBar.OffsetRight = 100;
+        _root.AddChild(_holdBar);
     }
 
     void BuildBottomLeft()
     {
         _bl = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
         _bl.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
-        _bl.OffsetLeft = 20; _bl.OffsetTop = -112; _bl.OffsetRight = 250; _bl.OffsetBottom = -18;
+        _bl.OffsetLeft = 20; _bl.OffsetTop = -150; _bl.OffsetRight = 290; _bl.OffsetBottom = -18;
         _root.AddChild(_bl);
         var v = UiKit.VBox(6); UiKit.FullRect(v); _bl.AddChild(v);
 
@@ -159,15 +166,25 @@ void fragment(){
         _hpBar = new FillBar { CustomMinimumSize = new Vector2(185, 28), Fill = new Color(0.82f, 0.18f, 0.18f), FontSize = 18, Max = 100 };
         hh.AddChild(_hpBar);
 
+        // lantern oil gauge (the oil level is private; others only see the light itself)
+        var oh = UiKit.HBox(8);
+        v.AddChild(oh);
+        oh.AddChild(new OilIcon());
+        _oilBar = new FillBar { CustomMinimumSize = new Vector2(185, 20), Fill = new Color(1f, 0.66f, 0.18f), FontSize = 14, Max = 100, ShowTrail = false };
+        oh.AddChild(_oilBar);
+
         var mh = UiKit.HBox(8);
         v.AddChild(mh);
-        mh.AddChild(new CoinIcon());
-        _money = UiKit.MakeLabel("$0", 32, UiTheme.Gold, HorizontalAlignment.Left, 8);
-        _money.AddThemeFontOverride("font", UiTheme.Chunky);
-        mh.AddChild(_money);
-        _moneyPop = UiKit.MakeLabel("", 24, UiTheme.Good, HorizontalAlignment.Left, 6);
-        _moneyPop.Position = new Vector2(150, 40);
-        _bl.AddChild(_moneyPop);
+        mh.AddChild(new StoneIcon());
+        var tv = UiKit.VBox(0);
+        mh.AddChild(tv);
+        tv.AddChild(UiKit.MakeLabel("YOUR TRIBUTE THIS ROUND", 12, UiTheme.Brass, HorizontalAlignment.Left, 3));
+        _tribute = UiKit.MakeLabel("0", 30, UiTheme.Gold, HorizontalAlignment.Left, 8);
+        _tribute.AddThemeFontOverride("font", UiTheme.Chunky);
+        tv.AddChild(_tribute);
+        _tributePop = UiKit.MakeLabel("", 24, UiTheme.Good, HorizontalAlignment.Left, 6);
+        _tributePop.Position = new Vector2(190, 70);
+        _bl.AddChild(_tributePop);
     }
 
     SlotView MakeSlot(HBoxContainer into, string key = null)
@@ -289,11 +306,30 @@ void fragment(){
         box.GrowHorizontal = Control.GrowDirection.Both;
         box.OffsetTop = 150;
         _deathOverlay.AddChild(box);
-        var t = UiKit.MakeTitle("YOU DIED", 72, UiTheme.Danger);
-        box.AddChild(t);
-        box.AddChild(UiKit.MakeLabel("You will return next round.", 28, new Color(0.8f, 0.86f, 1f), HorizontalAlignment.Center, 6));
+        _deathTitle = UiKit.MakeTitle("YOU DIED", 72, UiTheme.Danger);
+        box.AddChild(_deathTitle);
+        _deathSub = UiKit.MakeLabel("You will return next round.", 28, new Color(0.8f, 0.86f, 1f), HorizontalAlignment.Center, 6);
+        box.AddChild(_deathSub);
         box.AddChild(UiKit.Spacer(6));
-        box.AddChild(UiKit.MakeLabel("Ghost: fly with WASD / Space / Ctrl.  Right mouse: rattle something.  Money and the bank stay yours.", 17, UiTheme.Dim, HorizontalAlignment.Center));
+        box.AddChild(UiKit.MakeLabel("Ghost: fly with WASD / Space / Ctrl.  Right mouse: snuff a lantern.  E: knock a pebble.  Tribute already fed still counts.", 17, UiTheme.Dim, HorizontalAlignment.Center));
+    }
+
+    void BuildDowned()
+    {
+        _downedOverlay = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
+        UiKit.FullRect(_downedOverlay);
+        _root.AddChild(_downedOverlay);
+        var tint = new ColorRect { Color = new Color(0.35f, 0.02f, 0.02f, 0.32f), MouseFilter = Control.MouseFilterEnum.Ignore };
+        UiKit.FullRect(tint); _downedOverlay.AddChild(tint);
+        var box = UiKit.VBox(4);
+        box.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
+        box.GrowHorizontal = Control.GrowDirection.Both;
+        box.OffsetTop = 120;
+        _downedOverlay.AddChild(box);
+        box.AddChild(UiKit.MakeTitle("YOU ARE DOWN", 64, UiTheme.Danger));
+        _downedLabel = UiKit.MakeLabel("Bleeding out in 30 s", 30, new Color(1f, 0.8f, 0.75f), HorizontalAlignment.Center, 6);
+        box.AddChild(_downedLabel);
+        box.AddChild(UiKit.MakeLabel("You can only crawl. Anyone may rob you. Any hit finishes you.", 17, UiTheme.Dim, HorizontalAlignment.Center));
     }
 
     void BuildScoreboard()
@@ -310,7 +346,7 @@ void fragment(){
         _scoreRows = UiKit.VBox(6);
         v.AddChild(_scoreRows);
         v.AddChild(UiKit.Rule());
-        v.AddChild(UiKit.MakeLabel("Everyone's money is secret except your own. Until the end.", 14, UiTheme.Dim, HorizontalAlignment.Center));
+        v.AddChild(UiKit.MakeLabel("Nobody's tribute weight is public. Until the Scale.", 14, UiTheme.Dim, HorizontalAlignment.Center));
     }
 
     // ------------------------------------------------------------------ events
@@ -319,8 +355,7 @@ void fragment(){
         if (Game.I.Phase == GamePhase.Round)
         {
             _prevHp = Game.I.OwnHealth; _hpBar.Target = Game.I.OwnHealth; _hpBar.Snap();
-            _prevMoney = Game.I.OwnMoney; _shownMoney = Game.I.OwnMoney;
-            _quotaBar.Snap();
+            _prevTribute = Game.I.OwnTribute;
         }
         if (Game.I.Phase != GamePhase.Round) ClearFeed();
     }
@@ -364,7 +399,7 @@ void fragment(){
         _root.Visible = show;
         if (!show) return;
 
-        // top: round, timer (urgent in the last 30 s), quota
+        // top: round, timer (urgent in the last 30 s), miners remaining
         int t = Mathf.Max(0, Mathf.CeilToInt(g.TimeLeft));
         _roundLabel.Text = $"ROUND {g.Round} / {g.TotalRounds}";
         _timer.Text = $"{t / 60}:{t % 60:00}";
@@ -373,11 +408,8 @@ void fragment(){
         _timer.AddThemeColorOverride("font_color", tc);
         float pulse = urgent ? 1f + 0.12f * Mathf.Abs(Mathf.Sin((float)_timeNow * (g.TimeLeft <= 10f ? 7f : 3.5f))) : 1f;
         _timer.Scale = Vector2.One * pulse;
-        _quotaBar.Max = Mathf.Max(1, g.Quota); _quotaBar.Target = g.Delivered;
-        bool met = g.Delivered >= g.Quota && g.Quota > 0;
-        _quotaBar.Fill = met ? UiTheme.Good : UiTheme.Gold;
-        _quotaBar.Text = met ? $"QUOTA MET  {g.Delivered} / {g.Quota}" : $"GROUP QUOTA  {g.Delivered} / {g.Quota}";
-        _quotaBar.Pulsing = false;
+        int rem = g.Remaining;
+        _remaining.Text = rem == 1 ? "1 MINER REMAINS" : $"{rem} MINERS REMAIN";
 
         bool alive = g.LocalMiner != null;
         bool ghost = !alive && g.LocalGhost != null;
@@ -390,22 +422,33 @@ void fragment(){
         _prevHp = hp;
         _hpBar.Pulsing = alive && hp <= 30f;
         _flash = Mathf.Max(0f, _flash - dt * 1.8f);
-        float low = alive ? Mathf.Clamp((45f - hp) / 45f, 0f, 1f) : 0f;
-        float beat = low > 0 ? 0.65f + 0.35f * Mathf.Abs(Mathf.Sin((float)_timeNow * (2f + 3f * low))) : 0f;
-        _vigMat.SetShaderParameter("strength", Mathf.Clamp(low * 0.95f * beat + _flash * 0.8f, 0f, 1f));
+        float lowHp = alive ? Mathf.Clamp((45f - hp) / 45f, 0f, 1f) : 0f;
+        float beat = lowHp > 0 ? 0.65f + 0.35f * Mathf.Abs(Mathf.Sin((float)_timeNow * (2f + 3f * lowHp))) : 0f;
+        _vigMat.SetShaderParameter("strength", Mathf.Clamp(lowHp * 0.95f * beat + _flash * 0.8f, 0f, 1f));
         _bl.Visible = alive || ghost;
 
-        // money: count-up animation on deposit (own money only)
-        int money = g.OwnMoney;
-        if (money != _prevMoney)
+        // tribute: own weight this round only (pops on every feeding)
+        int tribute = g.OwnTribute;
+        if (tribute != _prevTribute)
         {
-            int d = money - _prevMoney;
-            if (Mathf.Abs(d) >= 1) PopMoney(d);
-            _prevMoney = money;
+            int d = tribute - _prevTribute;
+            if (d != 0) PopTribute(d);
+            _prevTribute = tribute;
         }
-        _shownMoney = Mathf.MoveToward(_shownMoney, money, Mathf.Max(40f, Mathf.Abs(money - _shownMoney) * 2.2f) * dt);
-        _money.Text = UiKit.Money(Mathf.RoundToInt(_shownMoney));
-        _money.Modulate = Mathf.Abs(_shownMoney - money) > 0.5f ? new Color(1.4f, 1.3f, 0.8f) : Colors.White;
+        _tribute.Text = tribute.ToString();
+
+        // lantern oil gauge: private level, low-oil warning
+        float oilMax = Mathf.Max(1f, g.OwnOilMax);
+        bool hasLantern = System.Array.IndexOf(g.OwnInv.Utils, "lantern") >= 0;
+        _oilBar.Max = oilMax; _oilBar.Target = g.OwnOil;
+        bool low = hasLantern && g.OwnOil <= oilMax * ItemsServer.OilLowFraction;
+        bool on = g.LocalMiner != null && !g.LocalMiner.LanternOut;
+        _oilBar.Fill = low ? UiTheme.Danger : new Color(1f, 0.66f, 0.18f);
+        _oilBar.Pulsing = alive && low && g.OwnOil > 0f;
+        _oilBar.Text = !hasLantern ? "NO LANTERN" : g.OwnOil <= 0f ? "OUT OF OIL" : $"OIL {Mathf.CeilToInt(g.OwnOil / oilMax * 100f)}%" + (on ? "" : "  (off)");
+        _bl.Visible = alive || ghost;
+        _oilBar.GetParent<Control>().Visible = alive;
+        _tribute.GetParent().GetParent<Control>().Visible = true;
 
         UpdateSlots(g, alive);
         UpdateItemOverlays(g, alive);
@@ -420,7 +463,23 @@ void fragment(){
             else { _promptKey.GetParent<Control>().Visible = false; _promptText.Text = prompt; _promptText.Modulate = new Color(1, 1, 1, 0.75f); }
         }
 
+        bool downed = alive && g.OwnDowned;
+        _downedOverlay.Visible = downed;
+        if (downed)
+        {
+            double left = System.Math.Max(0, g.OwnDownedUntil - _timeNow);
+            _downedLabel.Text = $"Bleeding out in {Mathf.CeilToInt((float)left)} s";
+        }
+        _holdBar.Visible = alive && g.LocalMiner.HoldProgress > 0f;
+        if (_holdBar.Visible) { _holdBar.Target = g.LocalMiner.HoldProgress; _holdBar.Snap(); }
         _deathOverlay.Visible = ghost;
+        if (ghost)
+        {
+            bool elim = g.Status.GetValueOrDefault(Net.I.MyId) == MinerStatus.Eliminated;
+            _deathTitle.Text = elim ? "THROWN" : "YOU DIED";
+            _deathTitle.AddThemeColorOverride("font_color", elim ? UiTheme.Gold : UiTheme.Danger);
+            _deathSub.Text = elim ? "You haunt the mine for the rest of the match." : "You will return next round.";
+        }
 
         // feed fade-out
         for (int i = _feedNodes.Count - 1; i >= 0; i--)
@@ -459,16 +518,16 @@ void fragment(){
         if (dir.HasValue) _ring.Add(dir.Value);
     }
 
-    void PopMoney(int d)
+    void PopTribute(int d)
     {
-        if (_moneyPop == null) return;
-        _moneyPop.Text = (d > 0 ? "+" : "-") + UiKit.Money(Mathf.Abs(d));
-        _moneyPop.AddThemeColorOverride("font_color", d > 0 ? UiTheme.Good : UiTheme.Danger);
-        _moneyPop.Position = new Vector2(150, 40); _moneyPop.Modulate = Colors.White;
+        if (_tributePop == null) return;
+        _tributePop.Text = (d > 0 ? "+" : "-") + Mathf.Abs(d);
+        _tributePop.AddThemeColorOverride("font_color", d > 0 ? UiTheme.Good : UiTheme.Danger);
+        _tributePop.Position = new Vector2(190, 70); _tributePop.Modulate = Colors.White;
         var tw = CreateTween();
         tw.SetParallel(true);
-        tw.TweenProperty(_moneyPop, "position:y", 6f, 1.1f).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
-        tw.TweenProperty(_moneyPop, "modulate:a", 0f, 0.5f).SetDelay(0.9f);
+        tw.TweenProperty(_tributePop, "position:y", 30f, 1.1f).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+        tw.TweenProperty(_tributePop, "modulate:a", 0f, 0.5f).SetDelay(0.9f);
     }
 
     // ------------------------------------------------------------------ slots (data-driven from the inventory + Def registries)
@@ -488,7 +547,7 @@ void fragment(){
         {
             string id = i < inv.Sack.Count ? inv.Sack[i] : "";
             var d = id == "" ? null : Ores.Get(id);
-            Fill(_sack[i], "ore", id, d?.Color ?? UiTheme.BrassDark, id == "" ? "" : UiKit.Money(d?.Value ?? 0), false);
+            Fill(_sack[i], "ore", id, d?.Color ?? UiTheme.BrassDark, id == "" ? "" : (d?.TributeWeight ?? 0).ToString(), false);
         }
         for (int i = 0; i < _steins.Count; i++)
         {
@@ -546,11 +605,12 @@ void fragment(){
         {
             var held = Utilities.Get(inv.Held);
             parts.Add("1/2 item");
+            if (System.Array.IndexOf(inv.Utils, "lantern") >= 0) parts.Add("L lantern on/off");
             if (held != null && held.IsPickaxe) parts.Add("LMB mine / strike");
             else if (held != null && held.Id != "lantern") parts.Add("RMB use " + held.Name.ToLower());
             if (inv.Steins.Count > 1) parts.Add("F stein slot");
             if (g.OwnAbility != "") parts.Add("Q " + char.ToUpper(g.OwnAbility[0]) + g.OwnAbility.Substring(1));
-            if (inv.Sack.Count > 0) parts.Add("T drop ore");
+            if (inv.Sack.Count > 0) parts.Add("T drop stone");
         }
         _hint.Text = string.Join("   |   ", parts);
         _hint.Visible = alive && !PauseMenu.I.IsOpen;
@@ -568,7 +628,7 @@ void fragment(){
                 _owl = new OmniLight3D { LightColor = new Color(0.45f, 0.62f, 1f), LightEnergy = 0.4f, OmniRange = 24f, OmniAttenuation = 1.4f, ShadowEnabled = false, Position = new Vector3(0, 1.6f, 0) };
                 m.AddChild(_owl);
             }
-            _owl.LightEnergy = g.World.Cave.InCamp(m.GlobalPosition) ? 0f : 0.4f;   // lit areas (the camp) stay exactly as they are
+            _owl.LightEnergy = g.World.Cave.InHall(m.GlobalPosition) ? 0f : 0.4f;   // lit areas (the camp) stay exactly as they are
         }
         else if (_owl != null) { if (IsInstanceValid(_owl)) _owl.QueueFree(); _owl = null; }
     }
@@ -592,21 +652,21 @@ void fragment(){
         foreach (var kv in Net.I.Names)
         {
             bool me = kv.Key == Net.I.MyId;
-            bool alive = g.Alive.GetValueOrDefault(kv.Key);
+            var status = g.Status.GetValueOrDefault(kv.Key);
+            bool alive = status is MinerStatus.Alive or MinerStatus.Downed;
             var row = UiKit.HBox(12);
             row.CustomMinimumSize = new Vector2(0, 36);
-            var hi = new HelmetIcon(PlayerColors.Of(kv.Key), 34) { Dead = !alive };
+            var hi = new HelmetIcon(PlayerColors.Of(kv.Key), 34) { Dead = status != MinerStatus.Alive };
             hi.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
             row.AddChild(hi);
-            var name = UiKit.MakeLabel(kv.Value + (me ? "  (you)" : "") + (kv.Key == 1 ? "  [host]" : ""), 22, me ? UiTheme.Gold : (alive ? UiTheme.Parchment : UiTheme.Dim));
+            var name = UiKit.MakeLabel(kv.Value + (me ? "  (you)" : "") + (kv.Key == 1 ? "  [host]" : ""), 22, me ? UiTheme.Gold : (status == MinerStatus.Eliminated ? UiTheme.Dim : UiTheme.Parchment));
             name.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill; name.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
             row.AddChild(name);
-            var st = UiKit.MakeLabel(alive ? "ALIVE" : "DEAD", 17, alive ? UiTheme.Good : UiTheme.Danger, HorizontalAlignment.Center);
-            st.CustomMinimumSize = new Vector2(80, 0); st.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+            string stText = status switch { MinerStatus.Alive => "ALIVE", MinerStatus.Downed => "DOWNED", MinerStatus.Dead => "DEAD", _ => "ELIMINATED" };
+            var stCol = status switch { MinerStatus.Alive => UiTheme.Good, MinerStatus.Downed => new Color(1f, 0.6f, 0.2f), MinerStatus.Dead => UiTheme.Danger, _ => UiTheme.Dim };
+            var st = UiKit.MakeLabel(stText, 17, stCol, HorizontalAlignment.Center);
+            st.CustomMinimumSize = new Vector2(120, 0); st.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
             row.AddChild(st);
-            var mon = UiKit.MakeLabel(me ? UiKit.Money(g.OwnMoney) : "$ ???", 22, me ? UiTheme.Gold : new Color(0.45f, 0.4f, 0.35f), HorizontalAlignment.Right);
-            mon.CustomMinimumSize = new Vector2(110, 0); mon.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
-            row.AddChild(mon);
             _scoreRows.AddChild(row);
         }
     }
@@ -640,16 +700,27 @@ public partial class HeartIcon : Control
     }
 }
 
-public partial class CoinIcon : Control
+public partial class StoneIcon : Control
 {
-    public CoinIcon() { MouseFilter = MouseFilterEnum.Ignore; CustomMinimumSize = new Vector2(30, 34); }
+    public StoneIcon() { MouseFilter = MouseFilterEnum.Ignore; CustomMinimumSize = new Vector2(30, 34); }
     public override void _Draw()
     {
-        var c = new Vector2(Size.X / 2f, Size.Y / 2f); float r = Size.X * 0.42f;
-        DrawCircle(c, r, new Color(0.55f, 0.38f, 0.08f));
-        DrawCircle(c, r * 0.86f, UiTheme.Gold);
-        DrawCircle(c, r * 0.6f, new Color(0.9f, 0.66f, 0.15f));
-        DrawString(UiTheme.Chunky, c + new Vector2(-6, 7), "$", HorizontalAlignment.Left, -1, 19, new Color(0.45f, 0.3f, 0.05f));
+        float w = Size.X, h = Size.Y;
+        DrawColoredPolygon(new[] { new Vector2(w * 0.08f, h * 0.78f), new Vector2(w * 0.2f, h * 0.35f), new Vector2(w * 0.55f, h * 0.18f), new Vector2(w * 0.92f, h * 0.45f), new Vector2(w * 0.85f, h * 0.82f) }, new Color(0.42f, 0.4f, 0.44f));
+        DrawColoredPolygon(new[] { new Vector2(w * 0.2f, h * 0.35f), new Vector2(w * 0.55f, h * 0.18f), new Vector2(w * 0.6f, h * 0.45f), new Vector2(w * 0.3f, h * 0.55f) }, new Color(0.6f, 0.58f, 0.62f));
+        DrawColoredPolygon(new[] { new Vector2(w * 0.6f, h * 0.45f), new Vector2(w * 0.92f, h * 0.45f), new Vector2(w * 0.85f, h * 0.82f), new Vector2(w * 0.5f, h * 0.8f) }, new Color(0.3f, 0.28f, 0.32f));
+    }
+}
+
+public partial class OilIcon : Control
+{
+    public OilIcon() { MouseFilter = MouseFilterEnum.Ignore; CustomMinimumSize = new Vector2(30, 20); }
+    public override void _Draw()
+    {
+        var c = new Color(1f, 0.7f, 0.2f);
+        float w = Size.X, h = Size.Y;
+        DrawColoredPolygon(new[] { new Vector2(w * 0.5f, h * 0.02f), new Vector2(w * 0.8f, h * 0.6f), new Vector2(w * 0.5f, h * 0.98f), new Vector2(w * 0.2f, h * 0.6f) }, c);
+        DrawColoredPolygon(new[] { new Vector2(w * 0.5f, h * 0.3f), new Vector2(w * 0.65f, h * 0.62f), new Vector2(w * 0.5f, h * 0.85f), new Vector2(w * 0.38f, h * 0.62f) }, new Color(1f, 0.92f, 0.5f));
     }
 }
 

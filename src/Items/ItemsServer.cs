@@ -9,20 +9,22 @@ namespace AppStein;
 public class ItemState
 {
     public double NextUse, AbilityReadyAt, EtherealUntil, LanternOutUntil, NoiseAcc;
+    /// <summary>Last lantern state sent to everyone (-1 = none yet).</summary>
+    public int LanternSent = -1;
+    public int OilSecs = -1;
     public string UtilSig = "", StateSig = "";
     public bool MaskSent, Sprinting;
     public Vector3 LastPos;
     public bool HasLastPos;
 }
 
-/// <summary>Monsters (or anything server-driven) implement this to be affected by bear traps.</summary>
+/// <summary>Monsters (or anything server-driven) implement this to be stunned by bear traps. Monsters are never hurt by traps.</summary>
 public interface IRootable
 {
     void ServerRoot(float seconds);
-    void ServerTrapDamage(float amount);
 }
 
-/// <summary>Monsters implement this to react to dynamite.</summary>
+/// <summary>Monsters implement this to react to dynamite (stun / disperse, never damage).</summary>
 public interface IExplodable
 {
     void OnExplosion(Vector3 center, float radius, float damage);
@@ -66,7 +68,7 @@ public static class ItemsServer
     public static void ResetRound(ServerPlayer p)
     {
         var it = p.Items;
-        it.MaskSent = false; it.LanternOutUntil = 0; it.EtherealUntil = 0; it.StateSig = "";
+        it.MaskSent = false; it.LanternOutUntil = 0; it.EtherealUntil = 0; it.StateSig = ""; it.LanternSent = -1; it.OilSecs = -1;
         it.AbilityReadyAt = 0; it.HasLastPos = false;
     }
 
@@ -78,7 +80,7 @@ public static class ItemsServer
         if (us != it.UtilSig) { it.UtilSig = us; p.RecalcStats(); }
         bool mask = HasUtil(p, "gasmask");
         if (mask != it.MaskSent) { it.MaskSent = mask; g.ServerMask(p.Peer, mask); }
-        if (it.LanternOutUntil > 0 && now > it.LanternOutUntil) { it.LanternOutUntil = 0; g.ServerLantern(p.Peer, false); }
+        TickLantern(p, dt, now);
         if (it.EtherealUntil > 0 && now > it.EtherealUntil) { it.EtherealUntil = 0; it.StateSig = ""; }
         string sig = $"{p.Stats.DarkVision}|{AbilityOf(p)}";
         if (sig != it.StateSig) { it.StateSig = sig; g.ServerSendItemState(p); }
@@ -91,6 +93,33 @@ public static class ItemsServer
             if (it.HasLastPos && it.Sprinting && flat.Length() / it.NoiseAcc > 4f) Game.ServerNoise(p.Pos, 9f, p);
             it.LastPos = p.Pos; it.HasLastPos = true; it.NoiseAcc = 0;
         }
+    }
+
+    // ---------------------------------------------------------------- lantern oil
+    public const float OilLowFraction = 0.25f;
+
+    /// <summary>The lantern burns oil only while it is lit AND held; it is lit when switched on, has oil and no ghost snuffed it. The light state is public, the oil level is private.</summary>
+    static void TickLantern(ServerPlayer p, float dt, double now)
+    {
+        var it = p.Items; var g = Game.I;
+        if (it.LanternOutUntil > 0 && now > it.LanternOutUntil) it.LanternOutUntil = 0;
+        bool has = HasUtil(p, "lantern");
+        bool lit = has && p.LanternOn && p.Oil > 0f && it.LanternOutUntil <= 0;
+        if (lit && p.Inv.Held == "lantern")
+        {
+            p.Oil = Math.Max(0f, p.Oil - dt);
+            int secs = (int)Math.Ceiling(p.Oil);
+            if (secs != it.OilSecs) { it.OilSecs = secs; p.Dirty = true; }   // private value, resent about once a second
+            if (p.Oil <= 0f) lit = false;
+        }
+        int state = !lit ? 1 : (p.Oil <= g.Config.LanternOilSeconds * OilLowFraction ? 2 : 0);
+        if (state != it.LanternSent) { it.LanternSent = state; g.ServerLantern(p.Peer, state); if (!lit && has && p.LanternOn && p.Oil <= 0f) Util.Pass("lantern_out_of_oil", $"name={p.Name}"); p.Dirty = true; }
+    }
+
+    /// <summary>Oil drum: refills the lantern completely.</summary>
+    public static void Refuel(ServerPlayer p)
+    {
+        p.Oil = Game.I.Config.LanternOilSeconds; p.Dirty = true; p.Items.OilSecs = -1;
     }
 
     // ---------------------------------------------------------------- active abilities
@@ -237,14 +266,14 @@ public static class ItemsServer
     public static void BloodEvent(ServerPlayer p, SteinEvent e)
     {
         if (e.Kind != SteinEventKind.RoundEnd) return;
-        if (p.KillsThisRound > 0) { Util.Pass("blood_kept_with_kill", $"name={p.Name} money={p.Money}"); return; }
-        int before = p.Money;
+        if (p.KillsThisRound > 0) { Util.Pass("blood_kept_with_kill", $"name={p.Name} tribute={p.TributeWeight}"); return; }
+        int before = p.TributeWeight;
         p.Inv.Steins.RemoveAll(s => s == "blood");
         if (p.Inv.SteinSel >= p.Inv.Steins.Count) p.Inv.SteinSel = 0;
-        p.Money -= p.Money / 2;
+        p.TributeWeight -= p.TributeWeight / 2;
         p.RecalcStats();
-        Game.I.ServerNotice(p, "The Blood Stein crumbles to dust. Half your money is gone.");
-        Util.Pass("blood_penalty_applied", $"name={p.Name} before={before} after={p.Money}");
+        Game.I.ServerNotice(p, "The Blood Stein crumbles to dust. Half of this round's tribute is gone.");
+        Util.Pass("blood_penalty_applied", $"name={p.Name} before={before} after={p.TributeWeight}");
     }
 
     public static void InfinityEvent(ServerPlayer p, SteinEvent e)

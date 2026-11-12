@@ -18,12 +18,14 @@ public static class ItemsModule
         NetObject.Factories["dynamite"] = () => new DynamiteObj();
         NetObject.Factories["beartrap"] = () => new BearTrapObj();
         NetObject.Factories["rope"] = () => new RopeObj();
+        NetObject.Factories["oil"] = () => new OilDrumObj();
         NetObject.Factories["dbgplatform"] = () => new DbgPlatformObj();
         NetObject.Factories["dbgthinwall"] = () => new DbgThinWallObj();
 
         Game.MarkerSpawners["chest"] = SpawnChest;
         Game.MarkerSpawners["loot"] = SpawnLoot;
         Game.MarkerSpawners["shrine"] = SpawnShrine;
+        Game.MarkerSpawners["oil"] = (g, room, m, rng) => g.ServerSpawnObject("oil", m.Pos, OilDrumObj.MakeData(g.Config.OilDrumRefills));
         Game.RoundPopulated += OnRoundPopulated;
 
         ItemsDebug.Register();

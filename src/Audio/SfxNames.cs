@@ -17,12 +17,12 @@ public static class SfxNames
     public const string OrePickup = "ore_pickup", SteinPickup = "stein_pickup", SteinPickupRare = "stein_pickup_rare", SteinPickupLegend = "stein_pickup_legend";
     public const string ItemDrop = "item_drop", SackFull = "sack_full";
     // goblin
-    public const string Deposit = "deposit", GoblinLaugh = "goblin_laugh", GoblinGrowl = "goblin_growl", GoblinBlip = "goblin_blip";
+    public const string Feed = "feed", GoblinLaugh = "goblin_laugh", GoblinGrowl = "goblin_growl", GoblinBlip = "goblin_blip";
     // ui / round
     public const string UiClick = "ui_click", UiHover = "ui_hover", UiOpen = "ui_open", UiClose = "ui_close";
     public const string RoundStart = "round_start", Warning = "warning", Heartbeat = "heartbeat";
-    public const string CollapseRumble = "collapse_rumble", RockCrash = "rock_crash";
-    public const string StingerQuotaMet = "stinger_quota_met", StingerQuotaMissed = "stinger_quota_missed", StingerCursed = "stinger_cursed", Fanfare = "fanfare";
+    public const string LiftRumble = "lift_rumble", RockCrash = "rock_crash";
+    public const string StingerSafe = "stinger_safe", StingerVerdict = "stinger_verdict", StingerThrow = "stinger_throw", Fanfare = "fanfare";
     // world objects / items in use
     public const string ChestOpen = "chest_open", ShrineHum = "shrine_hum", ShrineSuccess = "shrine_success", ShrineFail = "shrine_fail";
     public const string PlateClick = "plate_click", RopePlace = "rope_place", RopeCut = "rope_cut", FuseHiss = "fuse_hiss", Explosion = "explosion";
@@ -32,7 +32,7 @@ public static class SfxNames
     public const string GasHiss = "gas_hiss", DartTwang = "dart_twang", DartWhoosh = "dart_whoosh", DartThud = "dart_thud";
     public const string TrapdoorCreak = "trapdoor_creak", TrapdoorDrop = "trapdoor_drop", LeverClunk = "lever_clunk", GateChains = "gate_chains", GateSlam = "gate_slam";
     // monsters
-    public const string GolemStep = "golem_step", GolemWindup = "golem_windup", GolemSlam = "golem_slam", GolemCrack = "golem_crack", GolemDeath = "golem_death";
+    public const string GolemStep = "golem_step", GolemWindup = "golem_windup", GolemSlam = "golem_slam", GolemCrack = "golem_crack", GolemStun = "golem_stun";
     public const string EmberCrackle = "ember_crackle", EmberLunge = "ember_lunge", EmberSizzle = "ember_sizzle", WispHiss = "wisp_hiss";
     public const string DragonBreath = "dragon_breath", DragonStir = "dragon_stir", DragonRoar = "dragon_roar", DragonFire = "dragon_fire";
     // ambience

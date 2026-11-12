@@ -67,19 +67,26 @@ public static class MonsterTest
         yield return Sleep(1.0f); // let the client see the damage before healing
         Heal(a);
         var fake = Fake();
-        // front: hits barely scratch it
+        // front: hits do nothing at all
         fake.Pos = gol.GlobalPosition + gol.Forward * 2f;
-        float h = gol.Hp;
-        for (int i = 0; i < 3; i++) gol.ServerHit(fake, 1f, true);
-        yield return Until(() => h - gol.Hp <= 3f * 20f * MonsterTuning.GolemFrontMul + 0.01f && h - gol.Hp > 0f, 1, "golem_front_armoured");
-        // back: the crystal
+        for (int i = 0; i < 5; i++) gol.ServerHit(fake, 1f, true);
+        yield return Until(() => gol.State != MonsterState.Stunned, 1, "golem_front_hit_ignored");
+        // back: the crystal stuns it (and only stuns it)
         fake.Pos = gol.GlobalPosition - gol.Forward * 2f;
-        h = gol.Hp;
         gol.ServerHit(fake, 1f, true);
-        yield return Until(() => h - gol.Hp >= 30f, 1, "golem_back_hit_hurts");
-        for (int i = 0; i < 6 && gol.State != MonsterState.Dead; i++) gol.ServerHit(fake, 1f, true);
-        yield return Until(() => gol.State == MonsterState.Dead, 2, "golem_dies_from_behind");
-        yield return Until(() => OreNear(gol.GlobalPosition, 4f) >= 3, 2, "golem_drops_loot");
+        yield return Until(() => gol.State == MonsterState.Stunned, 1, "golem_stunned_by_back_hit");
+        var stunPos = gol.GlobalPosition;
+        for (int i = 0; i < 10; i++) gol.ServerHit(fake, 1f, true);   // no killing it however hard you hit
+        yield return Sleep(2f);
+        yield return Until(() => gol.State == MonsterState.Stunned && gol.GlobalPosition.DistanceTo(stunPos) < 0.05f, 1, "golem_stunned_stays_put");
+        yield return Until(() => gol.State != MonsterState.Stunned, MonsterTuning.GolemStunSeconds + 3f, "golem_recovers_after_stun");
+        yield return Until(() => OreNear(gol.GlobalPosition, 4f) == 0 && Game.I.World.Objects.ContainsKey(gol.Id), 1, "golem_unkillable_no_loot");
+        // dynamite and bear traps stun, never damage
+        gol.OnExplosion(gol.GlobalPosition + V(3, 0), 6.5f, 70f);
+        yield return Until(() => gol.State == MonsterState.Stunned, 1, "golem_stunned_by_blast");
+        yield return Until(() => gol.State != MonsterState.Stunned, 6, "golem_blast_stun_ends");
+        gol.ServerRoot(3f);
+        yield return Until(() => gol.State == MonsterState.Stunned, 1, "golem_stunned_by_beartrap");
     }
 
     // ------------------------------------------------------------------ golem: real melee through RequestAttack from a bot
@@ -91,15 +98,11 @@ public static class MonsterTest
         gol.Frozen = true;
         gol.Yaw = Mathf.Pi; // faces +Z, i.e. toward Alice: she hits the armour
         yield return Sleep(0.5f);
-        float h0 = gol.Hp;
-        yield return Until(() => gol.Hp < h0, 15, "golem_front_hit_registered");
-        yield return Sleep(4f);
-        yield return Until(() => h0 - gol.Hp <= 12f * 36f * MonsterTuning.GolemFrontMul + 0.01f && gol.State != MonsterState.Dead, 1, "golem_front_real_hits_barely_hurt");
+        yield return Sleep(5f);   // she keeps swinging at its armoured front
+        yield return Until(() => gol.State != MonsterState.Stunned, 1, "golem_front_real_hits_do_nothing");
         gol.Yaw = 0f; // turns its back on her
-        float h1 = gol.Hp;
-        yield return Until(() => h1 - gol.Hp >= 30f, 8, "golem_back_real_hit_hurts");
-        yield return Until(() => gol.State == MonsterState.Dead, 15, "golem_killed_by_bot");
-        yield return Until(() => OreNear(V(36, -4.4f), 5f) >= 3, 3, "golem_loot_dropped");
+        yield return Until(() => gol.State == MonsterState.Stunned, 10, "golem_back_real_hit_stuns");
+        yield return Until(() => Game.I.World.Objects.ContainsKey(gol.Id) && OreNear(V(36, -4.4f), 5f) == 0, 1, "golem_survives_no_loot");
     }
 
     // ------------------------------------------------------------------ ember
@@ -111,8 +114,7 @@ public static class MonsterTest
         // 1. dies instantly in water, drops ruby
         cave.WaterZones.Add(new Aabb(new Vector3(26, -1, -9), new Vector3(3, 3, 3)));
         var e1 = MonsterModule.Spawn<EmberObj>("ember", new Vector3(27.5f, 0, -7.5f));
-        yield return Until(() => e1.State == MonsterState.Dead, 3, "ember_dies_in_water");
-        yield return Until(() => OreNear(new Vector3(27.5f, 0, -7.5f), 3f, "ruby") >= 1, 2, "ember_drops_ruby");
+        yield return Until(() => e1.State == MonsterState.Stunned, 3, "ember_doused_in_water");
         // 2. burns a miner
         var e2 = MonsterModule.Spawn<EmberObj>("ember", V(36, 5));
         yield return Until(() => a.Health < 100f && MonsterModule.IsBurning(a.Peer), 12, "ember_burns_miner");
@@ -121,12 +123,12 @@ public static class MonsterTest
         var fake = Fake();
         fake.Pos = e2.GlobalPosition + V(1, 0);
         e2.ServerHit(fake, 1f, true);
-        yield return Until(() => e2.State == MonsterState.Dead, 1, "ember_weak_to_melee");
+        yield return Until(() => Game.I.World.Objects.ContainsKey(e2.Id) && e2.State != MonsterState.Stunned, 1, "ember_unkillable_by_melee");
         Heal(a);
         // 3. chasing through a pool kills it; wandering ember avoids water (WanderOk / Allowed)
         cave.WaterZones.Add(new Aabb(new Vector3(31, -1, -8), new Vector3(2, 3, 12)));
         var e3 = MonsterModule.Spawn<EmberObj>("ember", V(27, -2));
-        yield return Until(() => e3.State == MonsterState.Dead, 12, "ember_dies_chasing_into_water");
+        yield return Until(() => e3.State == MonsterState.Stunned, 12, "ember_doused_chasing_into_water");
     }
 
     // ------------------------------------------------------------------ wisp
@@ -149,9 +151,8 @@ public static class MonsterTest
         yield return Until(() => b.Health >= 100f && a.Health < 90f, 1, "wisp_gasimmune_safe");
         var fake = Fake();
         fake.Pos = w.GlobalPosition + V(1, 0);
-        float hp = w.Hp;
         w.ServerHit(fake, 1f, true); w.ServerHit(fake, 1f, true);
-        yield return Until(() => w.Hp == hp && w.State != MonsterState.Dead, 1, "wisp_unkillable_by_melee");
+        yield return Until(() => w.State != MonsterState.Dispersed && w.State != MonsterState.Stunned && Game.I.World.Objects.ContainsKey(w.Id), 1, "wisp_unkillable_by_melee");
         w.Disperse(3f);
         float h1 = a.Health;
         yield return Sleep(2.4f);
@@ -178,8 +179,9 @@ public static class MonsterTest
         yield return Until(() => a.Health < 100f, 14, "dragon_breath_damages_miner");
         yield return Until(() => d.Lair.Grow(0.1f).HasPoint(new Vector3(d.GlobalPosition.X, d.Lair.Position.Y + 1f, d.GlobalPosition.Z)), 1, "dragon_stays_in_lair");
         var fake = Fake(); fake.Pos = d.GlobalPosition - d.Forward * 4f;
-        d.ServerHit(fake, 1f, true);
-        yield return Until(() => d.State != MonsterState.Dead, 1, "dragon_unkillable");
+        var st0 = d.State;
+        d.ServerHit(fake, 1f, true); d.OnExplosion(d.GlobalPosition, 6f, 70f); d.ServerRoot(3f);
+        yield return Until(() => d.State == st0 && Game.I.World.Objects.ContainsKey(d.Id), 1, "dragon_unaffected_by_hits_blasts_traps");
     }
 
     // ------------------------------------------------------------------ marker spawning is deterministic from the rng

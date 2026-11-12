@@ -24,9 +24,9 @@ public partial class Game
     public void ServerNotice(ServerPlayer p, string msg) { if (Net.I.Names.ContainsKey(p.Peer)) RpcId(p.Peer, nameof(ClientNotice), msg); }
     public void ServerSyncHeld(ServerPlayer p) => SyncHeld(p);
     public void ServerMask(int peer, bool on) => Rpc(nameof(ClientMask), peer, on);
-    public void ServerLantern(int peer, bool outNow) => Rpc(nameof(ClientLantern), peer, outNow);
+    /// <summary>Public lantern state: 0 lit, 1 out (off, no oil, or snuffed by a ghost), 2 lit but flickering (low oil).</summary>
+    public void ServerLantern(int peer, int state) => Rpc(nameof(ClientLantern), peer, state);
     public void ServerRootPlayer(ServerPlayer p, float seconds) => RpcId(p.Peer, nameof(ClientRoot), seconds);
-    public void DebugEndRound() { if (Net.I.IsServer && Phase == GamePhase.Round) ServerCollapse(); }
     public void ServerKnock(ServerPlayer p, Vector3 v) => RpcId(p.Peer, nameof(ClientKnockback), v);
 
     /// <summary>Owner-only: dark vision flag, active ability id, cooldown and active time left.</summary>
@@ -44,7 +44,7 @@ public partial class Game
         int victims = 0; float total = 0;
         foreach (var p in Players.Values.ToArray())
         {
-            if (!p.Alive || !p.Participant || (World.Cave.InCamp(p.Pos) && !Util.HasArg("itest"))) continue;   // the camp is safe from explosions too (the item test stages its blasts in the grey-box camp)
+            if (!p.Alive || !p.Participant || (World.Cave.InHall(p.Pos) && !Util.HasArg("itest"))) continue;   // the Hall is safe from explosions too (the item test stages its blasts in the grey-box Hall)
             var c = p.Pos + new Vector3(0, 0.9f, 0);
             float d = c.DistanceTo(pos);
             if (d > radius) continue;
@@ -85,7 +85,7 @@ public partial class Game
     {
         if (!Net.I.IsServer) return;
         var p = Sender();
-        if (p == null || !p.Alive || Phase != GamePhase.Round || Now < p.Items.NextUse) return;
+        if (!CanAct(p) || Now < p.Items.NextUse) return;
         p.Items.NextUse = Now + 0.5;
         ItemsServer.UseHeld(p);
     }
@@ -95,7 +95,7 @@ public partial class Game
     {
         if (!Net.I.IsServer) return;
         var p = Sender();
-        if (p == null || !p.Alive || Phase != GamePhase.Round) return;
+        if (!CanAct(p)) return;
         ItemsServer.UseAbility(p);
     }
 
@@ -104,7 +104,7 @@ public partial class Game
     {
         if (!Net.I.IsServer) return;
         var p = Sender();
-        if (p == null || !p.Alive || Phase != GamePhase.Round) return;
+        if (!CanAct(p)) return;
         ItemsServer.DropStein(p, idx);
     }
 
@@ -113,7 +113,7 @@ public partial class Game
     {
         if (!Net.I.IsServer) return;
         var p = Sender();
-        if (p == null || !p.Alive || idx < 0 || idx >= Inventory.SteinSlots) return;
+        if (!CanAct(p) || idx < 0 || idx >= Inventory.SteinSlots) return;
         p.Inv.SteinSel = idx; p.Dirty = true;
     }
 
@@ -123,7 +123,7 @@ public partial class Game
     {
         if (!Net.I.IsServer) return;
         var p = Sender();
-        if (p == null || p.Alive || !p.Participant || Phase != GamePhase.Round || Now < p.NextMeddle) return;
+        if (p == null || p.Alive || !(p.Participant || p.Eliminated) || Phase != GamePhase.Round || Now < p.NextMeddle) return;
         if (pos.Length() > 500f) return;
         if (mode == 0)
         {
@@ -136,8 +136,7 @@ public partial class Game
             }
             if (best == null) { ServerNotice(p, "No lantern close enough to snuff."); return; }
             p.NextMeddle = Now + 6;
-            best.Items.LanternOutUntil = Now + 6;
-            ServerLantern(best.Peer, true);
+            best.Items.LanternOutUntil = Now + 6;   // ItemsServer.Tick replicates the light going out (and coming back)
             Util.Pass("ghost_lantern_blown", $"ghost={p.Name} victim={best.Name}");
         }
         else
@@ -165,7 +164,7 @@ public partial class Game
     void ClientMask(int peer, bool on) => World?.GetMiner(peer)?.SetMask(on);
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void ClientLantern(int peer, bool outNow) => World?.GetMiner(peer)?.SetLanternOut(outNow);
+    void ClientLantern(int peer, int state) => World?.GetMiner(peer)?.SetLanternState(state);
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void ClientRoot(float seconds)

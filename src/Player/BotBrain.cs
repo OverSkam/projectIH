@@ -52,7 +52,7 @@ public class BotBrain : IMinerController
     {
         var inv = g.OwnInv;
         var world = g.World;
-        var camp = world.Cave.CampZone;
+        var camp = world.Cave.HallZone;
         bool lateRound = g.TimeLeft < 16f;
         NetObject goblin = world.Objects.Values.FirstOrDefault(o => o is GoblinObj);
         if (goblin == null) return;
@@ -117,7 +117,7 @@ public class BotBrain : IMinerController
         foreach (var o in world.Miners())
         {
             if (o == m || !g.Alive.GetValueOrDefault(o.PeerId)) continue;
-            if (world.Cave.InCamp(o.GlobalPosition)) continue; // no PvP in camp
+            if (world.Cave.InHall(o.GlobalPosition)) continue; // no PvP in camp
             float d = o.GlobalPosition.DistanceTo(m.GlobalPosition);
             if (d < bd) { bd = d; target = o; }
         }

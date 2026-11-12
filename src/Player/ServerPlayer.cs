@@ -8,16 +8,29 @@ public class ServerPlayer
 {
     public int Peer;
     public string Name;
-    public int Money;
+    /// <summary>Tribute weight fed to the Goblin this round. Private: only ever sent to its owner (until the weighing). Reset after each weighing.</summary>
+    public int TributeWeight;
     public float Health = 100f;
     public const float MaxHealth = 100f;
     public bool Alive;
-    public bool Participant;        // takes part in the current round (false for mid-round joiners/ghosts)
+    public bool Participant;        // takes part in the current round (false for eliminated miners and late joiners)
+    /// <summary>Thrown by the Goblin (or left / joined late): permanently out of the match. What they do instead is decided by <see cref="EliminatedRole"/>.</summary>
+    public bool Eliminated;
+    public int EliminatedRound;
+    /// <summary>At 0 health: crawls, cannot act, can be looted; dies after DownedLeft seconds or on any further damage.</summary>
+    public bool Downed;
+    public float DownedLeft;
+    public ServerPlayer DownedBy;   // whoever dealt the downing blow (gets the kill credit if the miner bleeds out)
+    public double NextLoot;
+    /// <summary>Lantern oil in seconds of light left (private, owner only). Starts every round full.</summary>
+    public float Oil;
+    public bool LanternOn = true;   // switched on (public: the light itself is replicated, the oil level is not)
     public Inventory Inv = new();
     public StatBlock Stats = new();
-    public int DeliveredThisRound;
-    public bool Cursed;
-    public bool DiedLastRound, Initialized;
+    /// <summary>Died or was locked out: next round they return with only the pickaxe and the lantern.</summary>
+    public bool NeedsKit;
+    public bool Initialized;
+    public int EliminationSeq;
     public int KillsThisRound;
     public Vector3 Pos;
     public float Yaw, Pitch;
@@ -48,6 +61,12 @@ public class ServerPlayer
     public void Tick(float dt)
     {
         if (!Alive) return;
+        if (Downed)
+        {
+            DownedLeft -= dt;
+            if (DownedLeft <= 0f) Game.I.KillMiner(this, DownedBy, "bleed");
+            return;
+        }
         foreach (var id in Inv.Steins.ToArray()) Steins.Get(id)?.OnTick?.Invoke(this, dt);
         if (Stats.RegenPerSec > 0) Regen(Stats.RegenPerSec * dt);
         ItemsServer.Tick(this, dt);
@@ -56,7 +75,7 @@ public class ServerPlayer
     /// <summary>Fractional healing accumulator (so tiny per-tick amounts still count).</summary>
     public void Regen(float amount)
     {
-        if (!Alive || Health >= MaxHealth) return;
+        if (!Alive || Downed || Health >= MaxHealth) return;
         _regenAcc += amount;
         if (_regenAcc >= 1f)
         {
@@ -67,7 +86,7 @@ public class ServerPlayer
         }
     }
 
-    public void Heal(float amount) { if (Alive) { Health = Math.Min(MaxHealth, Health + amount); Dirty = true; } }
+    public void Heal(float amount) { if (Alive && !Downed) { Health = Math.Min(MaxHealth, Health + amount); Dirty = true; } }
 
     /// <summary>Applies damage through stat modifiers; returns the damage actually dealt.</summary>
     public float TakeDamage(float amount, ServerPlayer source, string cause)
@@ -75,12 +94,13 @@ public class ServerPlayer
         if (!Alive) return 0;
         if (cause == "gas" && Stats.GasImmune) return 0;
         float dmg = amount * Stats.DamageTakenMul;
+        if (Downed) { source?.Fire(new SteinEvent { Kind = SteinEventKind.DamageDealt, Amount = dmg, Other = this }); Game.I.KillMiner(this, source ?? DownedBy, cause); return dmg; }
         Health -= dmg;
         Dirty = true;
         if (Util.HasArg("soak")) Util.Log($"SOAKDMG cause={cause} victim={Name} dmg={dmg:0.#} hp={Health:0.#} by={source?.Name ?? "-"}");
         Fire(new SteinEvent { Kind = SteinEventKind.DamageTaken, Amount = dmg, Other = source });
         source?.Fire(new SteinEvent { Kind = SteinEventKind.DamageDealt, Amount = dmg, Other = this });
-        if (Health <= 0f) Game.I.KillMiner(this, source, cause);
+        if (Health <= 0f) Game.I.DownMiner(this, source, cause);
         return dmg;
     }
 

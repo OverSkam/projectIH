@@ -119,7 +119,7 @@ public partial class VeinObj : NetObject
         var dir = (p.Pos - GlobalPosition) with { Y = 0 };
         dir = dir.LengthSquared() < 0.01f ? Vector3.Right : dir.Normalized();
         Game.I.ServerSpawnObject("pickup", GlobalPosition + dir * 1.3f + new Vector3(0, 0.45f, 0), "ore:" + Loot.LuckyOre(_ore, p));
-        p.Fire(new SteinEvent { Kind = SteinEventKind.Mined, Amount = Ores.ValueOf(_ore) });
+        p.Fire(new SteinEvent { Kind = SteinEventKind.Mined, Amount = Ores.WeightOf(_ore) });
         Util.Pass("ore_mined", $"ore={_ore} by={p.Name}");
     }
 }
@@ -196,11 +196,21 @@ public partial class GoblinObj : NetObject
     /// <summary>Visuals, collision and animation live in src/Goblin/GoblinRig.cs.</summary>
     public override void Build() => GoblinRig.Attach(this);
 
+    /// <summary>Tap E: feed every stone in the sack. Hold E for a second: feed the selected power stein (shown as a second line).</summary>
     public override string Prompt(Inventory inv)
     {
-        int v = 0; foreach (var o in inv.Sack) v += Ores.ValueOf(o);
-        return inv.Sack.Count == 0 ? "Goblin: bring me ore" : $"E  Deliver {inv.Sack.Count} ore to the Goblin (worth {v})";
+        int v = 0; foreach (var o in inv.Sack) v += Ores.WeightOf(o);
+        string stones = inv.Sack.Count == 0 ? null : $"Feed {inv.Sack.Count} stone{(inv.Sack.Count == 1 ? "" : "s")}  (weight {v})";
+        string stein = null;
+        if (inv.Steins.Count > 0)
+        {
+            string id = inv.Steins[Math.Clamp(inv.SteinSel, 0, inv.Steins.Count - 1)];
+            stein = $"Hold: feed {Steins.Get(id)?.Name ?? id}  (weight {Steins.TributeOf(id)})";
+        }
+        if (stones != null) return "E  " + stones + (stein != null ? "\n" + stein : "");
+        if (stein != null) return "E  " + stein;
+        return "The Goblin wants stones";
     }
 
-    public override void ServerInteract(ServerPlayer p) => Game.I.ServerDeposit(p);
+    public override void ServerInteract(ServerPlayer p) => Game.I.ServerFeed(p);
 }

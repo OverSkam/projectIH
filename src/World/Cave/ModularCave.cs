@@ -195,7 +195,7 @@ public class ModularCave : ICaveBuilder
     static string MarkerOf(char c) => c switch
     {
         'v' => "vein", 'o' or 'O' => "ore", 'm' => "monster", 'D' => "dragon", 't' => "trap", 'l' => "lever",
-        'L' or 'Q' or 'K' => "loot", 'C' => "chest", 'S' => "shrine", _ => null,
+        'L' or 'Q' or 'K' => "loot", 'C' => "chest", 'S' => "shrine", 'i' => "oil", _ => null,
     };
     static bool IsRamp(char c) => c == '8' || c == '6' || c == '2' || c == '4';
 
@@ -318,8 +318,12 @@ public class ModularCave : ICaveBuilder
             info.Rooms.Add(ri);
         }
         var camp = Slots[0];
-        info.CampZone = new Aabb(new Vector3(camp.OX * CellSize - 1, -2, camp.OY * CellSize - 1), new Vector3(28, 14, 28));
+        info.HallZone = new Aabb(new Vector3(camp.OX * CellSize - 1, -2, camp.OY * CellSize - 1), new Vector3(28, 14, 28));
         info.GoblinPos = CellPos(camp.OX + 4, camp.OY + 2);
+        info.PalmPos = info.GoblinPos + new Vector3(0, 1.2f, 2.0f);
+        info.ScalePos = CellPos(camp.OX + 7, camp.OY + 5);
+        info.ShaftPos = CellPos(camp.OX + 11, camp.OY + 4);
+        info.MakeWeighSpots();
         for (int c = 3; c <= 10; c++) info.MinerSpawns.Add(CellPos(camp.OX + c, camp.OY + 9, 0.3f));
         for (int c = 4; c <= 9; c++) info.MinerSpawns.Add(CellPos(camp.OX + c, camp.OY + 10, 0.3f));
         // water zones

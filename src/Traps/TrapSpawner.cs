@@ -45,10 +45,10 @@ public static class TrapSpawner
         return true;
     }
 
-    static bool NearCamp(Game g, Vector3 pos)
+    static bool NearHall(Game g, Vector3 pos)
     {
         if (_placedFor != g.World) { _placedFor = g.World; Placed.Clear(); Features = 0; }
-        return g.World.Cave.CampZone.Grow(TrapTuning.CampMargin).HasPoint(pos);
+        return g.World.Cave.HallZone.Grow(TrapTuning.HallMargin).HasPoint(pos);
     }
 
     /// <summary>Runs a on the server after the freshly built cave is in the physics space (raycasts miss before that).</summary>
@@ -68,7 +68,7 @@ public static class TrapSpawner
 
     static void PlaceTrap(Game g, RoomInfo room, SpawnMarker m, RandomNumberGenerator rng)
     {
-        if (!Net.I.IsServer || NearCamp(g, m.Pos) || !Spaced(g, m.Pos) || Features >= TrapTuning.MaxTraps(g.Round)) return;
+        if (!Net.I.IsServer || NearHall(g, m.Pos) || !Spaced(g, m.Pos) || Features >= TrapTuning.MaxTraps(g.Round)) return;
         int round = g.Round, depth = room.Depth;
         bool safe = depth <= TrapTuning.SafeDepth;
         var table = new List<(string kind, float w)>
@@ -138,7 +138,7 @@ public static class TrapSpawner
 
     static void PlaceLever(Game g, RoomInfo room, SpawnMarker m, RandomNumberGenerator rng)
     {
-        if (!Net.I.IsServer || NearCamp(g, m.Pos) || !Spaced(g, m.Pos, TrapTuning.MinLeverSpacing) || Features >= TrapTuning.MaxTraps(g.Round)) return;
+        if (!Net.I.IsServer || NearHall(g, m.Pos) || !Spaced(g, m.Pos, TrapTuning.MinLeverSpacing) || Features >= TrapTuning.MaxTraps(g.Round)) return;
         var kinds = new List<string> { "gate", "collapse", "trapdoor" };
         float r = rng.Randf();
         string first = r < 0.4f ? "gate" : r < 0.75f ? "collapse" : "trapdoor";

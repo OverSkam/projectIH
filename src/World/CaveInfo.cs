@@ -28,8 +28,19 @@ public class RoomInfo
 /// <summary>Everything the rest of the game needs to know about a built cave.</summary>
 public class CaveInfo
 {
-    public Aabb CampZone;
+    /// <summary>The Hall of the Scale: miners inside this box when the timer ends are counted; no PvP, monsters and traps do nothing here.</summary>
+    public Aabb HallZone;
+    /// <summary>Old name of <see cref="HallZone"/> (kept so older cave code keeps compiling).</summary>
+    public Aabb CampZone { get => HallZone; set => HallZone = value; }
     public Vector3 GoblinPos;
+    /// <summary>Feeding point: the Goblin's open palm. Stones/steins are fed to the Goblin when a miner interacts near it.</summary>
+    public Vector3 PalmPos;
+    /// <summary>Centre of the weighing platform (the Scale). Weighing visuals are built here.</summary>
+    public Vector3 ScalePos;
+    /// <summary>Fixed standing places for the weighing ceremony (>= 8, all inside the Hall, all facing ScalePos).</summary>
+    public List<Vector3> WeighSpots = new();
+    /// <summary>Where the thrown miner falls into the dark (beside the Scale, inside the Hall).</summary>
+    public Vector3 ShaftPos;
     public List<Vector3> MinerSpawns = new();
     public List<RoomInfo> Rooms = new();
     /// <summary>Walkable waypoint graph (used by bots, and later by monster AI).</summary>
@@ -39,7 +50,18 @@ public class CaveInfo
     public List<Aabb> WaterZones = new();
     public bool InWater(Vector3 p) { foreach (var w in WaterZones) if (w.HasPoint(p)) return true; return false; }
 
-    public bool InCamp(Vector3 p) => CampZone.HasPoint(p);
+    public bool InHall(Vector3 p) => HallZone.HasPoint(p);
+
+    /// <summary>Fills WeighSpots with n places on an arc (radius r) around ScalePos, on the side of +Z, spread over +-spread radians.</summary>
+    public void MakeWeighSpots(int n = 8, float r = 5.5f, float spread = 1.15f)
+    {
+        WeighSpots.Clear();
+        for (int i = 0; i < n; i++)
+        {
+            float a = n == 1 ? 0f : -spread + 2f * spread * i / (n - 1);
+            WeighSpots.Add(ScalePos + new Vector3(Mathf.Sin(a) * r, 0.3f, Mathf.Cos(a) * r));
+        }
+    }
 
     public RoomInfo RoomAt(Vector3 p)
     {

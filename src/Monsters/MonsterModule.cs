@@ -22,16 +22,11 @@ public static class MonsterModule
     }
 
     // ------------------------------------------------------------------ spawning
-    public static float HpOf(string kind) => kind switch
-    {
-        "golem" => MonsterTuning.GolemHp, "ember" => MonsterTuning.EmberHp, _ => 1f,
-    };
-
     public static T Spawn<T>(string kind, Vector3 pos) where T : MonsterObj
     {
         var g = Game.I;
         var st = kind == "dragon" ? MonsterState.Asleep : MonsterState.Idle;
-        int id = g.ServerSpawnObject(kind, pos, MonsterObj.MakeData(st, HpOf(kind), HpOf(kind)));
+        int id = g.ServerSpawnObject(kind, pos, MonsterObj.MakeData(st));
         return g.World.Objects.TryGetValue(id, out var o) ? o as T : null;
     }
 
@@ -42,7 +37,7 @@ public static class MonsterModule
         float ox = rng.RandfRange(-2f, 2f), oz = rng.RandfRange(-2f, 2f);
         if (Util.HasArg("nomonsters")) return;
         int round = g.Round;
-        if (g.World.Cave.InCamp(m.Pos) || room.Depth <= MonsterTuning.SafeDepth) return;
+        if (g.World.Cave.InHall(m.Pos) || room.Depth <= MonsterTuning.SafeDepth) return;
         float chance = Mathf.Clamp(MonsterTuning.SpawnChanceBase + MonsterTuning.SpawnChancePerRound * (round - 1) + MonsterTuning.SpawnChancePerDepth * (room.Depth - 1), 0f, 0.95f);
         if (roll > chance) return;
         SpawnOne(g, room, m.Pos, round, pick);
@@ -73,12 +68,7 @@ public static class MonsterModule
         if (_countWorld != g.World) { _countWorld = g.World; _total = 0; _perRoom.Clear(); }
         if (_total >= MonsterTuning.MaxTotal(round) || _perRoom.GetValueOrDefault(room.Id) >= MonsterTuning.MaxPerRoom(round)) return;
         _total++; _perRoom[room.Id] = _perRoom.GetValueOrDefault(room.Id) + 1;
-        float wg = MonsterTuning.GolemWeight;
-        float we = round >= 2 || room.Depth >= 3 ? MonsterTuning.EmberWeightLate : (room.Depth >= 2 ? MonsterTuning.EarlyRareWeight : 0f);
-        float ww = round >= 2 ? MonsterTuning.WispWeightLate : (room.Depth >= 2 ? MonsterTuning.EarlyRareWeight : 0f);
-        if (round >= 3) { wg *= 0.7f; }
-        float r = pick * (wg + we + ww);
-        string kind = r < wg ? "golem" : (r < wg + we ? "ember" : "wisp");
+        const string kind = "golem";   // Ember Elemental and Gas Wisp no longer spawn (classes kept for a later step)
         Spawn<MonsterObj>(kind, pos);
     }
 
@@ -225,7 +215,7 @@ public partial class MonsterDirector : Node
             Vector3? pos = null;
             if (at == "near")
             {
-                var p = g.Players.Values.FirstOrDefault(q => q.Alive && q.Participant && !g.World.Cave.InCamp(q.Pos));
+                var p = g.Players.Values.FirstOrDefault(q => q.Alive && q.Participant && !g.World.Cave.InHall(q.Pos));
                 if (p != null)
                 {
                     _nearTimer += dt;
