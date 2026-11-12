@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # App Stein full-game soak test: 1 headless host + 3 explorer bots in generated (ModularCave) caves with monsters AND traps,
+# (all four miners, host included, are explorer bots)
 # v2 rules, short rounds (preset soak: 105 s rounds; 4 miners = 3 rounds, the match must run to a winner). The explorer bots feed the Goblin
 # and keep their lantern oil topped up.
 # Usage: tools/full_test.sh   (env: PORT=7777  LOGDIR=<dir>  TIMEOUT=600  SEED=11)
@@ -17,7 +18,7 @@ echo "== run seedbase=$SEED rounds<=$ROUNDS (logs in $LOGDIR)"
 COMMON="--preset=soak --seedbase=$SEED --soak --timeout=$TIMEOUT"
 HOSTARGS="--give=Alice=stein:ethereal --giveeach"   # Alice can phase through thin walls: bots reach the nook chests
 PIDS=()
-godot --headless --path . -- --host --name=Host --port="$PORT" --autostart=4 --bot=idle $COMMON $HOSTARGS > "$LOGDIR/host.log" 2>&1 & PIDS+=($!)
+godot --headless --path . -- --host --name=Host --port="$PORT" --autostart=4 --bot=explorer $COMMON $HOSTARGS > "$LOGDIR/host.log" 2>&1 & PIDS+=($!)
 sleep 4
 godot --headless --path . -- --join=127.0.0.1 --port="$PORT" --name=Alice --bot=explorer $COMMON > "$LOGDIR/alice.log" 2>&1 & PIDS+=($!)
 godot --headless --path . -- --join=127.0.0.1 --port="$PORT" --name=Bob --bot=explorer_brave $COMMON > "$LOGDIR/bob.log" 2>&1 & PIDS+=($!)
@@ -58,7 +59,8 @@ if [ "$(msum trap)" -gt 0 ] && [ "$trp" -eq 0 ]; then fail "trap markers produce
 need() { if grep -qE "$2" "$H"; then echo "PASS: $1"; else fail "missing: $1 (/$2/)"; fi; }
 need ore_mined '^PASS: ore_mined'
 need stones_fed '^PASS: feed_server'
-need lantern_managed '^PASS: explorer_lantern_toggle'
+if grep -qh '^PASS: explorer_lantern_toggle' "$LOGDIR"/alice.log "$LOGDIR"/bob.log "$LOGDIR"/carol.log "$H"; then echo "PASS: lantern_managed"; else fail "missing: bots never switched their lantern"; fi
+if grep -qh 'oil_refilled' "$H"; then echo "PASS: oil_refilled"; else echo "note: no bot refilled at an oil drum this run"; fi
 need chest_opened '^PASS: chest_opened'
 if [ "$(osum trap_lever)" -gt 0 ]; then need lever_pulled '^PASS: lever_pulled'; fi
 need monster_moved 'SOAKMON kind=[a-z]+ id=[0-9]+ dist=([1-9][0-9]|[0-9]{3,}) '

@@ -169,7 +169,8 @@ public class ExplorerBot : IMinerController
                 case ShrineObj s:
                     { var t = Kv(s, "type"); if (Kv(s, "state") == "done" || t == "plate") continue; w = 1.3f; break; }
                 case LeverObj l: if (Kv(l, "s") != "ready") continue; w = _brave ? 0.7f : 1.2f; break;
-                case OilDrumObj od: if (g.OwnOil > g.OwnOilMax * 0.3f || Kv(od, "uses") == "0") continue; w = 0.15f; break;   // monsters cannot be killed: nothing to fight
+                case OilDrumObj od: if (g.OwnOil > g.OwnOilMax * 0.3f || Kv(od, "uses") == "0") continue; w = 0.15f; break;
+                case MonsterObj mo: if (!_brave || mo.Kind != "golem" || mo.State == MonsterState.Stunned) continue; w = 0.9f; break;   // brave bots provoke golems (they cannot be killed; a swing at the back stuns them)
                 default:
                     if (_brave && o.Kind is "trap_spikes" or "trap_darts" or "trap_trapdoor" or "trap_gas" or "trap_rockfall") { w = 0.6f; break; }
                     continue;
@@ -239,6 +240,15 @@ public class ExplorerBot : IMinerController
                         }
                     }
                     if (Walk(m, ref inp, op, 1.7f)) { Face(m, ref inp, op + Vector3.Up); inp.Move = Vector2.Zero; Interact(g, o, 0.8); if (++_targetTries > 10) Drop(); }
+                    break;
+                }
+            case MonsterObj mo:
+                {
+                    EquipPickaxe(g);
+                    float d = Flat(mo.GlobalPosition).DistanceTo(Flat(pos));
+                    if (d > 2.6f) Walk(m, ref inp, op, 2.4f);
+                    else { Face(m, ref inp, op + Vector3.Up * 1.5f); inp.Move = Vector2.Zero; if (inv.Held == "pickaxe") inp.Attack = true; }
+                    if (++_targetTries > 3000) Drop();
                     break;
                 }
             case OilDrumObj:

@@ -3,7 +3,7 @@ using Godot;
 namespace AppStein;
 
 /// <summary>Screenshot helper: `--screen=<name>` stages a state so tools/screenshot.sh can capture it. Does nothing without the arg.
-/// goblin | goblin_happy | goblin_angry | miner | hands_pick | hands_lantern | hud | downed | feedprompt | feedprompt_stein | lowoil | score | pause | matchend | settings | guide | ghost</summary>
+/// goblin | goblin_happy | goblin_angry | miner | hands_pick | hands_lantern | hud | downed | lootprompt | feedprompt | feedprompt_stein | lowoil | score | pause | matchend | settings | guide | ghost</summary>
 public partial class UiDebug : Node
 {
     string _screen;
@@ -52,6 +52,20 @@ public partial class UiDebug : Node
                 other.Rotation = new Vector3(0, lm.Rotation.Y + 2.6f, 0);
                 other.SetHeld("pickaxe");
                 other.ApplyNetState(other.GlobalPosition, other.Rotation.Y, 0, 0);
+                _done = true; break;
+            case "lootprompt":
+                if (!inRound || g.LocalMiner == null || _t < 1.0) return;
+                {
+                    var me = g.LocalMiner;
+                    var dn = new Miner { Name = "9998", PeerId = 9998, PlayerName = "Gus", IsLocal = false };
+                    g.World.MinersRoot.AddChild(dn);
+                    var f = -me.GlobalTransform.Basis.Z;
+                    dn.GlobalPosition = me.GlobalPosition + f * 2.1f;
+                    dn.Rotation = new Vector3(0, me.Rotation.Y + 2.6f, 0);
+                    dn.ApplyNetState(dn.GlobalPosition, dn.Rotation.Y, 0, 0);
+                    dn.SetDowned(true);
+                    (me.Controller as HumanController)?.SetLook(me.Rotation.Y, -0.62f);
+                }
                 _done = true; break;
             case "guide":
                 if (_t > 0.5) { MenuUI.I?.ShowGuide(true); _done = true; }
