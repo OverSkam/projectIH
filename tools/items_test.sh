@@ -45,7 +45,7 @@ run_match() { # name give extra-client-names...   (clients: Alice Bob [Carol Dav
   done
   ALL=$(cat "$d"/*.log)
   grep -h "^FAIL:" "$d"/*.log && fail "$name: FAIL lines"
-  grep -hE "ERROR|SCRIPT ERROR|Unhandled exception|Exception:" "$d"/*.log && fail "$name: runtime errors"
+  grep -hE "ERROR|SCRIPT ERROR|Unhandled exception|Exception:" "$d"/*.log | grep -vE "leaked at exit|Pages in use|RID allocations|Unreferenced static string" | grep . && fail "$name: runtime errors"
 }
 want() { if grep -q "^PASS: $1" <<<"$ALL"; then echo "PASS: $CUR/$1"; else fail "$CUR: missing PASS: $1"; fi; }
 

@@ -61,7 +61,8 @@ for want in connected peers_connected round_started ore_mined vein_geodes geode_
   if grep -q "^PASS: $want" <<<"$ALL"; then echo "PASS: $want"; else fail "missing PASS: $want"; fi
 done
 grep -h "^FAIL:" "$LOGDIR"/host.log "$LOGDIR"/alice.log "$LOGDIR"/bob.log && fail "FAIL lines present"
-grep -hE "ERROR|SCRIPT ERROR|Unhandled exception|Exception:|Traceback" "$LOGDIR"/host.log "$LOGDIR"/alice.log "$LOGDIR"/bob.log && fail "runtime errors in logs"
+# (the engine prints RID / paged-allocator leak lines at exit in headless runs, also on the previous commit: not game errors, same filter as monsters_test / traps_test; a real abort shows as a non-zero exit code below)
+grep -hE "ERROR|SCRIPT ERROR|Unhandled exception|Exception:|Traceback" "$LOGDIR"/host.log "$LOGDIR"/alice.log "$LOGDIR"/bob.log | grep -vE "leaked at exit|Pages in use|RID allocations|Unreferenced static string" | grep . && fail "runtime errors in logs"
 
 # ---- scenario assertions
 H="$LOGDIR/host.log"
