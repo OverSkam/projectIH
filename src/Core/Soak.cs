@@ -21,7 +21,9 @@ public partial class SoakDirector : Node
 {
     double _t;
     bool _audited;
-    double _sample;
+    double _sample, _firstEnc = -1;
+    int _round, _encTicks;
+    readonly HashSet<int> _inHallBad = new();
     class MonTrack { public string Kind; public Vector3 Last; public float Dist; public HashSet<int> Rooms = new(); public int StuckEvents; public Vector3 StuckRef; public double StuckSince; }
     readonly Dictionary<int, MonTrack> _mon = new();
 
@@ -39,11 +41,21 @@ public partial class SoakDirector : Node
 
     void SampleMonsters(Game g)
     {
+        // encounters: a living miner outside the Hall with a (non-sleeping) monster within 15 m
+        foreach (var pl in g.Players.Values)
+        {
+            if (!pl.Alive || !pl.Participant || g.World.Cave.InHall(pl.Pos)) continue;
+            foreach (var o in g.World.Objects.Values)
+                if (o is MonsterObj mo && mo.State != MonsterState.Asleep && mo.GlobalPosition.DistanceTo(pl.Pos) <= MonsterTuning.EncounterRadius)
+                { _encTicks++; if (_firstEnc < 0) _firstEnc = _t; break; }
+        }
         foreach (var o in g.World.Objects.Values.ToArray())
         {
             if (o is not MonsterObj m) continue;
             if (!_mon.TryGetValue(m.Id, out var t)) _mon[m.Id] = t = new MonTrack { Kind = m.Kind, Last = m.GlobalPosition, StuckRef = m.GlobalPosition, StuckSince = _t };
             var p = m.GlobalPosition;
+            // v2.1 audit: no monster may ever stand inside the Hall
+            if (g.World.Cave.InHall(p) && _inHallBad.Add(m.Id)) Bad($"r={g.Round} {m.Kind}#{m.Id} inside the Hall at {Fmt(p)}");
             t.Dist += new Vector3(p.X - t.Last.X, 0, p.Z - t.Last.Z).Length();
             t.Last = p;
             var room = g.World.Cave.RoomAt(p);
@@ -56,6 +68,7 @@ public partial class SoakDirector : Node
 
     public override void _ExitTree()
     {
+        Util.Log($"SOAKENC round={_round} first={_firstEnc:0.0} encounter_samples={_encTicks}");
         foreach (var kv in _mon)
             Util.Log($"SOAKMON kind={kv.Value.Kind} id={kv.Key} dist={kv.Value.Dist:0} rooms={kv.Value.Rooms.Count} stuck={kv.Value.StuckEvents}");
     }
@@ -69,7 +82,8 @@ public partial class SoakDirector : Node
         var markers = cave.Rooms.SelectMany(r => r.Markers).GroupBy(m => m.Kind).ToDictionary(k => k.Key, k => k.Count());
         int C(Dictionary<string, int> d, string k) => d.GetValueOrDefault(k);
         int traps = byKind.Where(kv => kv.Key.StartsWith("trap_") && kv.Key != "trap_lever" && kv.Key != "trap_gate").Sum(kv => kv.Value);
-        int monsters = C(byKind, "golem") + C(byKind, "ember") + C(byKind, "wisp");
+        int monsters = w.Objects.Values.Count(o => o is MonsterObj && o.Kind != "dragon");   // roaming monsters (every kind but the dragon)
+        _round = g.Round;
         Util.Log($"SOAKROUND r={g.Round} rooms={cave.Rooms.Count} markers[{string.Join(",", markers.OrderBy(k => k.Key).Select(k => k.Key + "=" + k.Value))}] " +
                  $"objects[{string.Join(",", byKind.OrderBy(k => k.Key).Select(k => k.Key + "=" + k.Value))}] monsters={monsters} traps={traps} levers={C(byKind, "trap_lever")}");
         int campMonsters = 0;
@@ -160,7 +174,7 @@ public partial class SoakDirector : Node
         {
             var room = cave.RoomAt(o.GlobalPosition);
             if (room == null || room.Depth != 1) continue;
-            if (o is MonsterObj || o.Kind is "trap_spikes" or "trap_rockfall" or "trap_trapdoor" or "trap_gas") Bad($"r={g.Round} {o.Kind}#{o.Id} in camp-adjacent room {room.Name}");
+            if (o.Kind is "trap_spikes" or "trap_rockfall" or "trap_trapdoor" or "trap_gas") Bad($"r={g.Round} {o.Kind}#{o.Id} in camp-adjacent room {room.Name}");
         }
         Util.Pass("soak_audit", $"round={g.Round}");
     }

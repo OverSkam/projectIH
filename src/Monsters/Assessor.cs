@@ -7,17 +7,12 @@ namespace AppStein;
 
 /// <summary>
 /// How the Assessor reads the sack. The sack/tribute rules are being reworked elsewhere: replace these delegates (one place) when they change; the monster keeps working.
-/// Default: a miner's tribute is the heavier of the fed total (<see cref="ServerPlayer.TributeWeight"/>) and the weight of the stones in the sack.
+/// Default: v2.1 sack: <see cref="ServerPlayer.TributeWeight"/> (sum of the stones in the bottomless sack); the top stone leaves the sack, burden follows from the sack, and only the owner is told (`Dirty` -> ClientOwnState).
 /// </summary>
 public static class AssessorHooks
 {
     /// <summary>The tribute weight the Assessor judges a miner by.</summary>
-    public static Func<ServerPlayer, int> TributeOf = p =>
-    {
-        int sack = 0;
-        foreach (var s in p.Inv.Sack) sack += Ores.WeightOf(s);
-        return Math.Max(p.TributeWeight, sack);
-    };
+    public static Func<ServerPlayer, int> TributeOf = p => p.TributeWeight;   // v2.1: the bottomless sack's tribute (stuffed steins included)
 
     /// <summary>Removes the miner's single highest-tribute stone (credited to nobody) and returns its id, or null when there is nothing to take.</summary>
     public static Func<ServerPlayer, string> TakeTopStone = p =>
@@ -30,8 +25,8 @@ public static class AssessorHooks
         }
         if (best < 0) return null;
         var id = p.Inv.Sack[best];
-        p.Inv.Sack.RemoveAt(best);
-        p.Dirty = true;
+        p.Inv.Sack.RemoveAt(best);   // burden and tribute are derived from the sack
+        p.Dirty = true;               // owner-only state update
         return id;
     };
 }
@@ -46,7 +41,8 @@ public partial class AssessorObj : MonsterObj
     MeshInstance3D _lensL, _lensR;
     float _evalT, _retreatT, _pinT;
     ServerPlayer _victim;
-    float _stepAcc;
+    float _stepAcc, _skipT;
+    ServerPlayer _skip;
     MonsterState _prevState = MonsterState.Idle;
 
     public AssessorObj()
@@ -111,7 +107,7 @@ public partial class AssessorObj : MonsterObj
         ServerPlayer best = null; int bw = 0; float bd = float.MaxValue;
         foreach (var p in Game.I.Players.Values)
         {
-            if (!p.Alive || !p.Participant || p.Downed || Cave.InHall(p.Pos)) continue;
+            if (!p.Alive || !p.Participant || p.Downed || Cave.InHall(p.Pos) || (p == _skip && _skipT > 0)) continue;
             int w = AssessorHooks.TributeOf(p);
             if (w <= 0) continue;
             float d = p.Pos.DistanceTo(GlobalPosition);
@@ -141,7 +137,7 @@ public partial class AssessorObj : MonsterObj
                 if (_retreatT <= 0) { _evalT = 0; SetState(MonsterState.Idle); }
                 return;
         }
-        _evalT -= dt;
+        _evalT -= dt; _skipT -= dt;
         if (_evalT <= 0 || Target == null || !Target.Alive || Cave.InHall(Target.Pos))
         {
             var prev = Target;
@@ -155,6 +151,7 @@ public partial class AssessorObj : MonsterObj
             if (d <= MonsterTuning.AssessorCatch && Mathf.Abs(Target.Pos.Y - GlobalPosition.Y) < 2.2f) { BeginPin(Target); return; }
             if (State != MonsterState.Chase) SetState(MonsterState.Chase);   // "stalking" (never runs: same speed as walking)
             MoveTo(Target.Pos, MonsterTuning.AssessorWalk, dt, true, MonsterTuning.AssessorCatch * 0.6f);
+            if (StuckT > 4f) { _skip = Target; _skipT = 25f; Target = null; _evalT = 0; StuckT = 0; _path = null; StartPatrol(); }   // cannot reach them (a crawl, rubble): look elsewhere for a while
             return;
         }
         // nobody to take from: wanders the cave

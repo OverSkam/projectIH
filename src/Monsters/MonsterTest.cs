@@ -43,6 +43,7 @@ public static class MonsterTest
         "lamp" => LampTest(),
         "assessor" => AssessorTest(),
         "plug" => PlugTest(),
+        "plugwalk" => PlugWalk(),
         "wicks" => WicksTest(),
         "director" => DirectorTest(),
         "replicate" => Replicate(),
@@ -375,7 +376,7 @@ public static class MonsterTest
         var a = Find("Alice"); var b = Find("Bob"); var spotA = Deep(60f); var spotB = Deep(60f, 1);
         yield return Until(() => a.Alive && b.Alive && FlatD(a.Pos, spotA) < 3f && FlatD(b.Pos, spotB) < 3f, 150, "bots_in_position");
         Util.Log($"MONTEST: tribute Alice={AssessorHooks.TributeOf(a)} Bob={AssessorHooks.TributeOf(b)}");
-        var bobWeight = b.TributeWeight; int bobStones = b.Inv.Sack.Count;
+        var bobWeight = b.TributeWeight; int bobStones = b.Inv.Sack.Count; int aliceWeight = a.TributeWeight; float aliceBurden = a.Burden;
         var start = FarFrom(spotA, 40f, 70f, NavProfile.Person);
         var ass = Mk<AssessorObj>("assessor", start, spotA);
         float maxSpeed = 0; var last = ass.GlobalPosition; double lt = Clock;
@@ -391,7 +392,8 @@ public static class MonsterTest
         yield return Until(() => { Track(); return a.Inv.Sack.Contains("diamond"); }, 1, "assessor_still_holding_during_pin");
         yield return Until(() => { Track(); return ass.State == MonsterState.Recover; }, 6, "assessor_pin_ends");
         yield return Until(() => !a.Inv.Sack.Contains("diamond") && a.Inv.Sack.Contains("coal"), 1, "assessor_takes_the_single_highest_stone");
-        yield return Until(() => b.Inv.Sack.Count == bobStones && b.TributeWeight == bobWeight && a.TributeWeight == 0, 1, "assessor_credits_nobody");
+        yield return Until(() => b.Inv.Sack.Count == bobStones && b.TributeWeight == bobWeight && a.TributeWeight == aliceWeight - Ores.WeightOf("diamond"), 1, "assessor_credits_nobody");
+        yield return Until(() => a.Burden < aliceBurden, 1, "assessor_burden_follows_the_sack");
         yield return Until(() => { Track(); return FlatD(ass.GlobalPosition, a.Pos) > 12f; }, 25, "assessor_retreats");
         Util.Log($"MONTEST: assessor max speed {ass.MaxStepSpeed:0.0} m/s (sampled {maxSpeed:0.0})");
         yield return Until(() => ass.MaxStepSpeed <= MonsterTuning.AssessorWalk + 0.3f && ass.MaxStepSpeed > 1f, 1, "assessor_never_runs");
@@ -535,5 +537,43 @@ public static class MonsterTest
         yield return Sleep(3f);
         foreach (var m in mons) m.Frozen = true;
         Heal(a);
+    }
+
+    // ------------------------------------------------------------------ a real miner body walks into the Plug: it blocks, nobody is launched or pushed through
+    static IEnumerable<Wait> PlugWalk()
+    {
+        var a = Find("Alice"); var mc = ModularCave.Last; var tun = mc.Tunnels.First(x => x.Kind == 0);
+        var c0 = ModularCave.CellPos(tun.Cells[0].i, tun.Cells[0].j, 0f); var c2 = ModularCave.CellPos(tun.Cells[2].i, tun.Cells[2].j, 0f); var c3 = ModularCave.CellPos(tun.Cells[3].i, tun.Cells[3].j, 0f);
+        var axis = (c3 - c0).Normalized();
+        yield return Until(() => a.Alive && FlatD(a.Pos, c0) < 1.5f, 150, "alice_at_tunnel_mouth");
+        var plug = MonsterModule.Spawn<PlugObj>("plug", new Vector3(c2.X, Nav.Pos[Nav.Nearest(NavProfile.Tall, c2)].Y, c2.Z));
+        plug.Yaw = Mathf.Atan2(-axis.X, -axis.Z);
+        plug.Frozen = true;
+        float plugS = (plug.GlobalPosition - c0).Dot(axis);
+        var last = a.Pos; float maxJump = 0, maxS = -99; double t0 = Clock, lastT = Clock;
+        yield return Until(() =>
+        {
+            if (Clock - lastT >= 0.1) { maxJump = Mathf.Max(maxJump, (a.Pos - last).Length()); last = a.Pos; lastT = Clock; }
+            maxS = Mathf.Max(maxS, (a.Pos - c0).Dot(axis));
+            Heal(a);
+            return Clock - t0 > 12;
+        }, 30, null);
+        Util.Log($"MONTEST: plugwalk frozen: miner reached s={maxS:0.00} (plug centre at {plugS:0.00}), max 0.1 s jump {maxJump:0.00} m");
+        yield return Until(() => maxS < plugS - 0.3f, 1, "miner_cannot_pass_the_plug");
+        yield return Until(() => maxJump < 1.2f, 1, "miner_not_launched_by_the_plug");
+        // now it creeps into the pressed miner
+        plug.Frozen = false; plug.Dispatch(c0 - axis * 3f); t0 = Clock; maxJump = 0; maxS = -99; lastT = Clock; last = a.Pos;
+        yield return Until(() =>
+        {
+            if (Clock - lastT >= 0.1) { maxJump = Mathf.Max(maxJump, (a.Pos - last).Length()); last = a.Pos; lastT = Clock; }
+            maxS = Mathf.Max(maxS, (a.Pos - c0).Dot(axis));
+            Heal(a);
+            return Clock - t0 > 10;
+        }, 30, null);
+        float plugS2 = (plug.GlobalPosition - c0).Dot(axis);
+        Util.Log($"MONTEST: plugwalk creeping: miner max s={maxS:0.00}, plug now at {plugS2:0.00}, max 0.1 s jump {maxJump:0.00} m");
+        yield return Until(() => maxJump < 1.8f, 1, "miner_not_launched_by_creeping_plug");
+        yield return Until(() => (a.Pos - c0).Dot(axis) < plugS2 + 0.1f, 1, "miner_pushed_back_not_through");
+        plug.Frozen = true;
     }
 }

@@ -84,11 +84,12 @@ run_scenario hall 2 "alice_in_hall hall_never_entered monster_stops_at_hall_edge
 run_scenario lamp 2 "alice_in_position lamplighter_ignores_miner_beyond_3m lamplighter_snuffs_when_attacked lamplighter_grabs_attacker lamplighter_deals_40_damage lamplighter_lets_go_and_walks_away lamplighter_walks_away_far lamplighter_relights_and_stands lamplighter_triggers_within_3m lamplighter_second_grab montest_done" "miner_hurt_seen" 0 --monpos=deep:60
 HOSTEXTRA="--roundsecs=600 --seedbase=${SEEDBASE:-5} --give=Alice=ore:diamond,Alice=ore:coal,Bob=ore:gold"
 BOBARGS="--monpos=deep:60:1"
-run_scenario assessor 3 "bots_in_position assessor_stalks_highest_tribute assessor_catches_target assessor_still_holding_during_pin assessor_pin_ends assessor_takes_the_single_highest_stone assessor_credits_nobody assessor_retreats assessor_never_runs montest_done" "" 1 --monpos=deep:60
+run_scenario assessor 3 "bots_in_position assessor_stalks_highest_tribute assessor_catches_target assessor_still_holding_during_pin assessor_pin_ends assessor_takes_the_single_highest_stone assessor_credits_nobody assessor_burden_follows_the_sack assessor_retreats assessor_never_runs montest_done" "" 1 --monpos=deep:60
 BOBARGS=""
 HOSTEXTRA="--roundsecs=600 --seedbase=${SEEDBASE:-5}"
 run_scenario plug 2 "alice_in_position nav_profiles_fit plug_spawns_in_a_tunnel plug_creeps_about_1_mps plug_creeps_toward_the_noise plug_body_blocks_the_tunnel plug_stun_applied plug_stun_is_short plug_pushed_back_by_dynamite plug_crushes_20_dps montest_done" "monster_replicated miner_hurt_seen" 0 --monpos=deep:60
 run_scenario wicks 2 "alice_in_position wicks_drawn_to_lit_lantern wicks_drain_oil_fast wicks_bite wicks_lose_interest_when_lantern_off montest_done" "monster_replicated" 0 --monpos=deep:60
+run_scenario plugwalk 2 "alice_at_tunnel_mouth miner_cannot_pass_the_plug miner_not_launched_by_the_plug miner_not_launched_by_creeping_plug miner_pushed_back_not_through montest_done" "" 0 --monpos=tun --monpush
 HOSTEXTRA="--roundsecs=600 --seedbase=${SEEDBASE:-5} --mondirector --dirquiet=14 --dircheck=5"
 run_scenario director 2 "alice_in_position director_sent_a_monster_after_quiet director_waited_for_the_quiet_period director_monster_heads_to_the_miner director_monster_closes_in montest_done" "" 0 --monpos=deep:60
 HOSTEXTRA="--roundsecs=600 --seedbase=${SEEDBASE:-5}"

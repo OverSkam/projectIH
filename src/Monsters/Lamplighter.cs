@@ -29,7 +29,7 @@ public partial class LamplighterObj : MonsterObj
     protected override void BuildModel()
     {
         var coat = new Color(0.10f, 0.095f, 0.11f);
-        var skin = new Color(0.72f, 0.70f, 0.62f);
+        var skin = new Color(0.42f, 0.40f, 0.36f);
         _legL = Pivot(Rig, new Vector3(-0.1f, 0.95f, 0)); _legR = Pivot(Rig, new Vector3(0.1f, 0.95f, 0));
         foreach (var l in new[] { _legL, _legR })
         {

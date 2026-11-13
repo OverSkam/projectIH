@@ -27,6 +27,11 @@ public class MonsterBot : IMinerController
     static Vector3? ParseXZ(string s)
     {
         var p = s.Split(':');
+        if (p[0] == "tun" && ModularCave.Last is { } mcT)
+        {
+            var t = mcT.Tunnels.FirstOrDefault(x => x.Kind == 0);
+            if (t != null) return ModularCave.CellPos(t.Cells[0].i, t.Cells[0].j, 0f);
+        }
         if (p.Length >= 2 && p[0] == "deep" && float.TryParse(p[1], out var hd) && Game.I?.World?.Cave != null)
         {
             var v = MonsterNav.For(Game.I.World.Cave).DeepNode(hd, p.Length > 2 && int.TryParse(p[2], out var vi) ? vi : 0);
@@ -55,6 +60,15 @@ public class MonsterBot : IMinerController
         if (goal.HasValue && !_arrived) { if (_unstick > 0) { _unstick -= dt; inp.Jump = true; inp.Move = new Vector2(_strafe, 0.3f); } _yaw = inp.Yaw; _pitch = inp.Pitch; return inp; }
 
         if (_arrived && Util.Arg("monlantern", "") == "off" && !_lanternDone && g.OwnInv.Held == "lantern") { inp.ToggleLantern = true; _lanternDone = true; }
+        if (_arrived && Util.HasArg("monpush") && ModularCave.Last is { } mcP)
+        {
+            // walk straight along the tunnel into whatever blocks it (the Plug test)
+            var t = mcP.Tunnels.First(x => x.Kind == 0);
+            var far = ModularCave.CellPos(t.Cells[3].i, t.Cells[3].j, 0f);
+            Face(m, ref inp, new Vector3(far.X, m.EyePos.Y, far.Z)); inp.Pitch = 0;
+            inp.Move = new Vector2(0, 1);
+            _yaw = inp.Yaw; _pitch = inp.Pitch; return inp;
+        }
         // in position: look at the interesting thing
         MonsterObj mon = null; float bd = float.MaxValue;
         foreach (var o in g.World.Objects.Values)

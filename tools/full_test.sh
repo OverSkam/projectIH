@@ -69,6 +69,10 @@ need monster_moved 'SOAKMON kind=[a-z]+ id=[0-9]+ dist=([1-9][0-9]|[0-9]{3,}) '
 need monster_hit_miner 'SOAKDMG cause=(monster|fire) '
 grep -q '^PASS: monster_died' "$H" && fail "a monster died (monsters are unkillable)"
 if [ "$trp" -gt 0 ]; then need trap_hit_miner 'TRAPDMG kind='; fi
+enc_bad=$(grep -h '^SOAKENC' "$H" | grep -c 'first=-1')
+echo "encounters: $(grep -h '^SOAKENC' "$H" | tr '\n' ' ')"
+[ "$(grep -c '^SOAKENC' "$H")" -ge 1 ] || fail "no SOAKENC lines (soak director did not report)"
+[ "$enc_bad" -eq 0 ] || fail "a round passed without any miner having a monster within 15 m"
 echo "stuck monster events: $(grep -c SOAKSTUCK "$H")"
 [ "$(grep -c SOAKSTUCK "$H")" -le 6 ] || fail "too many stuck monsters"
 grep -hE "^PASS: (shrine_taken|shrine_trial_started|chest_opened|lever_pulled|monster_died)" "$H" | cut -d' ' -f2 | sort | uniq -c | tr '\n' ' '; echo

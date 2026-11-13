@@ -73,8 +73,12 @@ public partial class GuidePanel : PanelContainer
         foreach (var d in Utilities.All.Values) Item(b, d.Name, d.Description, UiTheme.Parchment);
 
         Head(b, "MONSTERS");
-        Para(b, "Monsters cannot be killed. Nothing you carry hurts them, but some things stun them for a few seconds.");
-        Item(b, "Stone Golem", $"Slow, but its overhead slam ({F(MonsterTuning.GolemWindup)} s wind-up, {F(MonsterTuning.GolemSlamReach)} m reach) does {F(MonsterTuning.GolemSlamDamage)} damage. Hits from the front do nothing; a pickaxe hit on the glowing crystal on its back stuns it for {F(MonsterTuning.GolemStunSeconds)} seconds. One miner distracts, another circles behind. Dynamite and bear traps stun it briefly too.", UiTheme.Parchment);
+        Para(b, "Monsters roam the whole cave and hunt by light and noise: a lit lantern in sight draws them from far away, noise brings them to the spot, and a miner without light is noticed only close by (about 2 m when standing still). Nothing you carry hurts them; some things stun them. They never enter the Hall, and only the Wicks fit through crawl spaces: a crawl is a safe escape.");
+        Item(b, "Stone Golem", "Heavy footsteps and dim red eyes. Fast and hits hard; a pickaxe hit on the glowing crystal on its back stuns it. Do not turn your back, run for a crawl.", UiTheme.Parchment);
+        Item(b, "The Plug", "A bloated mass that fills a tunnel and creeps toward noise. It cannot be passed or stunned for long: go around. Dynamite shoves it back.", UiTheme.Parchment);
+        Item(b, "Wicks", "A swarm of small pale things drawn to a lit lantern from far away. They drink your oil and bite. Switch the lantern off (L) and they lose interest.", UiTheme.Parchment);
+        Item(b, "The Lamplighter", "A tall thin figure with a light that looks just like a miner's lantern. Do not walk up to a lone light in the dark: it snuffs the flame and grabs you.", UiTheme.Parchment);
+        Item(b, "The Assessor", "The Goblin's bailiff, from round 2. It walks, never runs, and wants the best stone of the miner carrying the most. Keep moving or stay in the Hall.", UiTheme.Parchment);
         Item(b, "Dragon", $"Round 3 and later, asleep on a hoard in the deepest room. Cannot be stopped. Noise wakes it (mining, sprinting, dynamite). Its breath hits {F(MonsterTuning.DragonBreathRange)} m ahead for {F(MonsterTuning.DragonBreathDps)} damage per second after a {F(MonsterTuning.DragonWindup)} s wind-up: break line of sight. Monsters see a lit lantern from far away ({F(MonsterTuning.SightLantern)} m instead of {F(MonsterTuning.SightDark)} m).", UiTheme.Parchment);
 
         Head(b, "TRAPS AND THEIR TELLS");
