@@ -20,7 +20,7 @@ public partial class GoblinRig : Node3D
     readonly Node3D[] _upper = new Node3D[2], _fore = new Node3D[2], _upperHold = new Node3D[2], _foreHold = new Node3D[2], _hand = new Node3D[2], _elbowBall = new Node3D[2];
     readonly Node3D[][] _fingers = new Node3D[2][], _tips = new Node3D[2][];
     readonly Node3D[] _thumb = new Node3D[2];
-    MeshInstance3D _palmGlow; Label3D _palmLabel; OmniLight3D _victimLight, _faceLight;
+    MeshInstance3D _palmGlow; OmniLight3D _victimLight, _faceLight;
     float _t, _earTimer = 2f, _earTwitch, _blinkTimer = 3f, _blink, _speakT, _chewT, _react, _headYaw, _headPitch, _eyeYaw, _eyePitch, _lean, _torsoYaw, _armBlend, _curlL, _roll;
     string _reactKind = "";
     Vector3 _gripLast, _wristL = GoblinParts.RestWristL;
@@ -58,11 +58,11 @@ public partial class GoblinRig : Node3D
         var off = seat - host.GlobalPosition;
         host.AddChild(new GoblinRig { Name = "Rig", Position = off });
         void Shape(Vector3 c, Vector3 s) => host.AddChild(Util.BoxShape(s, c + off));
-        Shape(new Vector3(0, 0.75f, -0.3f), new Vector3(8.6f, 1.5f, 4.8f));          // throne
-        Shape(new Vector3(0, 3.4f, -0.2f), new Vector3(5.6f, 3.6f, 3.4f));           // torso
-        Shape(new Vector3(0, 7.1f, 0f), new Vector3(3.6f, 4.0f, 3.4f));              // head
-        Shape(new Vector3(-1.6f, 1.6f, 3.4f), new Vector3(1.9f, 3.2f, 5.0f));        // right leg
-        Shape(new Vector3(1.6f, 1.6f, 3.4f), new Vector3(1.9f, 3.2f, 5.0f));         // left leg
+        Shape(new Vector3(0, 0.5f, -0.3f), new Vector3(8.6f, 1.0f, 4.8f));          // throne
+        Shape(new Vector3(0, 3.1f, -0.1f), new Vector3(5.6f, 3.6f, 3.6f));           // torso
+        Shape(new Vector3(0, 9.0f, 1.5f), new Vector3(6.0f, 6.5f, 5.5f));              // head
+        Shape(new Vector3(-1.6f, 1.2f, 3.4f), new Vector3(1.9f, 2.4f, 5.0f));        // right leg
+        Shape(new Vector3(1.6f, 1.2f, 3.4f), new Vector3(1.9f, 2.4f, 5.0f));         // left leg
         Shape(new Vector3(-4.2f, 3.2f, -0.2f), new Vector3(1.6f, 3.2f, 1.7f));       // right upper arm
         Shape(new Vector3(-4.3f, 1.9f, 1.3f), new Vector3(1.4f, 1.6f, 2.0f));        // right forearm
         Shape(new Vector3(4.2f, 3.2f, -0.2f), new Vector3(1.6f, 3.2f, 1.7f));        // left upper arm
@@ -78,7 +78,7 @@ public partial class GoblinRig : Node3D
         AddChild(_torso);
         GoblinParts.Torso(_torso);
 
-        _head = new Node3D { Position = GoblinParts.HeadPos, Name = "Head", Scale = Vector3.One * 1.1f };
+        _head = new Node3D { Position = GoblinParts.HeadPos, Name = "Head", Scale = Vector3.One * GoblinParts.HeadScale };
         AddChild(_head);
         GoblinParts.HeadStatic(_head);
         _jaw = GoblinParts.Jaw(_head);
@@ -106,21 +106,16 @@ public partial class GoblinRig : Node3D
         _palmGlow = new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 1.1f, BottomRadius = 1.1f, Height = 0.02f, RadialSegments = 20, Rings = 1 }, MaterialOverride = glowMat, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
         _palmGlow.Position = new Vector3(-4.2f, 1.5f, 4.35f);
         AddChild(_palmGlow);
-        _palmLabel = new Label3D
-        {
-            Text = "FEED HIM", PixelSize = 0.0065f, FontSize = 64, Billboard = BaseMaterial3D.BillboardModeEnum.FixedY, Position = new Vector3(-4.2f, 2.6f, 4.4f), Font = UiTheme.Chunky,
-            Modulate = new Color(0.85f, 1f, 0.4f, 0.8f), OutlineSize = 16, OutlineModulate = new Color(0, 0, 0, 0.9f), NoDepthTest = false,
-        };
-        AddChild(_palmLabel);
+
 
         // lighting: sickly green-yellow from below, so the face is the brightest, most readable thing
-        _faceLight = new OmniLight3D { Position = new Vector3(0, 4.7f, 5.6f), LightColor = new Color(0.86f, 0.94f, 0.52f), LightEnergy = 3.8f, OmniRange = 12.5f, OmniAttenuation = 1.0f, ShadowEnabled = false };
+        _faceLight = new OmniLight3D { Position = new Vector3(0, 4.4f, 6.2f), LightColor = new Color(0.86f, 0.94f, 0.52f), LightEnergy = 8.0f, OmniRange = 17f, OmniAttenuation = 1.0f, ShadowEnabled = false };
         AddChild(_faceLight);
-        AddChild(new OmniLight3D { Position = new Vector3(0, 3.2f, 7.5f), LightColor = new Color(0.65f, 0.9f, 0.3f), LightEnergy = 1.8f, OmniRange = 9f, ShadowEnabled = false });
-        AddChild(new OmniLight3D { Position = new Vector3(-4.2f, 1.2f, 6.2f), LightColor = new Color(0.75f, 0.95f, 0.3f), LightEnergy = 1.6f, OmniRange = 6.5f, ShadowEnabled = false });
-        AddChild(new OmniLight3D { Position = new Vector3(0, 10.4f, -1.6f), LightColor = new Color(0.50f, 0.85f, 0.25f), LightEnergy = 1.5f, OmniRange = 7f, ShadowEnabled = false });
+        AddChild(new OmniLight3D { Position = new Vector3(0, 3.2f, 7.5f), LightColor = new Color(0.65f, 0.9f, 0.3f), LightEnergy = 0.5f, OmniRange = 9f, ShadowEnabled = false });
+        AddChild(new OmniLight3D { Position = new Vector3(-4.2f, 1.2f, 6.2f), LightColor = new Color(0.75f, 0.95f, 0.3f), LightEnergy = 0.5f, OmniRange = 6.5f, ShadowEnabled = false });
+        AddChild(new OmniLight3D { Position = new Vector3(0, 11.2f, 0.5f), LightColor = new Color(0.50f, 0.85f, 0.25f), LightEnergy = 1.0f, OmniRange = 8f, ShadowEnabled = false });
         foreach (float s in new[] { -1f, 1f })
-            AddChild(new OmniLight3D { Position = new Vector3(4.2f * s, 7.5f, 3.6f), LightColor = new Color(0.55f, 0.82f, 0.25f), LightEnergy = 1.3f, OmniRange = 7.5f, ShadowEnabled = false });
+            AddChild(new OmniLight3D { Position = new Vector3(5.0f * s, 8.5f, 4.6f), LightColor = new Color(0.55f, 0.82f, 0.25f), LightEnergy = 1.1f, OmniRange = 8f, ShadowEnabled = false });
         // follows the miner being thrown so the throw is easy to see
         _victimLight = new OmniLight3D { LightColor = new Color(1f, 0.93f, 0.62f), LightEnergy = 5f, OmniRange = 10f, Visible = false, TopLevel = true, ShadowEnabled = false };
         AddChild(_victimLight);
@@ -209,7 +204,7 @@ public partial class GoblinRig : Node3D
             var lv = ToLocal(victim.GlobalPosition);
             twistT = Mathf.Clamp(Mathf.Atan2(lv.X - 0f, Mathf.Max(2f, lv.Z)) * 0.5f, -0.3f, 0.3f) * up * down;
         }
-        _lean = Mathf.Lerp(_lean, leanT, Mathf.Min(1f, dt * 8f));
+        _lean = Mathf.Lerp(_lean, GoblinParts.RestLean + leanT, Mathf.Min(1f, dt * 8f));
         _torsoYaw = Mathf.Lerp(_torsoYaw, twistT, Mathf.Min(1f, dt * 6f));
         _torso.Rotation = new Vector3(_lean + 0.006f * br, _torsoYaw, 0);
 
@@ -225,7 +220,7 @@ public partial class GoblinRig : Node3D
         _headPitch = Mathf.Lerp(_headPitch, tp * 0.7f, Mathf.Min(1f, dt * 1.4f));
         float shake = _react > 0 && _reactKind == "angry" ? Mathf.Sin(_t * 38f) * 0.012f : 0f;
         float nod = _react > 0 && _reactKind == "happy" ? Mathf.Sin(_t * 9f) * 0.03f : 0f;
-        _head.Position = GoblinParts.HeadPos + _torso.Position - GoblinParts.TorsoPos + new Vector3(0, 0.03f * br, _lean * 1.6f);
+        _head.Position = GoblinParts.HeadPos + _torso.Position - GoblinParts.TorsoPos + new Vector3(0, 0.03f * br - _lean * 0.9f, (_lean - GoblinParts.RestLean) * 4.2f);
         _head.Rotation = new Vector3(_headPitch + _lean * 0.35f + nod, _headYaw + shake + _torsoYaw * 0.4f, shake * 2f + 0.03f);
         float ey = Mathf.Clamp(ty - _headYaw, -0.4f, 0.4f), ep = Mathf.Clamp(tp - _headPitch, -0.3f, 0.3f);
         _eyeYaw = Mathf.Lerp(_eyeYaw, ey, Mathf.Min(1f, dt * 7f)); _eyePitch = Mathf.Lerp(_eyePitch, ep, Mathf.Min(1f, dt * 7f));
@@ -310,10 +305,7 @@ public partial class GoblinRig : Node3D
         // palm prompt pulse (stronger when a miner is close and could feed)
         float pulse = 0.5f + 0.5f * Mathf.Sin(_t * 2.4f);
         ((StandardMaterial3D)_palmGlow.MaterialOverride).AlbedoColor = new Color(0.75f, 1f, 0.3f, 0.12f + 0.14f * pulse);
-        _palmLabel.Modulate = new Color(0.85f, 1f, 0.4f, 0.45f + 0.4f * pulse);
-        _palmLabel.Position = new Vector3(-4.2f, 2.6f + 0.1f * Mathf.Sin(_t * 2f), 4.4f);
-        _palmLabel.Visible = victim == null;
-        _faceLight.LightEnergy = 3.8f * (1f + 0.04f * Mathf.Sin(_t * 1.7f) + (_react > 0 && _reactKind == "angry" ? 0.25f * Mathf.Sin(_t * 30f) : 0f));
+        _faceLight.LightEnergy = 7.0f * (1f + 0.04f * Mathf.Sin(_t * 1.7f) + (_react > 0 && _reactKind == "angry" ? 0.25f * Mathf.Sin(_t * 30f) : 0f));
     }
 
     /// <summary>Debug / screenshots: pretend a reaction happened.</summary>

@@ -12,7 +12,7 @@ namespace AppStein;
 /// </summary>
 public partial class HallScale : Node3D
 {
-    const float BeamY = 6.4f, ArmLen = 3.5f, Drop = 3.3f, MaxTilt = 0.42f;
+    const float BeamY = 2.9f, ArmLen = 3.0f, Drop = 1.9f, MaxTilt = 0.24f, PostX = 5.9f;
     Node3D _beam;
     Node3D _panL, _panR;
     readonly List<Node3D> _pile = new();
@@ -36,19 +36,19 @@ public partial class HallScale : Node3D
         var fix = new GMesh { Variation = 0.08f };
         fix.Tube(new Vector3(0, 0, 0), new Vector3(0, 0.25f, 0), 2.2f, 2.0f, stone, 12);
         fix.Tube(new Vector3(0, 0.25f, 0), new Vector3(0, 0.3f, 0), 1.9f, 1.9f, stone * 1.15f, 12);
-        foreach (float sx in new[] { -6.2f, 6.2f })
+        foreach (float sx in new[] { -PostX, PostX })
         {
             fix.Tube(new Vector3(sx, 0, 0), new Vector3(sx, 0.7f, 0), 0.95f, 0.75f, stone, 8);
-            fix.Tube(new Vector3(sx, 0.7f, 0), new Vector3(sx, 8.4f, 0), 0.42f, 0.3f, iron, 8);
-            fix.Ellipsoid(new Vector3(sx, 8.5f, 0), new Vector3(0.5f, 0.5f, 0.5f), brass, 8, 5);
+            fix.Tube(new Vector3(sx, 0.7f, 0), new Vector3(sx, 3.4f, 0), 0.42f, 0.3f, iron, 8);
+            fix.Ellipsoid(new Vector3(sx, 3.5f, 0), new Vector3(0.5f, 0.5f, 0.5f), brass, 8, 5);
         }
-        fix.Box(new Vector3(0, 8.45f, 0), new Vector3(13.0f, 0.4f, 0.4f), iron * 1.1f);
-        for (float y = BeamY + 0.3f; y < 8.3f; y += 0.36f)
+        fix.Box(new Vector3(0, 3.45f, 0), new Vector3(PostX * 2f, 0.35f, 0.35f), iron * 1.1f);
+        for (float y = BeamY + 0.3f; y < 3.3f; y += 0.36f)
             fix.Box(new Vector3(0, y, 0), (int)(y * 3f) % 2 == 0 ? new Vector3(0.09f, 0.3f, 0.2f) : new Vector3(0.2f, 0.3f, 0.09f), iron);
         fix.Ellipsoid(new Vector3(0, BeamY, 0), new Vector3(0.3f, 0.3f, 0.3f), brass, 8, 4);
         fix.Instance(this, null, "Gantry");
         var body = new StaticBody3D { Name = "ScaleBody", CollisionLayer = Layers.World, CollisionMask = 0 };
-        foreach (float sx in new[] { -6.2f, 6.2f }) body.AddChild(new CollisionShape3D { Shape = new CylinderShape3D { Radius = 0.9f, Height = 3f }, Position = new Vector3(sx, 1.5f, 0) });
+        foreach (float sx in new[] { -PostX, PostX }) body.AddChild(new CollisionShape3D { Shape = new CylinderShape3D { Radius = 0.9f, Height = 3f }, Position = new Vector3(sx, 1.5f, 0) });
         AddChild(body);
 
         // beam (rotates to tilt) with a gold ornament and two end knobs
@@ -72,17 +72,17 @@ public partial class HallScale : Node3D
         // big number floating above the beam, and the name under it
         _num = new Label3D
         {
-            Text = "", PixelSize = 0.014f, FontSize = 200, Billboard = BaseMaterial3D.BillboardModeEnum.FixedY, Position = new Vector3(0, 10.0f, 0),
+            Text = "", PixelSize = 0.0075f, FontSize = 200, Billboard = BaseMaterial3D.BillboardModeEnum.FixedY, Position = new Vector3(0, 4.3f, 0),
             Modulate = new Color(1f, 0.88f, 0.4f), OutlineSize = 36, OutlineModulate = new Color(0, 0, 0, 0.95f), Font = UiTheme.Chunky,
         };
         AddChild(_num);
         _name = new Label3D
         {
-            Text = "", PixelSize = 0.008f, FontSize = 160, Billboard = BaseMaterial3D.BillboardModeEnum.FixedY, Position = new Vector3(0, 11.4f, 0),
+            Text = "", PixelSize = 0.0042f, FontSize = 160, Billboard = BaseMaterial3D.BillboardModeEnum.FixedY, Position = new Vector3(0, 3.85f, 0),
             Modulate = new Color(0.95f, 0.92f, 0.8f), OutlineSize = 28, OutlineModulate = new Color(0, 0, 0, 0.95f), Font = UiTheme.Chunky,
         };
         AddChild(_name);
-        _light = new OmniLight3D { Position = new Vector3(0, 7.5f, 1.5f), LightColor = new Color(0.85f, 0.92f, 0.55f), LightEnergy = 1.5f, OmniRange = 13f, OmniAttenuation = 1.1f };
+        _light = new OmniLight3D { Position = new Vector3(0, 4.2f, 2.0f), LightColor = new Color(0.85f, 0.92f, 0.55f), LightEnergy = 0.6f, OmniRange = 13f, OmniAttenuation = 1.1f };
         AddChild(_light);
         BuildShaft(cave);
     }

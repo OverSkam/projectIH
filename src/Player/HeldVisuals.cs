@@ -56,7 +56,7 @@ public static class HeldVisuals
             Box(tool, new Vector3(0.014f, 0.21f, 0.014f), new Vector3(x, -0.23f, z), Brass);
         Box(tool, new Vector3(0.13f, 0.035f, 0.13f), new Vector3(0, -0.345f, 0), Brass.Darkened(0.2f));
         var flame = Util.SphereMesh(0.022f, new Color(1f, 0.85f, 0.35f), 1.6f); flame.Position = new Vector3(0, -0.27f, 0); flame.Scale = new Vector3(1, 1.6f, 1); tool.AddChild(flame);
-        var light = new OmniLight3D { LightColor = new Color(1f, 0.82f, 0.5f), LightEnergy = 3.0f, OmniRange = 13f, OmniAttenuation = 1.1f, ShadowEnabled = true, ShadowBias = 0.06f, Position = new Vector3(0, 0.45f, -0.25f) };
+        var light = new OmniLight3D { LightColor = new Color(0.95f, 0.9f, 0.8f), LightEnergy = 2.3f, OmniRange = 12f, OmniAttenuation = 0.7f, ShadowEnabled = true, ShadowBias = 0.06f, Position = new Vector3(0, 0.45f, -0.25f) };
         toolRoot.AddChild(light);
         return light;
     }

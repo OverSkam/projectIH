@@ -86,7 +86,7 @@ public partial class VeinObj : NetObject
         var rng = new RandomNumberGenerator { Seed = (ulong)(Id * 7919 + 13) };
         for (int i = 0; i < 4; i++)
         {
-            var c = Util.BoxMesh(new Vector3(0.38f, 0.38f, 0.38f), def.Color, Math.Max(1.1f, def.Glow));   // veins glow faintly: findable in the dark
+            var c = Util.BoxMesh(new Vector3(0.38f, 0.38f, 0.38f), def.Color, Math.Max(0.8f, def.Glow * 0.8f));   // veins glow faintly: findable in the dark
             c.Position = new Vector3(rng.RandfRange(-0.5f, 0.5f), rng.RandfRange(0.3f, 1.2f), rng.RandfRange(-0.5f, 0.5f)).Normalized() * 0.75f + new Vector3(0, 0.7f, 0);
             c.Rotation = new Vector3(rng.Randf(), rng.Randf(), rng.Randf());
             _rock.AddChild(c);

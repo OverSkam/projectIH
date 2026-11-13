@@ -60,8 +60,8 @@ public static partial class CaveVisuals
     static Color Rock(int depth, int kind, uint h, bool camp, float y)
     {
         float t = Mathf.Clamp(depth / 6f, 0, 1);
-        var c = new Color(0.40f, 0.42f, 0.47f).Lerp(new Color(0.25f, 0.28f, 0.38f), t);   // cold, desaturated rock: only light sources reveal it
-        if (camp) c = new Color(0.36f, 0.36f, 0.34f);
+        var c = new Color(0.19f, 0.21f, 0.25f).Lerp(new Color(0.12f, 0.14f, 0.20f), t);   // cold, desaturated rock: only light sources reveal it
+        if (camp) c = new Color(0.24f, 0.25f, 0.24f);
         float m = kind == 0 ? 0.8f : kind == 2 ? 0.62f : 1f;
         if (y < -2f) m *= 0.8f;
         float n = 0.8f + 0.4f * ((h & 255) / 255f);
@@ -109,7 +109,7 @@ public static partial class CaveVisuals
     {
         _warp = g.Warp;
         var set = new SortedSet<int>();
-        for (int v = -14; v <= 14; v += 2) set.Add(v * 100);
+        
         foreach (var c in g.G) if (c.Open) { set.Add((int)MathF.Round(c.A * 100)); set.Add((int)MathF.Round(c.B * 100)); set.Add((int)MathF.Round(c.C * 100)); set.Add((int)MathF.Round(c.D * 100)); set.Add((int)MathF.Round(c.Ceil * 100)); }
         _levels = set.Select(v => v / 100f).ToArray();
 

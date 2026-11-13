@@ -351,7 +351,7 @@ public class ModularCave : ICaveBuilder
         var h0 = info.GoblinSeat + new Vector3(0, 0, 9.2f);
         float x = p.X - h0.X, z = p.Z - h0.Z;
         if (z < -3.5f) return true;                                 // Goblin, throne, legs, palm
-        if (new Vector2(Math.Abs(x) - 6.2f, z + 1.8f).Length() < 1.4f) return true;       // Scale gantry posts
+        if (new Vector2(Math.Abs(x) - 5.9f, z + 1.8f).Length() < 1.3f) return true;       // Scale gantry posts
         if (new Vector2(x - 9.4f, z + 2.0f).Length() < 2.8f) return true;                  // shaft
         if (Math.Abs(x + 9.5f) < 2.4f && Math.Abs(z - 10f) < 2.4f) return true;           // cage lift
         return false;

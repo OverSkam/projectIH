@@ -54,7 +54,7 @@ public class CaveModule
     public static readonly List<CaveModule> All = new()
     {
         // The Hall of the Scale: tall dark hall, the giant Goblin sits at the north wall (the north door is never connected).
-        new CaveModule { Name = "camp", Role = "camp", Ceil = 12f, Map = new[] {
+        new CaveModule { Name = "camp", Role = "camp", Ceil = 14f, Map = new[] {
             "######..######", "###........###", "##..........##", "#............#", "#............#", "#............#", ".............." , "..............",
             "#............#", "#............#", "#............#", "##..........##", "###........###", "######..######" } },
         // Ordinary rooms are small chambers (about 12 m across) with low ceilings; monster rooms keep >= 4.4 m so a golem fits.

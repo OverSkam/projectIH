@@ -13,8 +13,8 @@ public static class GoblinParts
     public static readonly Color Bag = new(0.27f, 0.38f, 0.19f);
     public static readonly Color Nose = new(0.52f, 0.68f, 0.26f);
     public static readonly Color Lip = new(0.30f, 0.38f, 0.20f);
-    public static readonly Color Hair = new(0.70f, 0.72f, 0.77f);
-    public static readonly Color HairShade = new(0.48f, 0.50f, 0.57f);
+    public static readonly Color Hair = new(0.50f, 0.52f, 0.58f);
+    public static readonly Color HairShade = new(0.34f, 0.36f, 0.43f);
     public static readonly Color Brow = new(0.20f, 0.20f, 0.24f);
     public static readonly Color Navy = new(0.13f, 0.19f, 0.60f);
     public static readonly Color NavyLight = new(0.20f, 0.29f, 0.75f);
@@ -25,10 +25,12 @@ public static class GoblinParts
     public static readonly Color Stone = new(0.27f, 0.27f, 0.27f);
 
     // ---- skeleton anchors (rig space)
-    public static readonly Vector3 HeadPos = new(0, 7.2f, 0.05f);
-    public static readonly Vector3 TorsoPos = new(0, 2.3f, -0.3f);
-    public static readonly Vector3 ShoulderR = new(-3.1f, 5.0f, -0.4f);   // his right = world -X (the feeding hand)
-    public static readonly Vector3 ShoulderL = new(3.1f, 5.0f, -0.4f);    // his left = world +X (the throwing arm)
+    public static readonly Vector3 HeadPos = new(0, 8.4f, 0.6f);
+    public const float HeadScale = 1.8f;   // a caricature head: about 5.8 m of face
+    public const float RestLean = 0.22f;   // he looms forward over the floor
+    public static readonly Vector3 TorsoPos = new(0, 2.0f, -0.3f);
+    public static readonly Vector3 ShoulderR = new(-2.9f, 4.7f, -0.4f);   // his right = world -X (the feeding hand)
+    public static readonly Vector3 ShoulderL = new(2.9f, 4.7f, -0.4f);    // his left = world +X (the throwing arm)
     public static readonly Vector3 PalmWrist = new(-4.2f, 1.2f, 2.7f);    // wrist of the feeding hand; the palm centre is 1.7 m beyond it (z = 4.4)
     public static readonly Vector3 RestWristL = new(1.7f, 4.05f, 1.3f);   // left hand resting on his thigh
     public const float UpperLen = 3.0f, ForeLen = 3.3f;
@@ -37,13 +39,13 @@ public static class GoblinParts
     public static void Throne(Node3D parent)
     {
         var m = new GMesh { Variation = 0.12f };
-        m.Box(new Vector3(0, 0.75f, -0.3f), new Vector3(8.6f, 1.5f, 4.8f), Stone);
-        m.Box(new Vector3(0, 0.35f, 2.4f), new Vector3(9.4f, 0.7f, 1.2f), Stone * 0.85f);
+        m.Box(new Vector3(0, 0.5f, -0.3f), new Vector3(8.6f, 1.0f, 4.8f), Stone);
+        m.Box(new Vector3(0, 0.2f, 2.4f), new Vector3(9.4f, 0.4f, 1.2f), Stone * 0.85f);
         m.Box(new Vector3(-4.7f, 1.2f, -0.6f), new Vector3(1.4f, 2.4f, 2.6f), Stone * 1.1f, new Vector3(0, 0.2f, 0));
         m.Box(new Vector3(4.7f, 1.1f, -0.6f), new Vector3(1.4f, 2.2f, 2.8f), Stone * 1.05f, new Vector3(0, -0.25f, 0));
         // a cushion of gold coins and a ledger on the seat: he is a financier
         for (int i = 0; i < 7; i++)
-            m.Ellipsoid(new Vector3(-2.6f + i * 0.2f, 1.58f, -1.4f + (i % 3) * 0.25f), new Vector3(0.25f, 0.05f, 0.25f), Gold, 7, 2);
+            m.Ellipsoid(new Vector3(-2.6f + i * 0.2f, 1.08f, -1.4f + (i % 3) * 0.25f), new Vector3(0.25f, 0.05f, 0.25f), Gold, 7, 2);
         m.Instance(parent, null, "Throne");
     }
 
@@ -54,9 +56,9 @@ public static class GoblinParts
         foreach (float s in new[] { -1f, 1f })
         {
             float x = 1.6f * s;
-            m.Box(new Vector3(x, 2.7f, 1.8f), new Vector3(2.0f, 1.7f, 4.2f), Pants);                       // thigh
-            m.Ellipsoid(new Vector3(x, 2.7f, 3.9f), new Vector3(1.05f, 0.95f, 0.9f), Pants, 8, 5);          // knee
-            m.Box(new Vector3(x, 1.4f, 4.15f), new Vector3(1.7f, 2.7f, 1.5f), Pants * 1.1f);               // shin
+            m.Box(new Vector3(x, 1.75f, 1.8f), new Vector3(2.0f, 1.3f, 4.2f), Pants);                       // thigh
+            m.Ellipsoid(new Vector3(x, 1.75f, 3.9f), new Vector3(1.05f, 0.75f, 0.9f), Pants, 8, 5);          // knee
+            m.Box(new Vector3(x, 0.95f, 4.15f), new Vector3(1.7f, 1.8f, 1.5f), Pants * 1.1f);               // shin
             m.Box(new Vector3(x, 0.4f, 4.9f), new Vector3(1.9f, 0.8f, 2.6f), Leather);                       // shoe
             m.Ellipsoid(new Vector3(x, 0.55f, 6.0f), new Vector3(0.95f, 0.5f, 0.7f), Leather * 1.15f, 8, 4); // toe cap
         }
@@ -151,7 +153,7 @@ public static class GoblinParts
     // The face is a sculpted height field (z over x,y) made of Gaussian features: brow ridge, eye sockets, a big hooked nose, cheekbones, hollows, lips with a smirk,
     // chin, jowls. It is triangulated and flat shaded, so it reads as a faceted low-poly face with coherent planes instead of a bag of blobs.
     static float G(float x, float y, float cx, float cy, float sx, float sy) { float dx = x - cx, dy = y - cy; return Mathf.Exp(-(dx * dx / (2 * sx * sx) + dy * dy / (2 * sy * sy))); }
-    static float MouthY(float x) => -1.12f + 0.14f * Mathf.Clamp(x / 0.7f, -1f, 1f);   // the mouth line rises to the right: the smug half-smile
+    static float MouthY(float x) => -1.12f + 0.2f * Mathf.Clamp(x / 0.7f, -1f, 1f) - 0.04f * Mathf.Clamp(-x / 0.7f, 0f, 1f);   // the mouth line rises to the right: the smug half-smile
 
     /// <summary>Height of the face surface at (x, y) plus its colour. Returns false outside the face outline.</summary>
     static bool FaceAt(float x, float y, out float z, out Color col)
@@ -178,8 +180,8 @@ public static class GoblinParts
         z += 0.28f * jowl;
         z += 0.62f * G(x, y, 0, -1.68f, 0.45f, 0.3f);
         // lips and the mouth groove between them
-        float up = G(x, y, 0, my + 0.09f, 0.56f, 0.065f), lo = G(x, y, 0, my - 0.11f, 0.48f, 0.085f), groove = G(x, y, 0, my, 0.68f, 0.026f);
-        z += 0.10f * up + 0.11f * lo - 0.16f * groove;
+        float up = G(x, y, 0, my + 0.09f, 0.56f, 0.065f), lo = G(x, y, 0, my - 0.11f, 0.48f, 0.085f), groove = G(x, y, 0, my, 0.68f, 0.02f);
+        z += 0.10f * up + 0.11f * lo - 0.06f * groove;
         // smirk: a cheek bulge on the raised side
         float smirk = x > 0 ? G(x, y, 0.78f, -0.8f, 0.24f, 0.2f) : 0f;
         z += 0.14f * smirk;
@@ -196,7 +198,7 @@ public static class GoblinParts
         c = c.Lerp(SkinDark * 0.75f, Mathf.Clamp(wing * 0.5f + 0.5f * G(ax, y, 0.5f, -0.72f, 0.1f, 0.3f), 0f, 1f));
         c = c.Lerp(SkinDark * 1.1f, Mathf.Clamp(jowl * 0.7f + fold * 0.8f, 0f, 1f));
         c = c.Lerp(Lip, Mathf.Clamp((up + lo) * 1.1f, 0f, 1f));
-        c = c.Lerp(new Color(0.04f, 0.06f, 0.03f), Mathf.Clamp(groove * 1.8f, 0f, 1f));
+        c = c.Lerp(new Color(0.12f, 0.17f, 0.09f), Mathf.Clamp(groove * 1.3f, 0f, 1f));
         col = c;
         return true;
     }
@@ -240,22 +242,21 @@ public static class GoblinParts
         // nostrils and the dark behind the lips
         foreach (float s in new[] { -1f, 1f })
             m.Ellipsoid(new Vector3(0.13f * s, -0.80f, 1.62f), new Vector3(0.09f, 0.05f, 0.1f), new Color(0.03f, 0.05f, 0.02f), 6, 3);
-        m.Ellipsoid(new Vector3(0, -1.12f, 0.95f), new Vector3(0.62f, 0.12f, 0.3f), new Color(0.02f, 0.03f, 0.02f), 8, 3);
+        m.Ellipsoid(new Vector3(0, -1.12f, 0.70f), new Vector3(0.6f, 0.12f, 0.2f), new Color(0.02f, 0.03f, 0.02f), 8, 3);
         // neck
         m.Tube(new Vector3(0, -1.2f, -0.15f), new Vector3(0, -2.7f, -0.25f), 1.0f, 1.15f, Skin * 0.85f, 10);
         // swept-back grey hair: high forehead, big volume at the sides and the back
         m.Variation = 0.06f;
-        m.Ellipsoid(new Vector3(0, 0.95f, -0.45f), new Vector3(1.42f, 0.82f, 1.5f), new Vector3(-0.22f, 0, 0), Hair * 0.96f, 12, 6);
-        m.Ellipsoid(new Vector3(0, 1.3f, 0.12f), new Vector3(1.1f, 0.42f, 0.7f), new Vector3(-0.6f, 0, 0), Hair, 10, 4);
+        m.Ellipsoid(new Vector3(0, 0.95f, -1.05f), new Vector3(1.42f, 0.78f, 1.3f), new Vector3(-0.4f, 0, 0), Hair * 0.96f, 12, 6);
         for (int i = -4; i <= 4; i++)
-            m.Ellipsoid(new Vector3(i * 0.27f, 1.42f - Mathf.Abs(i) * 0.09f, -0.2f - Mathf.Abs(i) * 0.04f), new Vector3(0.2f, 0.17f, 0.95f), new Vector3(-0.3f, -i * 0.07f, 0), (i & 1) == 0 ? Hair * 1.06f : HairShade, 6, 3);
+            m.Ellipsoid(new Vector3(i * 0.27f, 1.42f - Mathf.Abs(i) * 0.1f, -0.85f - Mathf.Abs(i) * 0.05f), new Vector3(0.2f, 0.17f, 1.0f), new Vector3(-0.5f, -i * 0.07f, 0), (i & 1) == 0 ? Hair * 1.06f : HairShade, 6, 3);
         foreach (float s in new[] { -1f, 1f })
         {
-            m.Ellipsoid(new Vector3(1.2f * s, 0.55f, -0.45f), new Vector3(0.46f, 0.88f, 0.95f), Hair * 0.97f, 9, 5);
+            m.Ellipsoid(new Vector3(1.2f * s, 0.45f, -0.55f), new Vector3(0.5f, 0.7f, 1.0f), Hair * 0.97f, 9, 5);
             m.Ellipsoid(new Vector3(1.12f * s, 0.12f, 0.3f), new Vector3(0.14f, 0.42f, 0.28f), HairShade, 6, 3);            // sideburn
-            m.Ellipsoid(new Vector3(1.0f * s, 0.95f, 0.35f), new Vector3(0.3f, 0.35f, 0.55f), Hair, 7, 4);                    // receding temple wave
+            m.Ellipsoid(new Vector3(1.0f * s, 0.95f, -0.45f), new Vector3(0.3f, 0.34f, 0.5f), Hair, 7, 4);                    // receding temple wave
         }
-        m.Ellipsoid(new Vector3(0, 0.15f, -1.25f), new Vector3(1.18f, 1.05f, 0.7f), Hair * 0.95f, 10, 6);
+        m.Ellipsoid(new Vector3(0, 0.1f, -1.3f), new Vector3(1.3f, 1.15f, 0.8f), Hair * 0.95f, 10, 6);
         m.Ellipsoid(new Vector3(0, -0.6f, -1.1f), new Vector3(0.95f, 0.6f, 0.5f), HairShade, 9, 4);
         m.Instance(head, null, "HeadMesh");
     }

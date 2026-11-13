@@ -14,19 +14,19 @@ public static partial class CaveVisuals
         // huge stalactites in the dark of the ceiling
         for (int k = 0; k < 16; k++)
         {
-            var p = h0 + new Vector3(r.Range(-11f, 11f), 12.1f, r.Range(-11f, 11f));
+            var p = h0 + new Vector3(r.Range(-11f, 11f), 14.1f, r.Range(-11f, 11f));
             mb.Cone(p, r.Range(0.5f, 1.4f), -r.Range(1.8f, 4.5f), Rock(0, 2, (uint)r.Next(), true, 0), 6, r.F() * 3f);
         }
         // banners either side of the Goblin (flat on the north wall)
         foreach (float sx in new[] { -9.0f, 9.0f })
         {
-            mb.Box(h0 + new Vector3(sx, 7.6f, -11.55f), new Vector3(2.4f, 5.4f, 0.12f), new Color(0.30f, 0.06f, 0.07f));
-            mb.Box(h0 + new Vector3(sx, 10.4f, -11.5f), new Vector3(2.8f, 0.2f, 0.25f), new Color(0.28f, 0.2f, 0.1f));
-            mb.Box(h0 + new Vector3(sx, 7.9f, -11.45f), new Vector3(0.9f, 0.9f, 0.05f), new Color(0.55f, 0.42f, 0.15f), 0.785f);
+            mb.Box(h0 + new Vector3(sx, 8.6f, -11.55f), new Vector3(2.4f, 5.4f, 0.12f), new Color(0.30f, 0.06f, 0.07f));
+            mb.Box(h0 + new Vector3(sx, 11.4f, -11.5f), new Vector3(2.8f, 0.2f, 0.25f), new Color(0.28f, 0.2f, 0.1f));
+            mb.Box(h0 + new Vector3(sx, 8.9f, -11.45f), new Vector3(0.9f, 0.9f, 0.05f), new Color(0.55f, 0.42f, 0.15f), 0.785f);
         }
         // the sickly light of the Hall: a dim greenish-yellow fill high up (the Goblin's own face light is part of his rig)
-        cx.Light(h0 + new Vector3(0, 9.5f, -2f), new Color(0.55f, 0.72f, 0.22f), 0.85f, 24f, false);
-        cx.Light(h0 + new Vector3(0, 4f, 8f), new Color(0.50f, 0.62f, 0.25f), 0.5f, 14f, false);
+        cx.Light(h0 + new Vector3(0, 9.5f, -2f), new Color(0.55f, 0.72f, 0.22f), 0.3f, 24f, false);
+        cx.Light(h0 + new Vector3(0, 4f, 8f), new Color(0.50f, 0.62f, 0.25f), 0.18f, 14f, false);
         BuildCage(cx, info.CagePos, r);
     }
 
@@ -58,10 +58,10 @@ public static partial class CaveVisuals
             mb.Box(p + new Vector3(W * 0.5f - 0.05f, lift + yy, 0), new Vector3(0.06f, 0.06f, W), iron);
         }
         // chain up to a pulley beam under the ceiling
-        for (float y = lift + H + 0.1f; y < 11.4f; y += 0.42f)
+        for (float y = lift + H + 0.1f; y < 13.4f; y += 0.42f)
             mb.Box(p + new Vector3(0, y, 0), y % 0.84f < 0.42f ? new Vector3(0.1f, 0.34f, 0.26f) : new Vector3(0.26f, 0.34f, 0.1f), iron);
-        mb.Box(p + new Vector3(0, 11.6f, 0), new Vector3(0.9f, 0.9f, 0.9f), rust, 0.4f);
-        mb.Box(p + new Vector3(0, 11.9f, 0), new Vector3(4.5f, 0.35f, 0.35f), new Color(0.25f, 0.15f, 0.09f));
+        mb.Box(p + new Vector3(0, 13.6f, 0), new Vector3(0.9f, 0.9f, 0.9f), rust, 0.4f);
+        mb.Box(p + new Vector3(0, 13.9f, 0), new Vector3(4.5f, 0.35f, 0.35f), new Color(0.25f, 0.15f, 0.09f));
         // a small hooded lantern on the cage: warm, dim (a lantern is a legal light source)
         cx.Gl("lantern").Box(p + new Vector3(W * 0.5f + 0.05f, lift + H - 0.35f, 0), new Vector3(0.18f, 0.26f, 0.18f), Colors.White);
         cx.Light(p + new Vector3(W * 0.5f + 0.4f, lift + H - 0.3f, 0), new Color(1f, 0.68f, 0.3f), 0.55f, 5.5f, true, 0.15f);

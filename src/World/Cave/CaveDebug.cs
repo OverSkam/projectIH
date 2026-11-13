@@ -175,7 +175,7 @@ public partial class DebugCam : Camera3D
         Fov = float.TryParse(Util.Arg("camfov", "80"), out var fv) ? fv : 80f; Near = 0.05f;
         // same numbers as the miner's lantern; --camdark = no light at all
         if (!Util.HasArg("camdark"))
-            AddChild(new OmniLight3D { LightColor = new Color(1f, 0.82f, 0.5f), LightEnergy = 3.0f, OmniRange = 13f, OmniAttenuation = 1.1f, ShadowEnabled = true, ShadowBias = 0.06f, Position = new Vector3(0.35f, 0.1f, -0.3f) });
+            AddChild(new OmniLight3D { LightColor = new Color(0.95f, 0.9f, 0.8f), LightEnergy = float.TryParse(Util.Arg("camlight", "2.3"), out var le) ? le : 2.3f, OmniRange = 12f, OmniAttenuation = float.TryParse(Util.Arg("camatt", "0.7"), out var la) ? la : 0.7f, ShadowEnabled = !Util.HasArg("camnoshadow"), ShadowBias = 0.06f, Position = new Vector3(0.35f, 0.1f, -0.3f) });
     }
     public override void _Process(double delta) { if (!Current) MakeCurrent(); }
 
@@ -208,7 +208,7 @@ public partial class DebugCam : Camera3D
             // --camgoblin=entrance|palm|side: views of the giant
             string w = Util.Arg("camgoblin", "entrance");
             var gs = cave.GoblinSeat;
-            pos = w == "palm" ? cave.GoblinPos + new Vector3(0, 1.6f, 2.3f) : w == "side" ? gs + new Vector3(14f, 3f, 6f) : w == "face" ? gs + new Vector3(0, 6.5f, 9f) : w == "q" ? gs + new Vector3(6.5f, 7f, 7.5f) : w == "profile" ? gs + new Vector3(9f, 7.2f, 1.5f) : w == "close" ? gs + new Vector3(0, 7.0f, 6f) : w == "throw" ? gs + new Vector3(-1f, 2.8f, 14.5f) : w == "hand" ? gs + new Vector3(-9f, 3.5f, 11f) : gs + new Vector3(0, 1.6f, 21f);
+            pos = w == "palm" ? cave.GoblinPos + new Vector3(0, 1.6f, 2.3f) : w == "side" ? gs + new Vector3(14f, 3f, 6f) : w == "face" ? gs + new Vector3(0, 6.5f, 9f) : w == "q" ? gs + new Vector3(6.5f, 7f, 7.5f) : w == "profile" ? gs + new Vector3(9f, 7.2f, 1.5f) : w == "close" ? gs + new Vector3(0, 7.0f, 6f) : w == "throw" ? gs + new Vector3(-1f, 2.8f, 14.5f) : w == "spawn" ? gs + new Vector3(0, 1.6f, 15f) : w == "hand" ? gs + new Vector3(-9f, 3.5f, 11f) : gs + new Vector3(0, 1.6f, 21f);
             var look = gs + new Vector3(0, w == "side" ? 4f : w == "hand" ? 2f : 7.2f, w == "hand" ? 4f : 1f);
             if (w == "q" || w == "profile" || w == "close") look = gs + new Vector3(0, 7.1f, 0.6f);
             if (w == "throw") look = gs + new Vector3(4f, 4.0f, 3f);

@@ -177,7 +177,7 @@ public class ExplorerBot : IMinerController
                 { _leverRound = g.Round; _target = lv; _targetSince = _clock; _targetTries = 0; _trapPassed = false; _stuckCount = 0; _crossing = false; return; }
         }
         // ... and walk up to a golem once per round (they hit hard; golems cannot be killed), so "a monster hurt a miner" is not left to chance either
-        if (_brave && (_trapRuns >= 1 || g.TimeLeft < 85f) && g.TimeLeft > 40f && _monRound != g.Round)
+        if (_brave && (_trapRuns >= 1 || g.TimeLeft < 98f) && g.TimeLeft > 22f && _monRound != g.Round)
         {
             MonsterObj gb = null; float gbs = float.MaxValue;
             foreach (var o in g.World.Objects.Values)

@@ -35,7 +35,7 @@ public partial class World : Node3D
             TonemapMode = Godot.Environment.ToneMapper.Filmic,
             FogEnabled = true,
             FogLightColor = new Color(0.008f, 0.010f, 0.016f),
-            FogDensity = 0.042f,
+            FogDensity = 0.05f,
         };
         AddChild(new WorldEnvironment { Environment = env });
         if (Util.HasArg("camroom") || Util.HasArg("cam") || Util.HasArg("camtunnel") || Util.HasArg("camgoblin")) AddChild(DebugCam.Make(Cave));
