@@ -31,7 +31,7 @@ enum WeighStage { Intro, Reveal, Verdict, Throw, Remain }
 
 /// <summary>
 /// The weighing ceremony: server-driven, replicated sequence between two rounds (phase Weighing).
-/// Intro (miners on their tribute rings, sacks drop) -> Reveal x N (the Goblin lifts each sack to his palm and the number counts up; heaviest first, lightest last) -> Verdict -> Throw -> Remain card -> next round (or match end).
+/// Intro (miners beside their minecarts, sacks drop in) -> Reveal x N (the Goblin lifts each sack to his palm and the number counts up; heaviest first, lightest last) -> Verdict -> Throw -> Remain card -> next round (or match end).
 /// Extension points: <see cref="Weighing.Prepare"/>, <see cref="Weighing.BeforeReveal"/>, <see cref="WeighingContext"/> (pile API), <see cref="EliminatedRole"/>.
 /// </summary>
 public partial class Game
@@ -81,14 +81,14 @@ public partial class Game
         foreach (var p in contenders) ctx.Piles.Add(new WeighPile { Peer = p.Peer, Name = p.Name, Weight = p.TributeWeight });
         Weighing.RaisePrepare(ctx);
 
-        // everyone who is still in the match stands on their tribute ring in the Hall; the sack drops in front of it
+        // everyone who is still in the match stands beside their minecart in the Hall; the sack drops into it
         var spots = new Vector3[contenders.Count];
         var sizes = new int[contenders.Count];
         for (int i = 0; i < contenders.Count; i++)
         {
             var p = contenders[i];
             int rank = Array.IndexOf(_roundPeers, p.Peer); if (rank < 0) rank = i;
-            spots[i] = World.Cave.RingSpot(rank, Math.Max(1, _roundPeers.Length));
+            spots[i] = World.Cave.StandSpot(rank, Math.Max(1, _roundPeers.Length));   // beside their minecart
             sizes[i] = SizeClass(ctx.Pile(p.Peer)?.Weight ?? 0);
             p.Pos = spots[i]; p.Alive = true; p.Downed = false; p.Health = ServerPlayer.MaxHealth; p.Dirty = true;
         }
@@ -186,7 +186,7 @@ public partial class Game
         if (World == null) return;
         Phase = GamePhase.Weighing;
         Weigh = new WeighView { Round = round, Peers = peers, StageAt = ClientNow };
-        var facing = World.Cave.GoblinSeat + new Vector3(0, 0, 4f);   // everyone on a ring looks up at the Goblin
+        var facing = World.Cave.GoblinSeat + new Vector3(0, 0, 4f);   // everyone beside a cart looks up at the Goblin
         for (int i = 0; i < peers.Length; i++)
         {
             var d = facing - spots[i];

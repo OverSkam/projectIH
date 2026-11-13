@@ -279,7 +279,7 @@ public partial class GoblinRig : Node3D
             var s = ToLocal(floor);
             var toS = new Vector3(s.X - shR.X, 0f, s.Z - shR.Z); toS = toS.LengthSquared() < 1e-3f ? Vector3.Back : toS.Normalized();
             var hdS = new Vector3(toS.X, -0.12f, toS.Z).Normalized();
-            var palmS = s + new Vector3(0, -0.14f, 0);
+            var palmS = s + new Vector3(0, 0.04f, 0);   // the open palm slides under the sack that lies in the cart
             var wristS = palmS - hdS * 1.15f;
             var hdH = new Vector3(0.12f, 0.08f, 1f).Normalized();
             var palmH = HoldPoint;
@@ -288,7 +288,7 @@ public partial class GoblinRig : Node3D
             if (wv.Stage == "reveal" && rk1 < 1f) { w0 = _handFrom.Lerp(wristS, Mathf.SmoothStep(0f, 1f, rk1)); _handDirR = _handDirR.Lerp(hdS, Mathf.Min(1f, dt * 8f)); }
             else { w0 = wristS.Lerp(wristH, Mathf.SmoothStep(0f, 1f, rk2)) + new Vector3(0, Mathf.Sin(rk2 * Mathf.Pi) * 0.9f, 0); _handDirR = hdS.Lerp(hdH, Mathf.SmoothStep(0f, 1f, rk2)).Normalized(); }
             if (rk2 >= 1f) w0 += new Vector3(0, 0.05f * Mathf.Sin(_t * 1.8f), 0);
-            _wristR = w0; stretchR = 1.9f; curlR = Mathf.Lerp(0.15f, 0.55f, rk2);
+            _wristR = w0; stretchR = 2.5f; curlR = Mathf.Lerp(0.12f, 0.0f, rk2);   // fingers flat: the sack lies on top of the open palm
         }
         else
         {

@@ -5,7 +5,7 @@ using Godot;
 namespace AppStein;
 
 /// <summary>
-/// The Hall's ceremony dressing (v2.1): one flat glowing tribute ring per miner on the arc of <see cref="CaveInfo.WeighSpots"/>, the sacks that drop in front of the rings
+/// The Hall's ceremony dressing (v2.2): one minecart per miner on the arc of <see cref="CaveInfo.WeighSpots"/> (empty during the round), the round candle, the sacks that drop into the carts
 /// at the weighing, the weight number floating above the Goblin's palm, and the shaft he throws miners into. There is no giant Scale any more.
 /// Built on every peer from the replicated state (Game.RoundPeers, Game.Weigh). The Goblin's right hand (GoblinRig) reaches for the current sack, lifts it to the palm and
 /// publishes <see cref="PalmWorld"/>; this node moves the sack with it and counts the number up. Sack size scales a little with the tribute (a size class, never the number).
@@ -30,7 +30,7 @@ public partial class HallCeremony : Node3D
     float _t;
     string _lastGrab = "", _lastNumber = "";
     public Vector3 FloorOf(int peer) => _sacks.TryGetValue(peer, out var s) ? s.Floor : Vector3.Zero;
-    public Vector3 SackFloor(int peer) => _sacks.TryGetValue(peer, out var s) ? s.Floor : (_ringPos.TryGetValue(peer, out var r) ? r : Vector3.Zero);
+    public Vector3 SackFloor(int peer) => _sacks.TryGetValue(peer, out var s) ? s.Floor : (_ringPos.TryGetValue(peer, out var r) ? new Vector3(r.X, r.Y - 0.3f + CartModel.InnerFloor + 0.28f, r.Z) : Vector3.Zero);
     public float SackSize(int peer) => _sacks.TryGetValue(peer, out var s) ? s.Size : 1f;
 
     public override void _Ready()
@@ -39,7 +39,7 @@ public partial class HallCeremony : Node3D
         var cave = Game.I.World.Cave;
         Position = cave.ScalePos;
         BuildShaft(cave);
-        BuildRings(cave);
+        BuildCarts(cave);
         _num = new Label3D
         {
             Text = "", PixelSize = 0.014f, FontSize = 220, Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, TopLevel = true, Visible = false, NoDepthTest = true,
@@ -58,39 +58,35 @@ public partial class HallCeremony : Node3D
 
     public override void _ExitTree() { if (I == this) { I = null; PalmValid = false; } }
 
-    // ------------------------------------------------------------------ rings
-    /// <summary>One ring per miner of this round (centred on the arc of weigh spots), in the miner's colour, with their name on the floor behind it.</summary>
-    void BuildRings(CaveInfo cave)
+    // ------------------------------------------------------------------ minecarts
+    /// <summary>One minecart per miner of this round (on the arc of weigh spots, long axis pointing at the arc's centre), trimmed in the miner's colour, with their name on a brass plate. They stand empty during the round.</summary>
+    void BuildCarts(CaveInfo cave)
     {
         var peers = Game.I.RoundPeers;
         if (peers == null || peers.Length == 0 || cave.WeighSpots.Count == 0) return;
-        for (int i = 0; i < peers.Length; i++)
+        // screenshots: --debugcarts=8 draws carts for that many miners (names/colours invented)
+        int fakeN = int.TryParse(Util.Arg("debugcarts", "0"), out var fn) ? Mathf.Clamp(fn, 0, 8) : 0;
+        string[] fakeNames = { "Alice", "Bob", "Cara", "Dmitri", "Eve", "Fritz", "Gus", "Hannah" };
+        int total = fakeN > peers.Length ? fakeN : peers.Length;
+        for (int i = 0; i < total; i++)
         {
-            var spot = cave.RingSpot(i, peers.Length);
-            _ringPos[peers[i]] = spot;
-            var col = PlayerColors.Of(peers[i]);
-            var ring = new Node3D { Name = "Ring" + peers[i], TopLevel = true };
-            AddChild(ring);
-            ring.GlobalPosition = new Vector3(spot.X, spot.Y - 0.3f + 0.03f, spot.Z);
-            var glow = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, AlbedoColor = new Color(col.R, col.G, col.B, 0.92f), CullMode = BaseMaterial3D.CullModeEnum.Disabled, NoDepthTest = false };
-            var fill = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, AlbedoColor = new Color(col.R * 0.5f, col.G * 0.5f, col.B * 0.5f, 0.28f), CullMode = BaseMaterial3D.CullModeEnum.Disabled };
-            ring.AddChild(new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 0.78f, BottomRadius = 0.78f, Height = 0.012f, RadialSegments = 40, Rings = 1 }, MaterialOverride = glow, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, Position = new Vector3(0, 0.0f, 0) });
-            ring.AddChild(new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 0.62f, BottomRadius = 0.62f, Height = 0.016f, RadialSegments = 40, Rings = 1 }, MaterialOverride = fill, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, Position = new Vector3(0, 0.004f, 0) });
-            // inner hairline circle so the ring reads even at a shallow angle
-            var edge = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = col.Lightened(0.3f), CullMode = BaseMaterial3D.CullModeEnum.Disabled };
-            ring.AddChild(new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 0.64f, BottomRadius = 0.64f, Height = 0.02f, RadialSegments = 40, Rings = 1 }, MaterialOverride = edge, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, Position = new Vector3(0, 0.0f, 0), Visible = false });
-            // the miner's name, lying flat on the floor on the far side of the ring, readable from the entrance
-            var away = (spot - cave.ScalePos) with { Y = 0 };
-            away = away.LengthSquared() < 0.01f ? Vector3.Back : away.Normalized();
-            var lbl = new Label3D
-            {
-                Text = Net.I.NameOf(peers[i]), PixelSize = 0.0058f, FontSize = 120, Modulate = col.Lightened(0.35f), OutlineSize = 22, OutlineModulate = new Color(0, 0, 0, 0.9f),
-                Font = UiTheme.Chunky, Position = away * 1.25f + new Vector3(0, 0.02f, 0), Rotation = new Vector3(-Mathf.Pi / 2f, 0, 0), DoubleSided = true,
-                TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmaps,
-            };
-            ring.AddChild(lbl);
+            int peer = i < peers.Length ? peers[i] : 9000 + i;
+            var spot = cave.RingSpot(i, total);
+            _ringPos[peer] = spot;
+            var cart = new Node3D { Name = "Cart" + peer, TopLevel = true };
+            AddChild(cart);
+            var toC = (cave.ScalePos - spot) with { Y = 0 };
+            toC = toC.LengthSquared() < 0.01f ? Vector3.Forward : toC.Normalized();
+            cart.GlobalPosition = new Vector3(spot.X, spot.Y - 0.3f, spot.Z);
+            cart.Rotation = new Vector3(0, Mathf.Atan2(-toC.X, -toC.Z), 0);   // local -Z (the open end) faces the Goblin
+            CartModel.Build(cart, i < peers.Length ? PlayerColors.Of(peer) : PlayerColors.Palette[i % 8], i < peers.Length && fakeN == 0 ? Net.I.NameOf(peer) : fakeNames[i % 8]);
         }
+        AddChild(new HallCandle { Name = "Candle", TopLevel = true, Position = cave.GoblinSeat + new Vector3(7.0f, 0, -0.3f) });
     }
+
+    /// <summary>Centre of this miner's cart on the floor (zero when the peer has none).</summary>
+    public Vector3 CartPos(int peer) => _ringPos.TryGetValue(peer, out var r) ? new Vector3(r.X, r.Y - 0.3f, r.Z) : Vector3.Zero;
+    public bool HasCart(int peer) => _ringPos.ContainsKey(peer);
 
     // ------------------------------------------------------------------ sacks (the weighing)
     static Node3D MakeSackModel()
@@ -114,18 +110,18 @@ public partial class HallCeremony : Node3D
         foreach (var s in _sacks.Values) s.Node.QueueFree();
         _sacks.Clear(); _lastGrab = ""; _lastNumber = "";
         Util.Pass("sacks_dropped", $"count={peers.Length}");
-        var centre = Game.I.World.Cave.ScalePos;
         for (int i = 0; i < peers.Length; i++)
         {
-            var toC = (centre - spots[i]) with { Y = 0 }; toC = toC.LengthSquared() < 0.01f ? Vector3.Forward : toC.Normalized();
-            var floor = new Vector3(spots[i].X, spots[i].Y - 0.3f, spots[i].Z) + toC * 1.35f;
+            // the sack falls straight into the miner's minecart and settles on its floor
+            var cart = _ringPos.TryGetValue(peers[i], out var cp) ? new Vector3(cp.X, cp.Y - 0.3f, cp.Z) : new Vector3(spots[i].X, spots[i].Y - 0.3f, spots[i].Z);
+            var floor = cart + new Vector3(0, CartModel.InnerFloor + 0.28f, 0);
             int cls = i < sizes.Length ? Mathf.Clamp(sizes[i], 0, 4) : 1;
             var node = MakeSackModel();
-            float size = 0.62f + 0.16f * cls;
+            float size = 0.52f + 0.1f * cls;
             node.Scale = Vector3.One * size;
             node.TopLevel = true;
             AddChild(node);
-            node.GlobalPosition = floor + Vector3.Up * 9f;
+            node.GlobalPosition = floor + Vector3.Up * 8f;
             node.Rotation = new Vector3(0, (peers[i] * 0.7f) % 6.28f, 0);
             node.Visible = false;
             _sacks[peers[i]] = new Sack { Peer = peers[i], Node = node, Floor = floor, Size = size, Delay = 0.25f + 0.18f * i, Fall = 0f };
@@ -159,13 +155,13 @@ public partial class HallCeremony : Node3D
             s.Node.Scale = new Vector3(sxz, sy, sxz);
             if (s.Held && PalmValid)
             {
-                var target = PalmWorld + new Vector3(0, 0.08f, 0);
+                var target = PalmWorld + new Vector3(0, 0.04f, 0);
                 s.Node.GlobalPosition = s.Node.GlobalPosition.Lerp(target, Mathf.Min(1f, dt * 16f));
                 s.Vy = 0f;
             }
             else
             {
-                // falls to the floor in front of its ring (also when the Goblin lets go of it)
+                // falls back into its cart (also when the Goblin lets go of it)
                 var p = s.Node.GlobalPosition;
                 if (p.Y > s.Floor.Y + 0.001f || s.Vy > 0f)
                 {

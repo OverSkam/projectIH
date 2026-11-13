@@ -49,10 +49,12 @@ public static class CaveCheck
                 if (info.WeighSpots.Select(w => new Vector2(w.X, w.Z)).Distinct().Count() != info.WeighSpots.Count) Bad($"{tag} duplicate weigh spots");
                 if (info.Rooms.Sum(r => r.Markers.Count(m => m.Kind == "oil")) == 0 && round >= 2 && miners == 2) oilless++;
                 if (miners >= 8 && info.Rooms.Sum(r => r.Markers.Count(m => m.Kind == "oil")) == 0) Bad($"{tag} no oil drum in a big cave");
-                // the tribute rings: one per miner on the arc, inside the Hall, in a walkable place and not overlapping (>= 1.3 m apart)
+                // the tribute minecarts (1.6 x 1.0 m, radial): one per miner on the arc, inside the Hall, >= 2.0 m apart (a 1.0 m gap between carts), clear of the shaft
                 for (int a = 0; a < info.WeighSpots.Count; a++)
                     for (int b2 = a + 1; b2 < info.WeighSpots.Count; b2++)
-                        if (new Vector2(info.WeighSpots[a].X - info.WeighSpots[b2].X, info.WeighSpots[a].Z - info.WeighSpots[b2].Z).Length() < 1.3f) Bad($"{tag} tribute rings {a} and {b2} overlap");
+                        if (new Vector2(info.WeighSpots[a].X - info.WeighSpots[b2].X, info.WeighSpots[a].Z - info.WeighSpots[b2].Z).Length() < 2.0f) Bad($"{tag} tribute carts {a} and {b2} too close");
+                foreach (var ws in info.WeighSpots) if (new Vector2(ws.X - info.ShaftPos.X, ws.Z - info.ShaftPos.Z).Length() < 3.4f) Bad($"{tag} cart at {ws} touches the shaft");
+                for (int k = 0; k < 8; k++) if (!info.HallZone.HasPoint(info.StandSpot(k, 8) + Vector3.Up)) Bad($"{tag} stand spot {k} outside the Hall");
                 if (info.MinerSpawns.Count < 8) Bad($"{tag} spawns={info.MinerSpawns.Count}");
                 // bright chests (marker "bchest"): about one per two miners plus a depth bonus, at least one, never in the Hall
                 int bch = info.Rooms.Sum(r => r.Markers.Count(m => m.Kind == "bchest"));
@@ -102,7 +104,7 @@ public static class CaveCheck
                 if (info.GoblinSeat == default || info.CagePos == default) Bad($"{tag} Hall seams GoblinSeat/CagePos missing");
                 // grid-level connectivity (crawl + thin passable)
                 var camp = g.Slots[0];
-                int ci = camp.OX + 6, cj = camp.OY + 9;
+                int ci = camp.OX + 6, cj = camp.OY + 11;   // south of the minecarts
                 var seen = new bool[g.W * g.H];
                 var q = new Queue<(int, int)>(); q.Enqueue((ci, cj)); seen[g.Idx(ci, cj)] = true;
                 while (q.Count > 0)
@@ -163,7 +165,13 @@ public static class CaveCheck
                     }
                 foreach (var sp in info.MinerSpawns) if (!InMain(sp)) Bad($"{tag} spawn {sp} not walkable");
                 if (!InMain(info.GoblinPos + new Vector3(0, 0, 2.3f))) Bad($"{tag} floor in front of the Goblin's palm blocked");
-                foreach (var ws in info.WeighSpots) if (!InMain(ws)) { Bad($"{tag} weigh spot {ws} not walkable"); break; }
+                for (int k = 0; k < 8; k++)
+                {
+                    var ss = info.StandSpot(k, 8);
+                    bool near = false;
+                    for (int q2 = 0; q2 < comp.Length && !near; q2++) if (comp[q2] && new Vector2(info.NavNodes[q2].X - ss.X, info.NavNodes[q2].Z - ss.Z).Length() < 2.0f) near = true;
+                    if (!near) { Bad($"{tag} cart stand spot {k} has no walkable node within 2 m"); break; }
+                }
                 // a path must exist from camp to every room centre marker
                 foreach (var room in info.Rooms.Skip(1))
                 {
@@ -233,11 +241,15 @@ public partial class DebugCam : Camera3D
             // --camgoblin=entrance|palm|side: views of the giant
             string w = Util.Arg("camgoblin", "entrance");
             var gs = cave.GoblinSeat;
-            pos = w == "palm" ? cave.GoblinPos + new Vector3(0, 1.6f, 2.3f) : w == "side" ? gs + new Vector3(14f, 3f, 6f) : w == "face" ? gs + new Vector3(0, 6.5f, 9f) : w == "q" ? gs + new Vector3(6.5f, 7f, 7.5f) : w == "profile" ? gs + new Vector3(9f, 7.2f, 1.5f) : w == "close" ? gs + new Vector3(0, 7.0f, 6f) : w == "throw" ? gs + new Vector3(-1f, 2.8f, 14.5f) : w == "spawn" ? gs + new Vector3(0, 1.6f, 15f) : w == "hand" ? gs + new Vector3(-9f, 3.5f, 11f) : gs + new Vector3(0, 1.6f, 21f);
+            pos = w == "palm" ? cave.GoblinPos + new Vector3(0, 1.6f, 2.3f) : w == "side" ? gs + new Vector3(14f, 3f, 6f) : w == "face" ? gs + new Vector3(0, 6.5f, 9f) : w == "q" ? gs + new Vector3(6.5f, 7f, 7.5f) : w == "profile" ? gs + new Vector3(9f, 7.2f, 1.5f) : w == "close" ? gs + new Vector3(0, 7.0f, 6f) : w == "throw" ? gs + new Vector3(-1f, 2.8f, 14.5f) : w == "carts" ? gs + new Vector3(0, 9.0f, 19.8f) : w == "cartclose" ? gs + new Vector3(-5.5f, 2.2f, 18.5f) : w == "cartside" ? gs + new Vector3(-2.2f, 1.5f, 15.2f) : w == "ceremony" ? gs + new Vector3(0, 5.5f, 21f) : w == "spawn" ? gs + new Vector3(0, 1.6f, 15f) : w == "hand" ? gs + new Vector3(-9f, 3.5f, 11f) : gs + new Vector3(0, 1.6f, 21f);
             var look = gs + new Vector3(0, w == "side" ? 4f : w == "hand" ? 2f : 7.2f, w == "hand" ? 4f : 1f);
             if (w == "q" || w == "profile" || w == "close") look = gs + new Vector3(0, 7.1f, 0.6f);
             if (w == "throw") look = gs + new Vector3(4f, 4.0f, 3f);
             if (w == "palm") look = gs + new Vector3(0, 6.5f, 0.5f);
+            if (w == "carts") look = gs + new Vector3(0, 0f, 10.5f);
+            if (w == "cartclose") look = gs + new Vector3(-3.4f, 0.6f, 14.2f);
+            if (w == "cartside") look = gs + new Vector3(-1.0f, 0.6f, 11.6f);
+            if (w == "ceremony") look = gs + new Vector3(-1.5f, 2.6f, 6.5f);
             if (Util.HasArg("camfov")) { }
             var dd = look - pos;
             return new DebugCam { Name = "DebugCam", Position = pos, Rotation = new Vector3(Mathf.Atan2(dd.Y, new Vector2(dd.X, dd.Z).Length()), Mathf.Atan2(-dd.X, -dd.Z), 0) };

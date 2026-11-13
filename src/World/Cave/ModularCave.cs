@@ -446,6 +446,13 @@ public class ModularCave : ICaveBuilder
         if (z < -3.5f) return true;                                 // Goblin, throne, legs, palm
         if (new Vector2(x - 9.4f, z + 2.0f).Length() < 2.8f) return true;                  // shaft
         if (Math.Abs(x + 9.5f) < 2.4f && Math.Abs(z - 10f) < 2.4f) return true;           // cage lift
+        foreach (var ws in info.WeighSpots)   // minecarts: the cart box (1.6 radial x 1.0) grown by 0.5 m
+            {
+                var r = new Vector2(ws.X - info.ScalePos.X, ws.Z - info.ScalePos.Z).Normalized();
+                var d = new Vector2(p.X - ws.X, p.Z - ws.Z);
+                if (Math.Abs(d.Dot(r)) < 1.3f && Math.Abs(d.Dot(new Vector2(-r.Y, r.X))) < 1.0f) return true;
+            }
+        if (new Vector2(x - 7.0f, z + 9.5f).Length() < 2.2f) return true;                  // the candle
         return false;
     }
 
@@ -493,10 +500,10 @@ public class ModularCave : ICaveBuilder
         info.ScalePos = h0 + new Vector3(0, 0, -3.0f);          // centre of the arc of tribute rings (the ceremony focus point)
         info.ShaftPos = h0 + new Vector3(9.4f, 0, -2.0f);
         info.CagePos = h0 + new Vector3(-9.5f, 0, 10.0f);
-        info.MakeWeighSpots(8, 5.0f, 1.1f);
+        info.MakeWeighSpots(8, 8.0f, 1.0f);   // 8 minecart places (radial carts, 2.3 m apart on the arc)
         info.SqueezeZones.AddRange(Squeezes);
-        for (int c = 3; c <= 10; c++) info.MinerSpawns.Add(CellPos(camp.OX + c, camp.OY + 9, 0.3f));
-        for (int c = 4; c <= 9; c++) info.MinerSpawns.Add(CellPos(camp.OX + c, camp.OY + 10, 0.3f));
+        for (int c = 3; c <= 10; c++) info.MinerSpawns.Add(CellPos(camp.OX + c, camp.OY + 10, 0.3f));   // south of the carts
+        for (int c = 4; c <= 9; c++) info.MinerSpawns.Add(CellPos(camp.OX + c, camp.OY + 11, 0.3f));
         // water zones
         foreach (var s in Slots)
         {

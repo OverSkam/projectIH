@@ -65,7 +65,7 @@ public class ExplorerBot : IMinerController
     {
         var inv = g.OwnInv; var world = g.World; var cave = world.Cave;
         int rank = Math.Max(0, Array.IndexOf(g.RoundPeers, Net.I.MyId));
-        Vector3 stand = cave.RingSpot(rank, Math.Max(1, g.RoundPeers.Length));   // home: this miner's tribute ring in the Hall
+        Vector3 stand = cave.StandSpot(rank, Math.Max(1, g.RoundPeers.Length));   // home: beside this miner's minecart in the Hall
         var pos = m.GlobalPosition;
         if (Util.HasArg("botdebug") && (_dbgT -= 1.0 / 60) <= 0) { _dbgT = 4; Util.Log($"EXPLORER {_name} mode={_mode} hp={g.OwnHealth} sack={inv.Sack.Count} t={g.TimeLeft:0} pos={pos} target={_target?.Kind}#{_target?.Id}"); }
 

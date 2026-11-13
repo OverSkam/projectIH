@@ -42,7 +42,7 @@ public class CaveInfo
     public Vector3 PalmPos;
     /// <summary>Centre of the arc of tribute rings: the focus point of the weighing ceremony (there is no giant Scale any more).</summary>
     public Vector3 ScalePos;
-    /// <summary>The tribute ring positions (>= 8 standing places on an arc, all inside the Hall, all facing ScalePos). With n miners the n middle ones are used, see <see cref="RingSpot"/>.</summary>
+    /// <summary>The tribute CART positions (>= 8 on an arc around ScalePos, each cart's long axis pointing at ScalePos, all inside the Hall). With n miners the n middle ones are used, see <see cref="RingSpot"/>; the miner stands at <see cref="StandSpot"/>.</summary>
     public List<Vector3> WeighSpots = new();
     /// <summary>Where the thrown miner falls into the dark (beside the Scale, inside the Hall).</summary>
     public Vector3 ShaftPos;
@@ -79,6 +79,15 @@ public class CaveInfo
         if (c == 0) return ScalePos;
         int start = n >= c ? 0 : (c - n) / 2;
         return WeighSpots[(start + rank) % c];
+    }
+
+    /// <summary>Where the miner of this rank stands beside their cart at the weighing: 1.6 m beyond the cart's outer end (away from the arc's centre), on the entrance side.</summary>
+    public Vector3 StandSpot(int rank, int n)
+    {
+        var c = RingSpot(rank, n);
+        var away = (c - ScalePos) with { Y = 0 };
+        away = away.LengthSquared() < 0.01f ? Vector3.Back : away.Normalized();
+        return c + away * 1.6f;
     }
 
     public RoomInfo RoomAt(Vector3 p)

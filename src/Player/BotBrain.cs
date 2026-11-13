@@ -57,7 +57,7 @@ public class BotBrain : IMinerController
         // The tribute is the sack's content at timer end IF the miner is inside the Hall: keep mining (the sack never fills up) until it is time to walk home to the ring.
         var cave = world.Cave;
         int rank = Math.Max(0, Array.IndexOf(g.RoundPeers, Net.I.MyId));
-        var ring = cave.RingSpot(rank, Math.Max(1, g.RoundPeers.Length));
+        var ring = cave.StandSpot(rank, Math.Max(1, g.RoundPeers.Length));
         if (_clock - _homeT > 3) { _homeT = _clock; _homeLen = PathLen(cave.FindPath(m.GlobalPosition, ring)); }
         _clock += 1.0 / 60;
         float speed = 3.4f * Burden.SpeedMul(g.OwnBurden);

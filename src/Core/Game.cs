@@ -31,6 +31,8 @@ public partial class Game : Node
     public World World;
     public int Round, TotalRounds;
     public float TimeLeft;
+    /// <summary>Length of this round in seconds (the HUD dial / fuse and the Hall candle show TimeLeft / RoundTotal).</summary>
+    public float RoundTotal = 1f;
     /// <summary>Public: whether a miner is up (alive or downed) this round.</summary>
     public readonly Dictionary<int, bool> Alive = new();
     /// <summary>Public: alive / downed / dead / eliminated per peer.</summary>
@@ -556,7 +558,7 @@ public partial class Game : Node
     {
         FreeWorld();
         RoundPeers = minerPeers;
-        Round = round; TimeLeft = time; TotalRounds = totalRounds; Weigh = null; OwnDowned = false;
+        Round = round; TimeLeft = time; RoundTotal = Mathf.Max(1f, time); TotalRounds = totalRounds; Weigh = null; OwnDowned = false;
         Alive.Clear(); Status.Clear();
         foreach (var id in Net.I.Names.Keys)
         {
