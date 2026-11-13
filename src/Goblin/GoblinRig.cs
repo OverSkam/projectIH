@@ -108,7 +108,7 @@ public partial class GoblinRig : Node3D
         AddChild(_palmGlow);
         _palmLabel = new Label3D
         {
-            Text = "FEED HIM", PixelSize = 0.012f, FontSize = 64, Billboard = BaseMaterial3D.BillboardModeEnum.FixedY, Position = new Vector3(-4.2f, 2.6f, 4.4f), Font = UiTheme.Chunky,
+            Text = "FEED HIM", PixelSize = 0.0065f, FontSize = 64, Billboard = BaseMaterial3D.BillboardModeEnum.FixedY, Position = new Vector3(-4.2f, 2.6f, 4.4f), Font = UiTheme.Chunky,
             Modulate = new Color(0.85f, 1f, 0.4f, 0.8f), OutlineSize = 16, OutlineModulate = new Color(0, 0, 0, 0.9f), NoDepthTest = false,
         };
         AddChild(_palmLabel);
