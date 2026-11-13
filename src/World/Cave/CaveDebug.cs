@@ -192,6 +192,7 @@ public partial class DebugCam : Camera3D
     public override void _Ready()
     {
         Fov = float.TryParse(Util.Arg("camfov", "80"), out var fv) ? fv : 80f; Near = 0.05f;
+        if (!Util.HasArg("camnoatmo")) AddChild(new LocalAtmosphere { Name = "LocalAtmosphere", Lit = () => !Util.HasArg("camdark") });
         // same numbers as the miner's lantern; --camdark = no light at all
         if (!Util.HasArg("camdark"))
             AddChild(new OmniLight3D { LightColor = new Color(0.95f, 0.9f, 0.8f), LightEnergy = float.TryParse(Util.Arg("camlight", "2.3"), out var le) ? le : 2.3f, OmniRange = 12f, OmniAttenuation = float.TryParse(Util.Arg("camatt", "0.7"), out var la) ? la : 0.7f, ShadowEnabled = !Util.HasArg("camnoshadow"), ShadowBias = 0.06f, Position = new Vector3(0.35f, 0.1f, -0.3f) });

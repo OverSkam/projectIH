@@ -13,7 +13,6 @@ public static class UserSettings
     public static float Fov = 80f;
     public static float Volume = 0.8f;
     public static bool Fullscreen;
-    public static bool FilmGrain = true;
 
     public static float SensitivityRad => 0.0025f * MouseSens;
 
@@ -30,7 +29,6 @@ public static class UserSettings
         Fov = Mathf.Clamp((float)(double)cf.GetValue("video", "fov", 80.0), 60f, 110f);
         Volume = Mathf.Clamp((float)(double)cf.GetValue("audio", "volume", 0.8), 0f, 1f);
         Fullscreen = (bool)cf.GetValue("video", "fullscreen", false);
-        FilmGrain = (bool)cf.GetValue("video", "grain", true);
     }
 
     public static void Save()
@@ -42,7 +40,6 @@ public static class UserSettings
         cf.SetValue("video", "fov", (double)Fov);
         cf.SetValue("audio", "volume", (double)Volume);
         cf.SetValue("video", "fullscreen", Fullscreen);
-        cf.SetValue("video", "grain", FilmGrain);
         cf.Save(Path);
     }
 

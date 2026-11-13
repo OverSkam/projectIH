@@ -71,6 +71,8 @@ public partial class Miner : CharacterBody3D
     public float SpeedMul = 1f, JumpMul = 1f;
     public bool NoFall;
     public bool HasMask, LanternOut, LanternLow;
+    /// <summary>True while the lantern in the hand is burning (the local miner sees only dim blindness shapes otherwise).</summary>
+    public bool LightOn => _light != null && IsInstanceValid(_light) && !LanternOut;
     /// <summary>Public: lying downed (crawling, lootable). See Game.Downed.cs.</summary>
     public bool IsDowned { get; private set; }
     /// <summary>Client: the downed miner under the crosshair that E would loot (set by UpdateTarget).</summary>
@@ -157,6 +159,7 @@ public partial class Miner : CharacterBody3D
             _body.Visible = false;
             _cam = new Camera3D { Current = true, Fov = UserSettings.Fov, Near = 0.05f };
             _head.AddChild(_cam);
+            if (DisplayServer.GetName() != "headless") _cam.AddChild(new LocalAtmosphere { Name = "LocalAtmosphere", Lit = () => LightOn });
             if (DisplayServer.GetName() != "headless") Input.MouseMode = Input.MouseModeEnum.Captured;
         }
         _netPos = Position;

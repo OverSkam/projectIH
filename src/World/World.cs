@@ -8,6 +8,8 @@ namespace AppStein;
 public partial class World : Node3D
 {
     public CaveInfo Cave;
+    /// <summary>The cave's environment (fog density / saturation are driven locally by LocalAtmosphere).</summary>
+    public Godot.Environment Env;
     public Node3D MinersRoot, ObjectsRoot;
     public readonly Dictionary<int, NetObject> Objects = new();
     public int NextObjectId = 1; // server only
@@ -24,20 +26,11 @@ public partial class World : Node3D
         AddChild(MinersRoot); AddChild(ObjectsRoot);
         AddChild(new HallCeremony { Name = "HallCeremony" });
 
-        // Pitch black: no ambient light, black background.
-        var env = new Godot.Environment
-        {
-            BackgroundMode = Godot.Environment.BGMode.Color,
-            BackgroundColor = Colors.Black,
-            AmbientLightSource = Godot.Environment.AmbientSource.Color,
-            AmbientLightColor = Colors.Black,
-            AmbientLightEnergy = 0f,
-            TonemapMode = Godot.Environment.ToneMapper.Filmic,
-            FogEnabled = true,
-            FogLightColor = new Color(0.008f, 0.010f, 0.016f),
-            FogDensity = 0.05f,
-        };
+        // No ambient light, black background, depth + height fog (see Atmosphere). Dust and the blindness rig attach to the local camera.
+        Env = Atmosphere.MakeEnvironment();
+        var env = Env;
         AddChild(new WorldEnvironment { Environment = env });
+        if (DisplayServer.GetName() != "headless" && Builder is ModularCave) Atmosphere.BuildFogCards(this, Cave);   // nothing to draw (and nothing to slow tests down) without a display
         if (Util.HasArg("camroom") || Util.HasArg("cam") || Util.HasArg("camtunnel") || Util.HasArg("camgoblin")) AddChild(DebugCam.Make(Cave));
     }
 

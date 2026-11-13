@@ -102,7 +102,7 @@ public static partial class CaveVisuals
         }
     }
 
-    static readonly Color Wood = new(0.36f, 0.22f, 0.10f);
+    static readonly Color Wood = new(0.27f, 0.20f, 0.13f);   // weathered, greyish timber (it used to read as saturated orange under the lantern)
     static Color WoodC(Rnd r) => Wood * (0.8f + 0.4f * r.F());
 
     public static void Build(ModularCave g, Node3D parent)
@@ -203,7 +203,9 @@ public static partial class CaveVisuals
         float h = ceil - 0.08f;
         foreach (float s in new[] { -(hw - 0.08f), hw - 0.08f })
             mb.Box(center + basis * new Vector3(0, h * 0.5f, s), new Vector3(0.18f, h, 0.18f), WoodC(r));
-        mb.Box(center + basis * new Vector3(0, h - 0.1f, 0), new Vector3(0.24f, 0.22f, hw * 2f + 0.3f), WoodC(r));
+        // the cap beam spans ACROSS the tunnel: its long side is local Z, rotated with the frame (without the rotation the beam of a north-south tunnel pointed along the tunnel and read as a hanging orange block)
+        mb.Box(center + basis * new Vector3(0, h - 0.1f, 0), new Vector3(0.24f, 0.22f, hw * 2f + 0.3f), WoodC(r) * 0.92f, rot);
+        mb.Box(center + basis * new Vector3(0, h - 0.24f, 0), new Vector3(0.1f, 0.1f, hw * 2f - 0.1f), WoodC(r) * 0.75f, rot);   // a lower brace so the beam does not read as one flat slab
     }
 
     static void Props(Ctx cx)
