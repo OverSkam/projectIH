@@ -56,7 +56,10 @@ public static class MonsterTuning
     public const float PlugHearMul = 3f;           // hears noise out to loudness * this (it is slow, so it hears far)
 
     // ---- Wicks
-    public const float WicksSpeed = 5.2f, WicksSense = 38f, WicksContact = 1.3f, WicksOilPerSec = 22f, WicksDps = 4f, WicksLoseSeconds = 4f;
+    public const float WicksSpeed = 5.2f, WicksContact = 1.3f, WicksOilPerSec = 22f, WicksDps = 4f;
+    public const float WicksSense = 22f, WicksPath = 30f;   // attracted only to a LIT lantern within 22 m (straight) AND at most 30 m of tunnel path
+    public const float WicksFlash = 1.0f;                   // the lantern must have been lit this long (a shorter flash attracts nothing)
+    public const float WicksCircleSeconds = 2.5f;           // after the light goes out: circle the last lit spot this long, then drift off
     public const int WicksCount = 10;
 
     // ---- the Lamplighter

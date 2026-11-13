@@ -214,7 +214,7 @@ public abstract partial class MonsterObj : NetObject
                 if (!Arrived)
                 {
                     if (StuckT > 3f) StartPatrol();   // cannot get there (a crawl, a vein, rubble): give up at once
-                    else if (MoveTo(Goal, InvestigateSpeed, dt, false, 1.5f)) { Arrived = true; Timer = MonsterTuning.SearchSeconds; }
+                    else if (MoveTo(Goal, InvestigateSpeed, dt, false, 1.5f)) { Arrived = true; Timer = SearchTime; }
                 }
                 else
                 {
@@ -230,6 +230,9 @@ public abstract partial class MonsterObj : NetObject
             case MonsterState.Return: StartPatrol(); break;
         }
     }
+
+    /// <summary>Seconds spent looking around at the end of an Investigate (subclasses may shorten it).</summary>
+    protected virtual float SearchTime => MonsterTuning.SearchSeconds;
 
     protected void GoIdle() { Timer = IdleMin + GD.Randf() * IdleRand; StuckT = 0; SetState(MonsterState.Idle); }
 
@@ -366,7 +369,6 @@ public abstract partial class MonsterObj : NetObject
         var q = Queries.Ray(a, b, mask);
         q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
         bool hit = GetWorld3D().DirectSpaceState.IntersectRay(q).Count > 0;
-        q.Dispose();
         return hit;
     }
 
@@ -375,7 +377,6 @@ public abstract partial class MonsterObj : NetObject
         var q = Queries.Ray(p + new Vector3(0, _groundTop, 0), p + new Vector3(0, -2.2f, 0), Layers.World);
         q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
         var r = GetWorld3D().DirectSpaceState.IntersectRay(q);
-        q.Dispose();
         if (r.Count == 0) return null;
         return r["position"].AsVector3().Y;
     }

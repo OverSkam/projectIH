@@ -71,6 +71,8 @@ public partial class Miner : CharacterBody3D
     public float SpeedMul = 1f, JumpMul = 1f;
     public bool NoFall;
     public bool HasMask, LanternOut, LanternLow;
+    /// <summary>Until this time (seconds) the lantern flame gutters because Wicks are drinking its oil (set by the swarm on every peer).</summary>
+    public double GutterUntil;
     /// <summary>True while the lantern in the hand is burning (the local miner sees only dim blindness shapes otherwise).</summary>
     public bool LightOn => _light != null && IsInstanceValid(_light) && !LanternOut;
     /// <summary>Public: lying downed (crawling, lootable). See Game.Downed.cs.</summary>
@@ -305,8 +307,16 @@ public partial class Miner : CharacterBody3D
         // low oil: the light stutters (public: everyone sees a miner's light flicker)
         if (_light == null) return;
         if (LanternOut) { _light.Visible = false; return; }
-        if (!LanternLow) { _light.Visible = true; _light.LightEnergy = _lightBase; return; }
         double t = Time.GetTicksMsec() / 1000.0;
+        if (t < GutterUntil)
+        {
+            // Wicks are drinking the oil: the flame gutters hard (dips low, nearly dies, flares back)
+            float g = (float)(0.5 + 0.5 * Math.Sin(t * 31.0) * Math.Sin(t * 9.1 + PeerId));
+            _light.Visible = true;
+            _light.LightEnergy = _lightBase * (0.12f + 0.55f * g * g);
+            return;
+        }
+        if (!LanternLow) { _light.Visible = true; _light.LightEnergy = _lightBase; return; }
         float f = (float)(Math.Sin(t * 23.0) * Math.Sin(t * 7.3 + PeerId));
         _light.Visible = f > -0.55f;
         _light.LightEnergy = _lightBase * (0.55f + 0.4f * (float)Math.Abs(Math.Sin(t * 13.0)));

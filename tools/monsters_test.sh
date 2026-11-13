@@ -88,7 +88,7 @@ run_scenario assessor 3 "bots_in_position assessor_stalks_highest_tribute assess
 BOBARGS=""
 HOSTEXTRA="--roundsecs=600 --seedbase=${SEEDBASE:-5}"
 run_scenario plug 2 "alice_in_position nav_profiles_fit plug_spawns_in_a_tunnel plug_creeps_about_1_mps plug_creeps_toward_the_noise plug_body_blocks_the_tunnel plug_stun_applied plug_stun_is_short plug_pushed_back_by_dynamite plug_crushes_20_dps montest_done" "monster_replicated miner_hurt_seen" 0 --monpos=deep:60
-run_scenario wicks 2 "alice_in_position wicks_drawn_to_lit_lantern wicks_drain_oil_fast wicks_bite wicks_lose_interest_when_lantern_off montest_done" "monster_replicated" 0 --monpos=deep:60
+run_scenario wicks 2 "alice_in_position wicks_ignore_dark_miner wicks_ignore_flash_under_1s wicks_drawn_to_lit_lantern wicks_drain_oil_fast wicks_bite wicks_lose_miner_within_3s_of_lights_out wicks_circle_last_lit_spot wicks_never_track_dark_miner wicks_drift_back_to_wandering wicks_attracted_again_on_relight montest_done" "monster_replicated" 0 --monpos=deep:60
 run_scenario plugwalk 2 "alice_at_tunnel_mouth miner_cannot_pass_the_plug miner_not_launched_by_the_plug miner_not_launched_by_creeping_plug miner_pushed_back_not_through montest_done" "" 0 --monpos=tun --monpush
 run_scenario loudloot 2 "alice_in_position golem_waits_before_the_reveal reveal_noise_pulls_a_far_golem golem_walks_toward_the_reveal mimic_shriek_pulls_a_far_golem mimic_cannot_settle_in_a_tunnel montest_done" "" 0 --monpos=deep:60
 HOSTEXTRA="--roundsecs=600 --seedbase=${SEEDBASE:-5} --mondirector --dirquiet=14 --dircheck=5"

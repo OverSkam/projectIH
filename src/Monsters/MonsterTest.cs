@@ -481,14 +481,42 @@ public static class MonsterTest
             yield return Until(() => crossed, 1, "wicks_pass_through_crawl_cells");
             Remove(wc);
         }
-        var start = FarFrom(spot, 35f, 34f, NavProfile.Swarm);
+        // the rules: attracted ONLY to a lantern that has been lit >= 1 s, within 22 m straight and 30 m of path; lights out = lost; relight = attracted again
+        a.LanternOn = false;
+        yield return Until(() => !MonsterSenses.Lit(a), 3, "wicks_test_alice_dark");
+        yield return Sleep(1.0f);
+        var start = FarFrom(spot, 14f, 19f, NavProfile.Swarm);
         var w = Mk<WicksObj>("wicks", start, spot);
+        float startD = FlatD(start, spot);
+        Util.Log($"MONTEST: wicks start {startD:0.#} m straight from Alice");
+        // 1. a dark miner is never tracked, not even from 14 m in a tunnel
+        bool chased = false; double t0 = Clock;
+        yield return Until(() => { if (w.State == MonsterState.Chase || w.State == MonsterState.Attack) chased = true; return Clock - t0 > 3f; }, 6, null);
+        yield return Until(() => !chased, 1, "wicks_ignore_dark_miner");
+        // 2. a flash shorter than 1 s attracts nothing
+        a.LanternOn = true; yield return Sleep(0.6f); a.LanternOn = false;
+        t0 = Clock;
+        yield return Until(() => { if (w.State == MonsterState.Chase || w.State == MonsterState.Attack) chased = true; return Clock - t0 > 3.5f; }, 7, null);
+        yield return Until(() => !chased, 1, "wicks_ignore_flash_under_1s");
+        // 3. a steady light calls them; they drink the oil and bite
+        a.LanternOn = true;
         yield return Until(() => FlatD(w.GlobalPosition, a.Pos) < 2.5f, 60, "wicks_drawn_to_lit_lantern");
         float oil0 = a.Oil;
         yield return Until(() => a.Oil < oil0 - 25f, 10, "wicks_drain_oil_fast");
         yield return Until(() => a.Health <= 96f, 6, "wicks_bite");
-        a.LanternOn = false;   // switched off
-        yield return Until(() => w.State != MonsterState.Attack && w.State != MonsterState.Chase, 12, "wicks_lose_interest_when_lantern_off");
+        // 4. lights out: lost within 3 s, circles the last lit spot, then wanders on and never follows the dark miner
+        a.LanternOn = false; t0 = Clock;
+        yield return Until(() => w.State != MonsterState.Attack && w.State != MonsterState.Chase, 3, "wicks_lose_miner_within_3s_of_lights_out");
+        yield return Until(() => w.State == MonsterState.Investigate || w.State == MonsterState.Wander || w.State == MonsterState.Idle, 2, "wicks_circle_last_lit_spot");
+        chased = false; t0 = Clock;
+        yield return Until(() => { if (w.State == MonsterState.Chase || w.State == MonsterState.Attack) chased = true; return Clock - t0 > 5f; }, 8, null);
+        yield return Until(() => !chased, 1, "wicks_never_track_dark_miner");
+        yield return Until(() => w.State == MonsterState.Wander || w.State == MonsterState.Idle, 6, "wicks_drift_back_to_wandering");
+        Heal(a);
+        // 5. relight: attracted again
+        a.LanternOn = true;
+        yield return Until(() => w.State == MonsterState.Chase || w.State == MonsterState.Attack, 8, "wicks_attracted_again_on_relight");
+        a.LanternOn = false;
         w.Frozen = true;
     }
 
