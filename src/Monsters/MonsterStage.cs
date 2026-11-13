@@ -5,7 +5,7 @@ using Godot;
 namespace AppStein;
 
 /// <summary>
-/// Screenshot staging for monsters (tools/screenshot.sh): `--cammonster=golem|golemtunnel|golemcompare|plug|wicks|lamplighter|assessor|lampcompare [--camdist=4] [--camspot=N] [--camdark] [--camroom=0]` (camroom makes the debug camera exist).
+/// Screenshot staging for monsters (tools/screenshot.sh): `--cammonster=golem|golemtunnel|golemcompare|golemhall|plug|wicks|lamplighter|assessor|lampcompare [--camdist=4] [--camspot=N] [--camdark] [--camroom=0]` (camroom makes the debug camera exist).
 /// The monster is spawned frozen in an open spot (plug: inside a tunnel), faces the camera; `lampcompare` puts a Lamplighter and a real miner holding a lantern side by side.
 /// Use with `--nomonsters` so only the staged one exists. Does nothing without the argument.
 /// </summary>
@@ -40,11 +40,19 @@ public static class MonsterStage
         var cam = g.World.GetNodeOrNull<Camera3D>("DebugCam");
         if (cam == null) { Util.Log("STAGE: needs --camroom=0 (debug camera)"); _done = true; return; }
         _done = true;
-        float dist = float.TryParse(Util.Arg("camdist", _mode == "lampcompare" ? "12" : _mode == "golemcompare" ? "9" : "4"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var dd) ? dd : 4f;
-        string kind = _mode == "lampcompare" ? "lamplighter" : _mode == "golemtunnel" || _mode == "golemcompare" ? "golem" : _mode;
+        float dist = float.TryParse(Util.Arg("camdist", _mode == "lampcompare" ? "12" : _mode == "golemcompare" || _mode == "golemhall" ? "9" : "4"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var dd) ? dd : 4f;
+        string kind = _mode == "lampcompare" ? "lamplighter" : _mode == "golemtunnel" || _mode == "golemcompare" || _mode == "golemhall" ? "golem" : _mode;
         var space = d.GetViewport().World3D.DirectSpaceState;
         Vector3 monPos, camPos, dir;
-        if ((_mode == "plug" || _mode == "golemtunnel") && ModularCave.Last is { } mc0 && mc0.Tunnels.Count > 0)
+        if (_mode == "golemhall")
+        {
+            // standing in the big Hall (14 m ceiling) next to a miner, seen from the side
+            var h0 = g.World.Cave.GoblinSeat + new Vector3(0, 0, 9.2f);
+            dir = Vector3.Right;
+            monPos = new Vector3(h0.X + 9f, 0f, h0.Z + 6f); monPos.Y = Floor(space, monPos);
+            camPos = monPos - dir * dist + new Vector3(0, 1.6f, 0);
+        }
+        else if ((_mode == "plug" || _mode == "golemtunnel") && ModularCave.Last is { } mc0 && mc0.Tunnels.Count > 0)
         {
             var t = mc0.Tunnels.FirstOrDefault(x => x.Kind == 0) ?? mc0.Tunnels[0];
             dir = t.AlongX ? Vector3.Right : Vector3.Back;
@@ -57,7 +65,7 @@ public static class MonsterStage
         {
             if (!FindSpot(g.World.Cave, space, dist + 1f, out monPos, out camPos, out dir, dist)) { Util.Log("STAGE: no open spot found"); return; }
         }
-        float lateral = _mode == "lampcompare" ? 0.7f : _mode == "golemcompare" ? 1.9f : 0f;
+        float lateral = _mode == "lampcompare" ? 0.7f : _mode == "golemcompare" || _mode == "golemhall" ? 2.2f : 0f;
         var side = new Vector3(-dir.Z, 0, dir.X);
         var mon = MonsterModule.Spawn<MonsterObj>(kind, monPos + side * lateral);
         if (mon != null)
@@ -67,7 +75,7 @@ public static class MonsterStage
             mon.Yaw = Mathf.Atan2(-toCam.X, -toCam.Z);
             mon.Rotation = new Vector3(0, mon.Yaw, 0);
         }
-        if (_mode == "lampcompare" || _mode == "golemcompare")
+        if (_mode == "lampcompare" || _mode == "golemcompare" || _mode == "golemhall")
         {
             var other = new Miner { Name = "9999", PeerId = 9999, PlayerName = "Gus", IsLocal = false };
             g.World.MinersRoot.AddChild(other);

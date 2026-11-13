@@ -59,8 +59,8 @@ public partial class GolemObj : MonsterObj
         // huge rocky shoulders
         Box(_torso, new Vector3(0.8f, 0.7f, 0.95f), light, new Vector3(-0.98f, 1.2f, 0), 0, new Vector3(0.3f, 0.4f, 0.25f));
         Box(_torso, new Vector3(0.8f, 0.7f, 0.95f), light, new Vector3(0.98f, 1.2f, 0), 0, new Vector3(-0.2f, 0.3f, -0.3f));
-        Box(_torso, new Vector3(0.45f, 0.5f, 0.5f), stone, new Vector3(-1.1f, 1.55f, 0.1f), 0, new Vector3(0.5f, 0.2f, 0.4f));
-        Box(_torso, new Vector3(0.4f, 0.55f, 0.45f), stone, new Vector3(1.08f, 1.5f, -0.05f), 0, new Vector3(-0.3f, 0.6f, -0.3f));
+        Box(_torso, new Vector3(0.45f, 0.4f, 0.5f), stone, new Vector3(-1.1f, 1.42f, 0.1f), 0, new Vector3(0.5f, 0.2f, 0.4f));
+        Box(_torso, new Vector3(0.4f, 0.4f, 0.45f), stone, new Vector3(1.08f, 1.4f, -0.05f), 0, new Vector3(-0.3f, 0.6f, -0.3f));
         // head, low and forward between the shoulders
         _head = Pivot(_torso, new Vector3(0, 1.5f, -0.28f));
         Box(_head, new Vector3(0.8f, 0.68f, 0.8f), stone, Vector3.Zero);

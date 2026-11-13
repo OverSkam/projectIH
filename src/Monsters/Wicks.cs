@@ -28,7 +28,7 @@ public partial class WicksObj : MonsterObj
         var rng = new RandomNumberGenerator { Seed = 4242 };
         for (int i = 0; i < MonsterTuning.WicksCount; i++)
         {
-            var b = new Node3D();
+            var b = new Node3D { Scale = Vector3.One * 1.35f };
             // a plump pale grub with a head, two flickering wings and a tail wick
             var body = new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.06f, Height = 0.12f, RadialSegments = 6, Rings = 3 }, MaterialOverride = Util.Mat(pale, 1.1f) };
             body.Scale = new Vector3(1f, 0.9f, 1.8f);
