@@ -44,6 +44,8 @@ public class ServerPlayer
     public Vector3 Pos;
     public float Yaw, Pitch;
     public double NextAttack;
+    /// <summary>Seconds (Time.GetTicksMsec / 1000) of the last damage this miner took: interrupts the chest hold (src/Loot2).</summary>
+    public double LastDamageAt;
     public bool Dirty;              // own-state needs resending to the owner
     public double LastOwnSend;
     public double NextMeddle;
@@ -103,6 +105,7 @@ public class ServerPlayer
         float dmg = amount * Stats.DamageTakenMul;
         if (Downed) { source?.Fire(new SteinEvent { Kind = SteinEventKind.DamageDealt, Amount = dmg, Other = this }); Game.I.KillMiner(this, source ?? DownedBy, cause); return dmg; }
         Health -= dmg;
+        if (dmg > 0f) LastDamageAt = Time.GetTicksMsec() / 1000.0;
         Dirty = true;
         if (Util.HasArg("soak")) Util.Log($"SOAKDMG cause={cause} victim={Name} dmg={dmg:0.#} hp={Health:0.#} by={source?.Name ?? "-"}");
         Fire(new SteinEvent { Kind = SteinEventKind.DamageTaken, Amount = dmg, Other = source });

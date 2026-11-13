@@ -117,9 +117,7 @@ public partial class VeinObj : NetObject
             return;
         }
         Game.I.ServerDespawnObject(Id);
-        var dir = (p.Pos - GlobalPosition) with { Y = 0 };
-        dir = dir.LengthSquared() < 0.01f ? Vector3.Right : dir.Normalized();
-        Game.I.ServerSpawnObject("pickup", GlobalPosition + dir * 1.3f + new Vector3(0, 0.45f, 0), "ore:" + Loot.LuckyOre(_ore, p));
+        Loot2Module.OnVeinBroken(GlobalPosition, _ore, p);   // a vein no longer drops stones: it breaks off 1-3 sealed geodes (src/Loot2)
         p.Fire(new SteinEvent { Kind = SteinEventKind.Mined, Amount = Ores.WeightOf(_ore) });
         Util.Pass("ore_mined", $"ore={_ore} by={p.Name}");
     }

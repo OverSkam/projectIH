@@ -24,6 +24,7 @@ public class ExplorerBot : IMinerController
     NetObject _target;
     int _targetTries;
     readonly HashSet<int> _skip = new();
+    readonly Dictionary<int, int> _chestTries = new();
     bool[] _comp;
     string _mode = "explore";
     double _pathLenT; float _pathLen = 30f;
@@ -101,7 +102,7 @@ public class ExplorerBot : IMinerController
 
         if (_target is OilDrumObj && (g.OwnOil > g.OwnOilMax * 0.8f || Kv(_target, "uses") == "0")) Drop();
         if (_target != null && (!GodotObject.IsInstanceValid(_target) || Gone(_target, world))) { _target = null; _holdUntil = 0; }
-        else if (_target is ChestObj && Kv(_target, "open") == "1" || _target is LeverObj && Kv(_target, "s") != "ready" || _target is ShrineObj && Kv(_target, "state") == "done") Drop();
+        else if (_target is GlowChestObj gcd && gcd.State is "open" or "run" or "stun" || _target is ChestObj && Kv(_target, "open") == "1" || _target is LeverObj && Kv(_target, "s") != "ready" || _target is ShrineObj && Kv(_target, "state") == "done") Drop();
         if (_target != null && _clock - _targetSince > (_target is MonsterObj ? 80 : 45)) { Util.Log($"EXPLORER {_name} giving up on {_target.Kind}#{_target.Id} at {_target.GlobalPosition}"); _skip.Add(_target.Id); _target = null; }
         if (_brave && _trapRuns < 1 && !_deliberateTrap && _target != null && g.TimeLeft > 35f && TrapCandidate(g, cave, pos) != null) _target = null;   // the deliberate trap run preempts whatever the bot was doing
         if (_target == null) PickTarget(m, g);
@@ -203,6 +204,8 @@ public class ExplorerBot : IMinerController
                 case VeinObj: w = sackRoom ? 1.0f : 99f; break;
                 case PickupObj p: w = p.Data.StartsWith("ore:") ? (sackRoom ? 0.7f : 99f) : 0.8f; break;
                 case ChestObj c: if (Kv(c, "open") == "1") continue; w = 0.3f; break;
+                case GeodeObj: w = 0.9f; break;   // sealed geodes: crack them in place with the pickaxe (3 hits)
+                case GlowChestObj gc: if (gc.State != "closed" || _chestTries.GetValueOrDefault(gc.Id) >= 3) continue; w = 0.45f; break;   // bright chests: hold E (some are mimics; the bot cannot tell)
                 case ShrineObj s:
                     { var t = Kv(s, "type"); if (Kv(s, "state") == "done" || t == "plate") continue; w = 1.3f; break; }
                 case LeverObj l: if (Kv(l, "s") != "ready") continue; w = _brave ? 0.7f : 1.2f; break;
@@ -258,6 +261,27 @@ public class ExplorerBot : IMinerController
             case PickupObj:
                 if (Walk(m, ref inp, op, 1.2f)) { Face(m, ref inp, op); Interact(g, o, 0.4); if (++_targetTries > 12) Drop(); }
                 break;
+            case GeodeObj:
+                {
+                    EquipPickaxe(g);
+                    if (Walk(m, ref inp, op, 1.7f) || pos.DistanceTo(op) < 2.4f)
+                    {
+                        Face(m, ref inp, op + Vector3.Up * 0.4f); inp.Move = Vector2.Zero;
+                        if (inv.Held == "pickaxe") inp.Attack = true;
+                    }
+                    break;
+                }
+            case GlowChestObj gch:
+                {
+                    if (Loot2Client.Holding && Loot2Client.HoldId == gch.Id) { Face(m, ref inp, op + Vector3.Up * 0.4f); inp.Move = Vector2.Zero; break; }
+                    if (gch.State == "bite") { inp.Move = Vector2.Zero; break; }   // held in its jaws: nothing to do but wait
+                    if (Walk(m, ref inp, op, 1.7f))
+                    {
+                        Face(m, ref inp, op + Vector3.Up * 0.4f); inp.Move = Vector2.Zero;
+                        if (_actT <= 0) { _actT = 1.5; if (++_targetTries > 3) { _chestTries[gch.Id] = 3; Drop(); } else { _chestTries[gch.Id] = _targetTries; Loot2Client.Start(gch.Id); Util.Pass("explorer_bchest_try"); } }
+                    }
+                    break;
+                }
             case ChestObj:
                 if (Walk(m, ref inp, op, 1.7f)) { Face(m, ref inp, op + Vector3.Up * 0.3f); inp.Move = Vector2.Zero; Interact(g, o, 0.6); if (++_targetTries > 40) Drop(); }
                 break;

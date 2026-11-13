@@ -54,6 +54,11 @@ public static class CaveCheck
                     for (int b2 = a + 1; b2 < info.WeighSpots.Count; b2++)
                         if (new Vector2(info.WeighSpots[a].X - info.WeighSpots[b2].X, info.WeighSpots[a].Z - info.WeighSpots[b2].Z).Length() < 1.3f) Bad($"{tag} tribute rings {a} and {b2} overlap");
                 if (info.MinerSpawns.Count < 8) Bad($"{tag} spawns={info.MinerSpawns.Count}");
+                // bright chests (marker "bchest"): about one per two miners plus a depth bonus, at least one, never in the Hall
+                int bch = info.Rooms.Sum(r => r.Markers.Count(m => m.Kind == "bchest"));
+                if (bch < 1 || bch > (miners + 1) / 2 + 2) Bad($"{tag} bchest markers={bch}");
+                if (bch < Math.Min((miners + 1) / 2, 3)) Bad($"{tag} too few bchest markers={bch}");
+                if (info.Rooms.Any(r => r.Name == "camp" && r.Markers.Any(m => m.Kind == "bchest"))) Bad($"{tag} chest in the Hall");
                 if (info.Rooms.Count >= 6 && g.LoopCount < 1) Bad($"{tag} no loop");
                 if (round >= 3 && !info.Rooms.Any(r => r.Markers.Any(m => m.Kind == "dragon"))) Bad($"{tag} no dragon lair");
                 if (round >= 3 && info.Rooms.First(r => r.Name == "lair").Depth != g.Slots.Max(s => s.Depth)) Bad($"{tag} lair not deepest");

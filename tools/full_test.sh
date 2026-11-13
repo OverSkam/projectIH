@@ -48,7 +48,7 @@ for n in alice bob carol host; do grep -q '^PASS: no_foreign_state' "$LOGDIR/$n.
 sum() { grep -h '^SOAKROUND' "$H" | grep -oE " $1=[0-9]+" | sed 's/.*=//' | awk '{s+=$1} END{print s+0}'; }
 msum() { grep -h '^SOAKROUND' "$H" | grep -oE "markers\[[^]]*\]" | grep -oE "(^|[,\[])$1=[0-9]+" | sed 's/.*=//' | awk '{s+=$1} END{print s+0}'; }
 osum() { grep -h '^SOAKROUND' "$H" | grep -oE "objects\[[^]]*\]" | grep -oE "(^|[,\[])$1=[0-9]+" | sed 's/.*=//' | awk '{s+=$1} END{print s+0}'; }
-for pair in "vein:vein" "ore:pickup" "chest:chest" "shrine:shrine" "dragon:dragon" "lever:trap_lever"; do
+for pair in "vein:vein" "ore:pickup" "chest:chest" "bchest:bchest" "shrine:shrine" "dragon:dragon" "lever:trap_lever"; do
   mk=${pair%%:*}; ob=${pair##*:}; m=$(msum $mk); o=$(osum $ob)
   echo "markers $mk=$m -> objects $ob=$o"
   if [ "$m" -gt 0 ] && [ "$o" -eq 0 ]; then fail "marker kind $mk produced no $ob objects"; fi
@@ -58,6 +58,8 @@ if [ "$(msum monster)" -gt 0 ] && [ "$mon" -eq 0 ]; then fail "monster markers p
 if [ "$(msum trap)" -gt 0 ] && [ "$trp" -eq 0 ]; then fail "trap markers produced no traps"; fi
 need() { if grep -qE "$2" "$H"; then echo "PASS: $1"; else fail "missing: $1 (/$2/)"; fi; }
 need ore_mined '^PASS: ore_mined'
+need vein_geodes '^PASS: vein_geodes'
+need geode_cracked '^PASS: geode_cracked'
 need stones_counted_in_hall '^PASS: tribute_counted .*stones=[1-9].*in_hall=True'
 need bots_home '^PASS: explorer_home'
 need sacks_weighed '^PASS: palm_number'
@@ -75,7 +77,7 @@ echo "encounters: $(grep -h '^SOAKENC' "$H" | tr '\n' ' ')"
 [ "$enc_bad" -eq 0 ] || fail "a round passed without any miner having a monster within 15 m"
 echo "stuck monster events: $(grep -c SOAKSTUCK "$H")"
 [ "$(grep -c SOAKSTUCK "$H")" -le 6 ] || fail "too many stuck monsters"
-grep -hE "^PASS: (shrine_taken|shrine_trial_started|chest_opened|lever_pulled|monster_died)" "$H" | cut -d' ' -f2 | sort | uniq -c | tr '\n' ' '; echo
+grep -hE "^PASS: (shrine_taken|shrine_trial_started|chest_opened|bchest_opened|mimic_bite|geode_cracked|vein_geodes|lever_pulled|monster_died)" "$H" | cut -d' ' -f2 | sort | uniq -c | tr '\n' ' '; echo
 grep -hE "^(WEIGH|ROUND)" "$H" | head -40
 grep -E "^(ROUND|WINNER)" "$H"
 if [ $RC -eq 0 ]; then echo "FULL PASS"; else echo "FULL FAILED (see $LOGDIR)"; fi
