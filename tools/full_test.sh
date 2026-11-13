@@ -16,7 +16,7 @@ grep -q "0 Error(s)" "$LOGDIR/build.txt" || { cat "$LOGDIR/build.txt"; echo "FUL
 godot --headless --path . --import > "$LOGDIR/import.log" 2>&1
 echo "== run seedbase=$SEED rounds<=$ROUNDS (logs in $LOGDIR)"
 COMMON="--preset=soak --seedbase=$SEED --soak --timeout=$TIMEOUT"
-HOSTARGS="--give=Alice=stein:ethereal --giveeach"   # Alice can phase through thin walls: bots reach the nook chests
+HOSTARGS="--give=Alice=stein:ethereal --giveeach ${FULLEXTRA:-}"   # Alice can phase through thin walls: bots reach the nook chests
 PIDS=()
 godot --headless --path . -- --host --name=Host --port="$PORT" --autostart=4 --bot=explorer $COMMON $HOSTARGS > "$LOGDIR/host.log" 2>&1 & PIDS+=($!)
 sleep 4

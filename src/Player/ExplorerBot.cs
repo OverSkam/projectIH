@@ -94,16 +94,19 @@ public class ExplorerBot : IMinerController
         if (_mode == "home") _mode = "explore";
 
         // cautious bot backs off from awake monsters
+        foreach (var o in world.Objects.Values)   // a lone light in the dark that is not a miner: keep well away from the Lamplighter
+            if (o is LamplighterObj lp && (lp.State == MonsterState.Idle || lp.State == MonsterState.Wander) && lp.GlobalPosition.DistanceTo(pos) < 6.5f && !cave.InHall(pos))
+            { _mode = "flee"; _flee = _clock + 5; return; }
         {
             foreach (var o in world.Objects.Values)
-                if (!(_brave && o is GolemObj) && o is MonsterObj mo && mo.State is MonsterState.Chase or MonsterState.Windup or MonsterState.Attack && mo.GlobalPosition.DistanceTo(pos) < (mo is GolemObj ? 11f : 8f) && !cave.InHall(pos))
+                if (!(_brave && o is GolemObj) && o is MonsterObj mo && mo.State is MonsterState.Chase or MonsterState.Windup or MonsterState.Attack && mo.GlobalPosition.DistanceTo(pos) < (mo is GolemObj ? 9f : 6f) && !cave.InHall(pos))
                 { _mode = "flee"; _flee = _clock + 8; return; }
         }
 
         if (_target is OilDrumObj && (g.OwnOil > g.OwnOilMax * 0.8f || Kv(_target, "uses") == "0")) Drop();
         if (_target != null && (!GodotObject.IsInstanceValid(_target) || Gone(_target, world))) { _target = null; _holdUntil = 0; }
         else if (_target is GlowChestObj gcd && gcd.State is "open" or "run" or "stun" || _target is ChestObj && Kv(_target, "open") == "1" || _target is LeverObj && Kv(_target, "s") != "ready" || _target is ShrineObj && Kv(_target, "state") == "done") Drop();
-        if (_target != null && _clock - _targetSince > (_target is MonsterObj ? 80 : 45)) { Util.Log($"EXPLORER {_name} giving up on {_target.Kind}#{_target.Id} at {_target.GlobalPosition}"); _skip.Add(_target.Id); _target = null; }
+        if (_target != null && _clock - _targetSince > (_target is MonsterObj ? 80 : _target is ChestObj ? 80 : 45)) { Util.Log($"EXPLORER {_name} giving up on {_target.Kind}#{_target.Id} at {_target.GlobalPosition}"); _skip.Add(_target.Id); _target = null; }
         if (_brave && _trapRuns < 1 && !_deliberateTrap && _target != null && g.TimeLeft > 35f && TrapCandidate(g, cave, pos) != null) _target = null;   // the deliberate trap run preempts whatever the bot was doing
         if (_target == null) PickTarget(m, g);
         if (_target == null) { Walk(m, ref inp, RoamGoal(cave, pos), 1.5f); return; }

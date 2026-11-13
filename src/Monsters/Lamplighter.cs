@@ -18,6 +18,8 @@ public partial class LamplighterObj : MonsterObj
     bool _standing;
     MonsterState _prevState = MonsterState.Idle;
     float _lightBase;
+    readonly Dictionary<int, double> _cool = new();   // a miner it has just held is left alone for a while
+    static double Clk => Time.GetTicksMsec() / 1000.0;
 
     public LamplighterObj()
     {
@@ -82,9 +84,11 @@ public partial class LamplighterObj : MonsterObj
         BeginGrab(p);
     }
 
+    public void ResetCooldown() => _cool.Clear();
+
     void BeginGrab(ServerPlayer p)
     {
-        _victim = p; Timer = MonsterTuning.LampSnuff;
+        _victim = p; Timer = MonsterTuning.LampSnuff; _cool[p.Peer] = Clk + MonsterTuning.LampCooldown;
         Util.Pass("lamplighter_triggered", $"victim={p.Name}");
         SetState(MonsterState.Windup);
     }
@@ -143,6 +147,7 @@ public partial class LamplighterObj : MonsterObj
         foreach (var p in Game.I.Players.Values)
         {
             if (!p.Alive || !p.Participant || Cave.InHall(p.Pos)) continue;
+            if (_cool.TryGetValue(p.Peer, out var cu) && cu > Clk) continue;
             var rel = p.Pos - GlobalPosition;
             if (Mathf.Abs(rel.Y) > 2.2f || Flat(rel).Length() > MonsterTuning.LampTrigger) continue;
             if (Ray(GlobalPosition + new Vector3(0, 1.4f, 0), p.Pos + new Vector3(0, 1.2f, 0))) continue;

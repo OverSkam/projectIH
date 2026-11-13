@@ -48,11 +48,16 @@ public static class MonsterModule
         foreach (var (kind, minRound, per) in MonsterTuning.Guaranteed)
             if (round >= minRound) for (int i = 0; i < per && list.Count < total; i++) list.Add(kind);
         int ri = Math.Clamp(round - 1, 0, 4);
-        while (list.Count < total)
+        int Cap(string k) => k == "lamplighter" ? 1 + (round + 1) / 2 : k == "wicks" ? 1 + (round + 1) / 2 : k == "plug" ? (round + 1) / 2 : 99;   // never a room full of one kind
+        for (int guard = 0; list.Count < total && guard < 200; guard++)
         {
-            float sum = 0; foreach (var (_, w) in MonsterTuning.FillWeights) sum += w[Math.Min(ri, w.Length - 1)];
+            float sum = 0; foreach (var (k, w) in MonsterTuning.FillWeights) if (list.Count(x => x == k) < Cap(k)) sum += w[Math.Min(ri, w.Length - 1)];
             float roll = rng.Randf() * sum, acc = 0; string pick = "golem";
-            foreach (var (k, w) in MonsterTuning.FillWeights) { acc += w[Math.Min(ri, w.Length - 1)]; if (roll <= acc) { pick = k; break; } }
+            foreach (var (k, w) in MonsterTuning.FillWeights)
+            {
+                if (list.Count(x => x == k) >= Cap(k)) continue;
+                acc += w[Math.Min(ri, w.Length - 1)]; if (roll <= acc) { pick = k; break; }
+            }
             list.Add(pick);
         }
         return list;

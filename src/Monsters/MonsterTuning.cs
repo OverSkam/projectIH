@@ -60,7 +60,7 @@ public static class MonsterTuning
     public const int WicksCount = 10;
 
     // ---- the Lamplighter
-    public const float LampWalk = 1.1f, LampTrigger = 3f, LampSnuff = 0.5f, LampHold = 2f, LampDamage = 40f, LampWalkAway = 14f, LampStand = 6f;
+    public const float LampWalk = 1.1f, LampTrigger = 3f, LampSnuff = 0.5f, LampHold = 2f, LampDamage = 40f, LampWalkAway = 14f, LampStand = 6f, LampCooldown = 40f;
     public const float LampHeadroom = 2.05f;
 
     // ---- the Assessor

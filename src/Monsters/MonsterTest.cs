@@ -365,7 +365,7 @@ public static class MonsterTest
         yield return Until(() => lamp.State == MonsterState.Idle, 25, "lamplighter_relights_and_stands");
         Heal(a); yield return Sleep(1f);
         var at25 = NodeNear(lamp, a.Pos, 2.2f, 2.7f);
-        lamp.GlobalPosition = at25; lamp.TestHold(60f);
+        lamp.ResetCooldown(); lamp.GlobalPosition = at25; lamp.TestHold(60f);
         yield return Until(() => lamp.State == MonsterState.Windup || lamp.State == MonsterState.Attack, 3, "lamplighter_triggers_within_3m");
         yield return Until(() => lamp.State == MonsterState.Attack, 3, "lamplighter_second_grab");
         lamp.Frozen = true;
