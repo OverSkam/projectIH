@@ -159,7 +159,7 @@ public partial class LocalAtmosphere : Node3D
         };
         _dust = new CpuParticles3D
         {
-            Amount = 1400, Lifetime = 18f, Preprocess = 18f, LocalCoords = false, TopLevel = true, Emitting = true,
+            Amount = 900, Lifetime = 18f, Preprocess = 18f, LocalCoords = false, TopLevel = true, Emitting = true,
             EmissionShape = CpuParticles3D.EmissionShapeEnum.Box, EmissionBoxExtents = new Vector3(7f, 2.2f, 7f),
             Direction = Vector3.Up, Spread = 180f, InitialVelocityMin = 0.01f, InitialVelocityMax = 0.09f, Gravity = new Vector3(0, 0.012f, 0),
             Mesh = new QuadMesh { Size = new Vector2(0.07f, 0.07f) }, MaterialOverride = mat, ScaleAmountMin = 0.5f, ScaleAmountMax = 1.6f,
