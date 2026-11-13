@@ -19,10 +19,19 @@ public class MonsterBot : IMinerController
     Vector3 _lastPos;
     bool _hurtSeen, _arrived;
     double _equipT;
+    bool _lanternDone; float _dbg, _strafe = 1f;
+    Vector3? _goal;
 
+    /// <summary>--monpos=x:z, or deep:H[:variant] = a room spot about H path metres from the Hall (the same spot the server scenarios compute).</summary>
+    static string DescCell(Vector3 p) { var mc = ModularCave.Last; if (mc == null) return "-"; var c = mc.At((int)System.Math.Round(p.X / 2f), (int)System.Math.Round(p.Z / 2f)); return $"open={c.Open} thin={c.Thin} crawl={c.Crawl} ceil={c.Ceil} owner={c.Owner} ramp={c.Ramp}"; }
     static Vector3? ParseXZ(string s)
     {
         var p = s.Split(':');
+        if (p.Length >= 2 && p[0] == "deep" && float.TryParse(p[1], out var hd) && Game.I?.World?.Cave != null)
+        {
+            var v = MonsterNav.For(Game.I.World.Cave).DeepNode(hd, p.Length > 2 && int.TryParse(p[2], out var vi) ? vi : 0);
+            return v == Vector3.Zero ? null : v;
+        }
         if (p.Length == 2 && float.TryParse(p[0], out var x) && float.TryParse(p[1], out var z)) return new Vector3(x, 0, z);
         return null;
     }
@@ -34,15 +43,18 @@ public class MonsterBot : IMinerController
         if (g.Phase != GamePhase.Round || g.World == null) return inp;
         if (!_hurtSeen && g.OwnHealth < 99f && g.OwnHealth > 0f) { _hurtSeen = true; Util.Pass("miner_hurt_seen", $"hp={g.OwnHealth}"); }
 
-        var goal = ParseXZ(Util.Arg("monpos", ""));
+        _goal ??= ParseXZ(Util.Arg("monpos", ""));
+        var goal = _goal;
         var pos = m.GlobalPosition;
+        if (Util.HasArg("botdebug") && (_dbg -= dt) <= 0) { _dbg = 3; Util.Log($"MONBOT pos={pos} goal={goal} arrived={_arrived} path={_path.Count} wp={(_path.Count > 0 ? _path[0] : Vector3.Zero)} cell={DescCell(_path.Count > 0 ? _path[0] : pos)} here={DescCell(pos)} hall={g.World.Cave.HallZone}"); }
         if (goal.HasValue && !_arrived)
         {
             if (new Vector3(pos.X - goal.Value.X, 0, pos.Z - goal.Value.Z).Length() < 1.0f) { _arrived = true; Util.Pass("bot_in_position", $"pos={pos}"); }
             else Walk(m, ref inp, goal.Value, g);
         }
-        if (goal.HasValue && !_arrived) { if (_unstick > 0) { _unstick -= dt; inp.Jump = true; inp.Move = new Vector2(1, 0.5f); } _yaw = inp.Yaw; _pitch = inp.Pitch; return inp; }
+        if (goal.HasValue && !_arrived) { if (_unstick > 0) { _unstick -= dt; inp.Jump = true; inp.Move = new Vector2(_strafe, 0.3f); } _yaw = inp.Yaw; _pitch = inp.Pitch; return inp; }
 
+        if (_arrived && Util.Arg("monlantern", "") == "off" && !_lanternDone && g.OwnInv.Held == "lantern") { inp.ToggleLantern = true; _lanternDone = true; }
         // in position: look at the interesting thing
         MonsterObj mon = null; float bd = float.MaxValue;
         foreach (var o in g.World.Objects.Values)
@@ -74,16 +86,16 @@ public class MonsterBot : IMinerController
         static Vector3 flat(Vector3 v) => new Vector3(v.X, 0, v.Z);
         if (_path.Count == 0 || (flat(_pathGoal) - flat(goal)).Length() > 2f)
         {
-            _path = g.World.Cave.FindPath(pos, goal); _pathGoal = goal;
+            _path = MonsterNav.For(g.World.Cave).FindPath(NavProfile.Person, pos, goal) ?? g.World.Cave.FindPath(pos, goal); _pathGoal = goal;
         }
-        while (_path.Count > 1 && (flat(_path[0]) - flat(pos)).Length() < 1.5f) _path.RemoveAt(0);
+        while (_path.Count > 1 && (flat(_path[0]) - flat(pos)).Length() < 0.7f) _path.RemoveAt(0);
         var wp = _path[0];
         Face(m, ref inp, new Vector3(wp.X, m.EyePos.Y, wp.Z));
         inp.Pitch = 0;
         inp.Move = new Vector2(0, 1);
         inp.Sprint = (flat(pos) - flat(goal)).Length() > 6f;
         _stuckT += 1.0 / 60.0;
-        if (_stuckT > 1.5) { if ((pos - _lastPos).Length() < 0.4f) _unstick = 0.5; _lastPos = pos; _stuckT = 0; }
+        if (_stuckT > 1.5) { if ((pos - _lastPos).Length() < 0.4f) { _unstick = 1.0; _strafe = -_strafe; if (_path.Count > 2) _path.RemoveAt(0); } _lastPos = pos; _stuckT = 0; }
     }
 
     static void Face(Miner m, ref MinerInput inp, Vector3 point)

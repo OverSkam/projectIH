@@ -13,7 +13,7 @@ public abstract partial class MonsterObj : IRootable, IExplodable
         Stun(Mathf.Max(seconds, TrapStunSeconds));
     }
 
-    public void OnExplosion(Vector3 center, float radius, float damage)
+    public virtual void OnExplosion(Vector3 center, float radius, float damage)
     {
         if (this is WispObj w) { w.Disperse(20f); return; }
         if (this is DragonObj) return;

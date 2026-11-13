@@ -35,6 +35,8 @@ public static class SfxNames
     public const string GolemStep = "golem_step", GolemWindup = "golem_windup", GolemSlam = "golem_slam", GolemCrack = "golem_crack", GolemStun = "golem_stun";
     public const string EmberCrackle = "ember_crackle", EmberLunge = "ember_lunge", EmberSizzle = "ember_sizzle", WispHiss = "wisp_hiss";
     public const string DragonBreath = "dragon_breath", DragonStir = "dragon_stir", DragonRoar = "dragon_roar", DragonFire = "dragon_fire";
+    public const string PlugCreep = "plug_creep", PlugCrush = "plug_crush", WicksChitter = "wicks_chitter", WicksDrain = "wicks_drain";
+    public const string LampSnuff = "lamp_snuff", LampGrab = "lamp_grab", AssessorStep = "assessor_step", AssessorStamp = "assessor_stamp";
     // ambience
     public const string AmbDrone = "amb_drone", AmbDrip = "amb_drip", AmbCreak = "amb_creak", AmbSettle = "amb_settle", Campfire = "campfire", WaterLap = "water_lap";
 
