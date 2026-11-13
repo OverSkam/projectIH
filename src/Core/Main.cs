@@ -37,6 +37,8 @@ public partial class Main : Node
             GetTree().CreateTimer(secs).Timeout += () => { Util.Fail("timeout", "process hit --timeout"); GetTree().Quit(2); };
     }
 
+    public override void _ExitTree() { Queries.DisposeAll(); }
+
     public override void _Process(double delta)
     {
         if (Util.HasArg("nohud")) foreach (var n in new[] { "Hud", "WeighingUi", "Screens" }) if (GetNodeOrNull(n) is CanvasLayer cl) cl.Visible = false;   // screenshot staging

@@ -204,7 +204,7 @@ public static class ItemsServer
     // ---------------------------------------------------------------- utility use (RMB)
     static Vector3 FloorBelow(Vector3 from, float maxDown, out bool hit)
     {
-        var q = PhysicsRayQueryParameters3D.Create(from, from + Vector3.Down * maxDown, 1);
+        var q = Queries.Ray(from, from + Vector3.Down * maxDown, 1);
         var r = Game.I.World.GetWorld3D().DirectSpaceState.IntersectRay(q);
         hit = r.Count > 0;
         return hit ? r["position"].AsVector3() : from + Vector3.Down * maxDown;
@@ -224,7 +224,7 @@ public static class ItemsServer
             case "dynamite":
             {
                 float dist = 3f;
-                var q = PhysicsRayQueryParameters3D.Create(eye, eye + fwd * 3.4f, 1);
+                var q = Queries.Ray(eye, eye + fwd * 3.4f, 1);
                 var r = g.World.GetWorld3D().DirectSpaceState.IntersectRay(q);
                 if (r.Count > 0) dist = Math.Max(0.6f, eye.DistanceTo(r["position"].AsVector3()) - 0.4f);
                 var at = FloorBelow(eye + fwd * dist, 4f, out _) + new Vector3(0, 0.12f, 0);

@@ -114,7 +114,7 @@ public static class LootFx
         if (secs < 0) secs = LootTuning.RevealSeconds[3];
         float h = Mathf.Min(6.5f, maxH);
         var cam = Game.I.World.GetWorld3D().DirectSpaceState;
-        var hit = cam.IntersectRay(PhysicsRayQueryParameters3D.Create(pos + Vector3.Up * 0.3f, pos + Vector3.Up * 16f, 1));
+        var hit = cam.IntersectRay(Queries.Ray(pos + Vector3.Up * 0.3f, pos + Vector3.Up * 16f, 1));
         if (hit.Count > 0) h = Mathf.Min(maxH, Mathf.Max(2.5f, hit["position"].AsVector3().Y - pos.Y));
         else h = maxH < 16f ? maxH : h;
         var outer = new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 1.0f * width, BottomRadius = 1.25f * width, Height = h, RadialSegments = 14, Rings = 1 }, Position = new Vector3(0, h / 2f, 0), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };

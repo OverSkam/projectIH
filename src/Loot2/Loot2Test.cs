@@ -297,7 +297,7 @@ public class Loot2Bot : BotBrain
                     var c = Nearest<GlowChestObj>(g, m.GlobalPosition, 10f, o => want < 0 || o.Id == want);
                     if (Util.HasArg("botdebug") && _pick <= 0) { _pick = 0.5; Util.Log($"L2BOT hit chest={(c == null ? "none" : c.Id.ToString())} state={c?.State} pos={m.GlobalPosition} held={g.OwnInv.Held} root={m.RootLeft:0.0} vel={m.Velocity} dist={(c == null ? -1 : m.GlobalPosition.DistanceTo(c.GlobalPosition)):0.0}"); }
                     if (c == null) break;
-                    if (Util.HasArg("botdebug") && !_flag) { _flag = true; var q = PhysicsRayQueryParameters3D.Create(m.GlobalPosition + Vector3.Up * 0.5f, m.GlobalPosition + Vector3.Up * 0.5f + new Vector3(2f, 0, 0), 0xFF); q.Exclude = new Godot.Collections.Array<Rid> { m.GetRid() }; var h = m.GetWorld3D().DirectSpaceState.IntersectRay(q); Util.Log("L2BOT ray east: " + (h.Count > 0 ? h["collider"].As<Node>().Name + " pos " + h["collider"].As<Node3D>().GlobalPosition + " at " + h["position"].AsVector3() : "nothing")); }
+                    if (Util.HasArg("botdebug") && !_flag) { _flag = true; var q = Queries.Ray(m.GlobalPosition + Vector3.Up * 0.5f, m.GlobalPosition + Vector3.Up * 0.5f + new Vector3(2f, 0, 0), 0xFF); q.Exclude = new Godot.Collections.Array<Rid> { m.GetRid() }; var h = m.GetWorld3D().DirectSpaceState.IntersectRay(q); Util.Log("L2BOT ray east: " + (h.Count > 0 ? h["collider"].As<Node>().Name + " pos " + h["collider"].As<Node3D>().GlobalPosition + " at " + h["position"].AsVector3() : "nothing")); }
                     FaceTo(m, c.GlobalPosition + Vector3.Up * 0.4f);
                     if (Walk(m, ref i, c.GlobalPosition, 1.7f) && g.OwnInv.Held == "pickaxe") i.Attack = true;
                     break;
@@ -378,7 +378,7 @@ public partial class Loot2Director : Node
                 var sb = new System.Text.StringBuilder();
                 for (float x = 23; x <= 41; x += 1)
                 {
-                    var q = PhysicsRayQueryParameters3D.Create(new Vector3(x, 2, z), new Vector3(x, -3, z), 1);
+                    var q = Queries.Ray(new Vector3(x, 2, z), new Vector3(x, -3, z), 1);
                     var h = g.World.GetWorld3D().DirectSpaceState.IntersectRay(q);
                     sb.Append(h.Count > 0 ? h["position"].AsVector3().Y.ToString("0.0") : "none").Append(' ');
                 }

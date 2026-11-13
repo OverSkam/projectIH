@@ -85,7 +85,7 @@ public struct Probe
 
     public static bool Ray(Vector3 a, Vector3 b, out Vector3 hit, uint mask = 1)
     {
-        var q = PhysicsRayQueryParameters3D.Create(a, b, mask);
+        var q = Queries.Ray(a, b, mask);
         var r = Space.IntersectRay(q);
         hit = b;
         if (r.Count == 0) return false;

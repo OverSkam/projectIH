@@ -238,7 +238,7 @@ public static class MonsterTest
         {
             float d = FlatD(nav.Pos[k], p);
             if (d < dmin || d > dmax || !nav.Ok(NavProfile.Tall, k) || Mathf.Abs(nav.Pos[k].Y - p.Y) > 0.6f) continue;
-            var q = PhysicsRayQueryParameters3D.Create(nav.Pos[k] + new Vector3(0, 1.2f, 0), p + new Vector3(0, 1.2f, 0), Layers.World);
+            var q = Queries.Ray(nav.Pos[k] + new Vector3(0, 1.2f, 0), p + new Vector3(0, 1.2f, 0), Layers.World);
             if (space.IntersectRay(q).Count == 0) return nav.Pos[k];
         }
         return Vector3.Zero;
@@ -435,7 +435,7 @@ public static class MonsterTest
         {
             var space = plug.GetViewport().World3D.DirectSpaceState;
             var fwd = plug.Forward;
-            var q = PhysicsRayQueryParameters3D.Create(plug.GlobalPosition + fwd * 3f + new Vector3(0, 1.1f, 0), plug.GlobalPosition - fwd * 3f + new Vector3(0, 1.1f, 0), Layers.World);
+            var q = Queries.Ray(plug.GlobalPosition + fwd * 3f + new Vector3(0, 1.1f, 0), plug.GlobalPosition - fwd * 3f + new Vector3(0, 1.1f, 0), Layers.World);
             var r = space.IntersectRay(q);
             hit = r.Count > 0 && r["collider"].AsGodotObject() == plug;
         }

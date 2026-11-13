@@ -75,7 +75,7 @@ public static class ItemsModule
         for (int d = 0; d < 4; d++)
         {
             var from = pos + new Vector3(0, 0.8f, 0);
-            var q = PhysicsRayQueryParameters3D.Create(from, from + ObjUtil.DirVec(d) * 10f, 1);
+            var q = Queries.Ray(from, from + ObjUtil.DirVec(d) * 10f, 1);
             var hit = space.IntersectRay(q);
             float free = hit.Count > 0 ? from.DistanceTo(hit["position"].AsVector3()) : 10f;
             if (free > bestFree) { bestFree = free; bestDir = d; }

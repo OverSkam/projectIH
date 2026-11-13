@@ -319,7 +319,7 @@ public partial class Miner : CharacterBody3D
 
     bool InsideThinWall()
     {
-        var q = new PhysicsShapeQueryParameters3D { Shape = _shape.Shape, Transform = _shape.GlobalTransform, CollisionMask = Layers.ThinWall };
+        var q = Queries.Shape(_shape.Shape, _shape.GlobalTransform, Layers.ThinWall);
         return GetWorld3D().DirectSpaceState.IntersectShape(q, 1).Count > 0;
     }
 
@@ -526,7 +526,7 @@ public partial class Miner : CharacterBody3D
         var from = cam.GlobalPosition; var to = GlobalPosition + new Vector3(0, 1.6f, 0);
         float dist = from.DistanceTo(to);
         if (dist > TagRange) { _tag.Visible = false; return; }
-        var q = PhysicsRayQueryParameters3D.Create(from, to, 1 | 4);
+        var q = Queries.Ray(from, to, 1 | 4);
         q.CollideWithAreas = false;
         bool blocked = GetWorld3D().DirectSpaceState.IntersectRay(q).Count > 0;
         _tag.Visible = !blocked;
@@ -545,7 +545,7 @@ public partial class Miner : CharacterBody3D
         if (_cam != null)
         {
             var from = _cam.GlobalPosition; var dir = -_cam.GlobalTransform.Basis.Z;
-            var q = PhysicsRayQueryParameters3D.Create(from, from + dir * 1.0f, 1 | 4);
+            var q = Queries.Ray(from, from + dir * 1.0f, 1 | 4);
             q.CollideWithAreas = false; q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
             var hit = GetWorld3D().DirectSpaceState.IntersectRay(q);
             if (hit.Count > 0) want = Mathf.Clamp(0.95f - from.DistanceTo(hit["position"].AsVector3()), 0f, 0.5f);
@@ -600,7 +600,7 @@ public partial class Miner : CharacterBody3D
     {
         Target = null; PromptText = ""; LootTarget = null;
         var space = GetWorld3D().DirectSpaceState;
-        var q = PhysicsRayQueryParameters3D.Create(EyePos, EyePos + LookDir * 3.2f, 1 | 2 | 4 | 8);
+        var q = Queries.Ray(EyePos, EyePos + LookDir * 3.2f, 1 | 2 | 4 | 8);
         q.CollideWithAreas = false;
         q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
         var r = space.IntersectRay(q);

@@ -171,7 +171,7 @@ public partial class AudioDirector : Node
         if (w.Cave.InWater(p + Vector3.Up * 0.1f)) s = SfxNames.StepWater;
         else
         {
-            var q = PhysicsRayQueryParameters3D.Create(p + Vector3.Up * 0.3f, p + Vector3.Down * 0.8f, 1 | 4);
+            var q = Queries.Ray(p + Vector3.Up * 0.3f, p + Vector3.Down * 0.8f, 1 | 4);
             var hit = w.GetWorld3D().DirectSpaceState.IntersectRay(q);
             if (hit.Count > 0 && hit["collider"].As<GodotObject>() is NetObject) s = SfxNames.StepWood;   // rope bridge / platform
         }
@@ -196,7 +196,7 @@ public partial class AudioDirector : Node
         if (!GodotObject.IsInstanceValid(m) || !m.IsInsideTree()) return;
         bool pick = Utilities.Get(m.Held)?.IsPickaxe == true;
         var o = m.EyePos; var d = m.LookDir;
-        var q = PhysicsRayQueryParameters3D.Create(o, o + d * (pick ? 3.0f : 2.3f), 1 | 2 | 4 | 32);
+        var q = Queries.Ray(o, o + d * (pick ? 3.0f : 2.3f), 1 | 2 | 4 | 32);
         q.Exclude = new Godot.Collections.Array<Rid> { m.GetRid() };
         var hit = m.GetWorld3D().DirectSpaceState.IntersectRay(q);
         if (hit.Count == 0) return;

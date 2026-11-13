@@ -21,9 +21,9 @@ public static class LootPlacement
             float a = baseA + rng.RandfRange(-spread, spread);
             float r = rng.RandfRange(minR, maxR) * (tries > 30 ? 0.6f : 1f);
             var c = origin + new Vector3(Mathf.Sin(a) * r, 0, Mathf.Cos(a) * r);
-            var q = PhysicsRayQueryParameters3D.Create(origin + new Vector3(0, 0.5f, 0), c + new Vector3(0, 0.5f, 0), 1);
+            var q = Queries.Ray(origin + new Vector3(0, 0.5f, 0), c + new Vector3(0, 0.5f, 0), 1);
             if (space.IntersectRay(q).Count > 0) continue;
-            var down = PhysicsRayQueryParameters3D.Create(c + new Vector3(0, 1.0f, 0), c + new Vector3(0, -1.6f, 0), 1);
+            var down = Queries.Ray(c + new Vector3(0, 1.0f, 0), c + new Vector3(0, -1.6f, 0), 1);
             var hit = space.IntersectRay(down);
             if (hit.Count == 0) continue;
             var fp = hit["position"].AsVector3();
@@ -44,7 +44,7 @@ public static class LootPlacement
         {
             float a = i * Mathf.Tau / 8f;
             var from = p + new Vector3(0, 0.6f, 0);
-            var q = PhysicsRayQueryParameters3D.Create(from, from + new Vector3(Mathf.Sin(a), 0, Mathf.Cos(a)) * radius, 1);
+            var q = Queries.Ray(from, from + new Vector3(Mathf.Sin(a), 0, Mathf.Cos(a)) * radius, 1);
             if (space.IntersectRay(q).Count > 0) return false;
         }
         return true;

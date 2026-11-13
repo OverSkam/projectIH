@@ -474,7 +474,7 @@ public partial class Game : Node
         Rpc(nameof(ClientSwing), p.Peer);
         float reach = pick ? 3.0f : 2.3f;
         var me = World.GetMiner(p.Peer);
-        var q = PhysicsRayQueryParameters3D.Create(origin, origin + dir * reach, 1 | 2 | 4);
+        var q = Queries.Ray(origin, origin + dir * reach, 1 | 2 | 4);
         if (me != null) q.Exclude = new Godot.Collections.Array<Rid> { me.GetRid() };
         var hit = World.GetWorld3D().DirectSpaceState.IntersectRay(q);
         if (hit.Count == 0) return;

@@ -28,7 +28,7 @@ public static class MonsterStage
             foreach (float y in new[] { 0.3f, 1.0f, 1.7f })
                 foreach (var dv0 in new[] { Vector3.Forward, Vector3.Back, Vector3.Left, Vector3.Right })
                 {
-                    var q = PhysicsRayQueryParameters3D.Create(new Vector3(px, y, pz), new Vector3(px, y, pz) + dv0 * 3f, 0xFFFF);
+                    var q = Queries.Ray(new Vector3(px, y, pz), new Vector3(px, y, pz) + dv0 * 3f, 0xFFFF);
                     var r = sp.IntersectRay(q);
                     Util.Log($"PROBE y={y} dir={dv0} hit={(r.Count > 0 ? r["collider"].AsGodotObject().ToString() + " at " + r["position"] : "none")}");
                 }
@@ -87,7 +87,7 @@ public static class MonsterStage
 
     static float Floor(PhysicsDirectSpaceState3D space, Vector3 p)
     {
-        var q = PhysicsRayQueryParameters3D.Create(p + new Vector3(0, 1.5f, 0), p + new Vector3(0, -3f, 0), Layers.World);
+        var q = Queries.Ray(p + new Vector3(0, 1.5f, 0), p + new Vector3(0, -3f, 0), Layers.World);
         var r = space.IntersectRay(q);
         return r.Count > 0 ? r["position"].AsVector3().Y : p.Y;
     }
@@ -108,15 +108,15 @@ public static class MonsterStage
                 for (float s = 0; s <= need + 1f && ok; s += 1f)
                 {
                     var a = p + dv * s + new Vector3(0, 1.2f, 0);
-                    var q = PhysicsRayQueryParameters3D.Create(a, a + dv * 1f, Layers.World);
+                    var q = Queries.Ray(a, a + dv * 1f, Layers.World);
                     if (space.IntersectRay(q).Count > 0) ok = false;
-                    var gq = PhysicsRayQueryParameters3D.Create(a, a + new Vector3(0, -2.2f, 0), Layers.World);
+                    var gq = Queries.Ray(a, a + new Vector3(0, -2.2f, 0), Layers.World);
                     if (space.IntersectRay(gq).Count == 0) ok = false;
                 }
                 if (!ok) continue;
                 // side clearance for the lantern comparison
                 var sd = new Vector3(-dv.Z, 0, dv.X);
-                var cs = PhysicsRayQueryParameters3D.Create(p + new Vector3(0, 1.2f, 0) + dv * dist, p + new Vector3(0, 1.2f, 0) + dv * dist + sd * 1.2f, Layers.World);
+                var cs = Queries.Ray(p + new Vector3(0, 1.2f, 0) + dv * dist, p + new Vector3(0, 1.2f, 0) + dv * dist + sd * 1.2f, Layers.World);
                 if (space.IntersectRay(cs).Count > 0) continue;
                 camPos = p + new Vector3(0, 1.6f, 0);
                 monPos = new Vector3(p.X + dv.X * dist, Floor(space, p + dv * dist), p.Z + dv.Z * dist);

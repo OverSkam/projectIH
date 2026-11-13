@@ -130,7 +130,7 @@ public partial class SoakDirector : Node
             if (!flyer)
             {
                 var from = p + new Vector3(0, 0.7f, 0);
-                var down = PhysicsRayQueryParameters3D.Create(from, from + Vector3.Down * 3.5f, 1); down.Exclude = exclude;
+                var down = Queries.Ray(from, from + Vector3.Down * 3.5f, 1); down.Exclude = exclude;
                 var hit = space.IntersectRay(down);
                 if (hit.Count == 0) Bad($"{tag} mid-air (no floor within 3.5 m)");
                 else
@@ -139,7 +139,7 @@ public partial class SoakDirector : Node
                     if (gap > 1.3f) Bad($"{tag} mid-air ({gap:0.0} m above floor)");
                     if (gap < -0.45f) Bad($"{tag} sunk into floor ({gap:0.0})");
                 }
-                var up = PhysicsRayQueryParameters3D.Create(p + new Vector3(0, 0.3f, 0), p + new Vector3(0, 3.5f, 0), 1); up.Exclude = exclude;
+                var up = Queries.Ray(p + new Vector3(0, 0.3f, 0), p + new Vector3(0, 3.5f, 0), 1); up.Exclude = exclude;
                 var uh = space.IntersectRay(up);
                 float need = o is MonsterObj ? 2.0f : 0.6f;
                 if (uh.Count > 0 && uh["position"].AsVector3().Y - p.Y < need && !(mc != null && IsCrawl(mc, p)) && !o.Kind.StartsWith("trap_")) Bad($"{tag} no headroom ({uh["position"].AsVector3().Y - p.Y:0.0} m)");
@@ -186,7 +186,7 @@ public partial class SoakDirector : Node
     static bool IsFloorOk(PhysicsDirectSpaceState3D space, Godot.Collections.Array<Rid> ex, Vector3 p)
     {
         var from = p + new Vector3(0, 0.7f, 0);
-        var q = PhysicsRayQueryParameters3D.Create(from, from + Vector3.Down * 2.5f, 1); q.Exclude = ex;
+        var q = Queries.Ray(from, from + Vector3.Down * 2.5f, 1); q.Exclude = ex;
         return space.IntersectRay(q).Count > 0;
     }
 }

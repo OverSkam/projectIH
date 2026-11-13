@@ -363,7 +363,7 @@ public abstract partial class MonsterObj : NetObject
 
     protected bool Ray(Vector3 a, Vector3 b, uint mask = Layers.World)
     {
-        var q = PhysicsRayQueryParameters3D.Create(a, b, mask);
+        var q = Queries.Ray(a, b, mask);
         q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
         bool hit = GetWorld3D().DirectSpaceState.IntersectRay(q).Count > 0;
         q.Dispose();
@@ -372,7 +372,7 @@ public abstract partial class MonsterObj : NetObject
 
     protected float? GroundAt(Vector3 p)
     {
-        var q = PhysicsRayQueryParameters3D.Create(p + new Vector3(0, _groundTop, 0), p + new Vector3(0, -2.2f, 0), Layers.World);
+        var q = Queries.Ray(p + new Vector3(0, _groundTop, 0), p + new Vector3(0, -2.2f, 0), Layers.World);
         q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
         var r = GetWorld3D().DirectSpaceState.IntersectRay(q);
         q.Dispose();

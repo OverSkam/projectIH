@@ -364,7 +364,7 @@ public class ExplorerBot : IMinerController
         {
             // open line (same chamber): just walk
             var from = m.EyePos - new Vector3(0, 0.6f, 0); var to = new Vector3(dest.X, from.Y, dest.Z);
-            var q = PhysicsRayQueryParameters3D.Create(from, to, Layers.ThinWall); q.Exclude = new Godot.Collections.Array<Rid> { m.GetRid() };
+            var q = Queries.Ray(from, to, Layers.ThinWall); q.Exclude = new Godot.Collections.Array<Rid> { m.GetRid() };
             if (m.GetWorld3D().DirectSpaceState.IntersectRay(q).Count == 0) { Face(m, ref inp, new Vector3(dest.X, m.EyePos.Y, dest.Z)); inp.Pitch = 0; inp.Move = new Vector2(0, 1); return; }
             inp.Move = Vector2.Zero;
             if (g.OwnAbility == "ethereal" && g.OwnAbilityReadyAt <= now + 0.05 && _actT <= 0) { g.SendAbility(); _etherealUntil = _clock + 4.6; _actT = 0.4; Util.Pass("explorer_ethereal_cross"); }
