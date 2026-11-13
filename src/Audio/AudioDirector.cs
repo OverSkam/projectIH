@@ -327,12 +327,7 @@ public partial class AudioDirector : Node
                     else if (st == MonsterState.Stunned) Sfx.Play(SfxNames.GolemStun, p);
                 }
                 if (st == MonsterState.Stunned && old != MonsterState.Stunned) Sfx.Play(SfxNames.GolemCrack, p + Vector3.Up);
-                if (alive && (st == MonsterState.Wander || st == MonsterState.Investigate || st == MonsterState.Chase || st == MonsterState.Return))
-                {
-                    var d = m.GlobalPosition - t.Last;
-                    float hs = new Vector2(d.X, d.Z).Length() / dt;
-                    if (hs > 0.3f && hs < 12f) { t.Accum += hs * dt; if (t.Accum >= 2.4f) { t.Accum -= 2.4f; Sfx.Play(SfxNames.GolemStep, m.GlobalPosition); } }
-                }
+                // footsteps: GolemObj.Footfall (heavy steps locked to its stride)
                 break;
             case "ember":
                 if (st != old)

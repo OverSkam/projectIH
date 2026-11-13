@@ -263,6 +263,19 @@ public static class MonsterTest
     // ------------------------------------------------------------------ roaming: a far monster reaches a noisy lit miner; a deaf, blind one patrols the whole cave
     static IEnumerable<Wait> Roam()
     {
+        // spawn plan variety: every round with >= 4 roamers has >= 3 kinds; round 1 = golem + lamplighter + wicks (+ plug from 5 roamers)
+        bool varied = true; string why = "";
+        for (int miners = 1; miners <= 8; miners++)
+            for (int round = 1; round <= 5; round++)
+                for (int seed = 0; seed < 5; seed++)
+                {
+                    var plan = MonsterModule.Plan(miners, round, new RandomNumberGenerator { Seed = (ulong)(seed * 977 + miners * 31 + round) });
+                    if (plan.Count >= 4 && plan.Distinct().Count() < 3) { varied = false; why += $" m{miners}r{round}:{string.Join("/", plan)}"; }
+                    if (round == 1 && plan.Count >= 3 && !(plan.Contains("golem") && plan.Contains("lamplighter") && plan.Contains("wicks"))) { varied = false; why += $" r1m{miners}:{string.Join("/", plan)}"; }
+                    if (round == 1 && plan.Count >= 5 && !plan.Contains("plug")) { varied = false; why += $" r1noplug m{miners}"; }
+                }
+        if (!varied) Util.Log("MONTEST: plan variety broken:" + why);
+        yield return Until(() => varied, 1, "plan_has_variety");
         var a = Find("Alice"); var spot = Deep(70f);
         yield return Until(() => a.Alive && FlatD(a.Pos, spot) < 3f, 120, "alice_in_position");
         var start = FarFrom(spot, 45f, 52f, NavProfile.Tall);

@@ -73,6 +73,9 @@ public partial class Miner : CharacterBody3D
     public bool HasMask, LanternOut, LanternLow;
     /// <summary>Until this time (seconds) the lantern flame gutters because Wicks are drinking its oil (set by the swarm on every peer).</summary>
     public double GutterUntil;
+    float _shake;
+    /// <summary>Local camera shake (0..1.5): golem footsteps. Decays by itself.</summary>
+    public void AddShake(float amount) { if (IsLocal) _shake = Mathf.Max(_shake, Mathf.Clamp(amount, 0f, 1.5f)); }
     /// <summary>True while the lantern in the hand is burning (the local miner sees only dim blindness shapes otherwise).</summary>
     public bool LightOn => _light != null && IsInstanceValid(_light) && !LanternOut;
     /// <summary>Public: lying downed (crawling, lootable). See Game.Downed.cs.</summary>
@@ -304,6 +307,16 @@ public partial class Miner : CharacterBody3D
 
     public override void _Process(double delta)
     {
+        if (IsLocal && _cam != null && GodotObject.IsInstanceValid(_cam))
+        {
+            if (_shake > 0.001f)
+            {
+                _shake = Mathf.MoveToward(_shake, 0f, (float)delta * 2.6f);
+                float k = _shake * 0.05f; ulong tk = Time.GetTicksMsec();
+                _cam.Position = new Vector3(Mathf.Sin(tk * 0.061f) * k, Mathf.Sin(tk * 0.083f + 1f) * k * 1.4f, 0);
+            }
+            else if (_cam.Position != Vector3.Zero) _cam.Position = Vector3.Zero;
+        }
         // low oil: the light stutters (public: everyone sees a miner's light flicker)
         if (_light == null) return;
         if (LanternOut) { _light.Visible = false; return; }

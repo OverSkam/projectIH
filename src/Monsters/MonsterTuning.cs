@@ -27,14 +27,15 @@ public static class MonsterTuning
     public const float DirectorScatter = 10f;      // the sent monster aims this far (random) from the miner, not at the exact spot
     /// <summary>Roaming monsters at round start for this miner count and round (the director never exceeds it).</summary>
     public static int RoamTarget(int miners, int round) => System.Math.Min(RoamCap, BaseRoamers + miners / 2 + round);
-    /// <summary>Kinds guaranteed per round (before the rest is filled with weighted picks). Round 1: golems, a Lamplighter and Wicks.</summary>
-    public static (string kind, int minRound, int perRound)[] Guaranteed = {
-        ("lamplighter", 1, 1), ("wicks", 1, 1), ("plug", 2, 1), ("assessor", 2, 1), ("wicks", 3, 1), ("lamplighter", 4, 1), ("plug", 4, 1),
+    /// <summary>Kinds guaranteed per round (before the rest is filled with weighted picks), in this order. Round 1: golem, Lamplighter, Wicks (+ a Plug when there are >= 5 roamers).
+    /// So any round with >= 4 roamers has at least 3 different kinds. minTotal = only when the round has at least that many roamers.</summary>
+    public static (string kind, int minRound, int perRound, int minTotal)[] Guaranteed = {
+        ("golem", 1, 1, 0), ("lamplighter", 1, 1, 0), ("wicks", 1, 1, 0), ("plug", 1, 1, 5), ("assessor", 2, 1, 0), ("plug", 2, 1, 0), ("wicks", 3, 1, 0), ("lamplighter", 4, 1, 0), ("plug", 4, 1, 0),
     };
     /// <summary>Weights for the remaining slots, by round (index = round-1, clamped): golem, wicks, lamplighter, plug.</summary>
     public static (string kind, float[] w)[] FillWeights = {
-        ("golem", new[] { 6f, 5f, 5f, 4f, 4f }), ("wicks", new[] { 2f, 2f, 3f, 3f, 3f }),
-        ("lamplighter", new[] { 1f, 1.5f, 2f, 2f, 2f }), ("plug", new[] { 0f, 1f, 1.5f, 2f, 2f }),
+        ("golem", new[] { 4f, 4f, 4f, 3.5f, 3.5f }), ("wicks", new[] { 3f, 3f, 3f, 3f, 3f }),
+        ("lamplighter", new[] { 2.5f, 2.5f, 2.5f, 2.5f, 2.5f }), ("plug", new[] { 0f, 1f, 1.5f, 2f, 2f }),
     };
     public const int MaxAssessors = 2;
 

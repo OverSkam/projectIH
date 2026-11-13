@@ -78,7 +78,7 @@ run_scenario dragon 2 \
 CAVE=""
 HOSTEXTRA="--roundsecs=600 --seedbase=${SEEDBASE:-5}"
 TIMEOUT=240
-run_scenario roam 2 "alice_in_position roam_hears_noise_far_away roam_golem_reaches_noisy_lit_miner roam_patrols_whole_cave montest_done" "monster_replicated" 0 --monpos=deep:70
+run_scenario roam 2 "plan_has_variety alice_in_position roam_hears_noise_far_away roam_golem_reaches_noisy_lit_miner roam_patrols_whole_cave montest_done" "monster_replicated" 0 --monpos=deep:70
 run_scenario dark 2 "alice_dark_and_still dark_still_miner_ignored_at_4m dark_still_miner_seen_at_1_5m montest_done" "" 0 --monpos=deep:60 --monlantern=off
 run_scenario hall 2 "alice_in_hall hall_never_entered monster_stops_at_hall_edge montest_done" "" 0
 run_scenario lamp 2 "alice_in_position lamplighter_ignores_miner_beyond_3m lamplighter_snuffs_when_attacked lamplighter_grabs_attacker lamplighter_deals_40_damage lamplighter_lets_go_and_walks_away lamplighter_walks_away_far lamplighter_relights_and_stands lamplighter_triggers_within_3m lamplighter_second_grab montest_done" "miner_hurt_seen" 0 --monpos=deep:60

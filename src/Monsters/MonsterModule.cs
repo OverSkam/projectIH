@@ -45,10 +45,10 @@ public static class MonsterModule
     {
         int total = MonsterTuning.RoamTarget(miners, round);
         var list = new List<string>();
-        foreach (var (kind, minRound, per) in MonsterTuning.Guaranteed)
-            if (round >= minRound) for (int i = 0; i < per && list.Count < total; i++) list.Add(kind);
+        foreach (var (kind, minRound, per, minTotal) in MonsterTuning.Guaranteed)
+            if (round >= minRound && total >= minTotal) for (int i = 0; i < per && list.Count < total; i++) list.Add(kind);
         int ri = Math.Clamp(round - 1, 0, 4);
-        int Cap(string k) => k == "lamplighter" ? 1 + (round + 1) / 2 : k == "wicks" ? 1 + (round + 1) / 2 : k == "plug" ? (round + 1) / 2 : 99;   // never a room full of one kind
+        int Cap(string k) => k == "lamplighter" ? 1 + (round + 1) / 2 : k == "wicks" ? 1 + (round + 1) / 2 : k == "plug" ? Math.Max(1, (round + 1) / 2) : k == "golem" ? 2 + round / 2 : 99;   // never a room full of one kind
         for (int guard = 0; list.Count < total && guard < 200; guard++)
         {
             float sum = 0; foreach (var (k, w) in MonsterTuning.FillWeights) if (list.Count(x => x == k) < Cap(k)) sum += w[Math.Min(ri, w.Length - 1)];
@@ -174,6 +174,7 @@ public partial class MonsterDirector : Node
     double _lastEncounter, _t;
     bool _density;
     public static int Sent; public static double SentAt = -1;
+    readonly Dictionary<string, int> _sentByKind = new();
     float _quiet = MonsterTuning.DirectorQuiet, _check = MonsterTuning.DirectorCheck;
     IEnumerator<MonsterTest.Wait> _scenario;
     MonsterTest.Wait _cur;
@@ -246,14 +247,20 @@ public partial class MonsterDirector : Node
         var target = miners[(int)(GD.Randi() % (uint)miners.Count)];
         var ang = GD.Randf() * Mathf.Tau;
         var area = target.Pos + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * (MonsterTuning.DirectorScatter * (0.5f + 0.5f * GD.Randf()));
+        // rotate kinds: send the kind that has been sent least so far (ties: golem, lamplighter, wicks order), the nearest one of it
+        var pool = MonsterObj.Live.Where(m => !(m is DragonObj || m is PlugObj || m is AssessorObj) && m.IsRoaming && !m.Frozen).ToList();
+        if (pool.Count == 0) return;
+        string[] order = { "golem", "lamplighter", "wicks" };
+        var kind = pool.Select(m => m.Kind).Distinct().OrderBy(k => _sentByKind.GetValueOrDefault(k)).ThenBy(k => Array.IndexOf(order, k) < 0 ? 9 : Array.IndexOf(order, k)).First();
         MonsterObj best = null; float bd = float.MaxValue;
-        foreach (var m in MonsterObj.Live)
+        foreach (var m in pool)
         {
-            if (m is DragonObj || m is PlugObj || m is AssessorObj || !m.IsRoaming || m.Frozen) continue;
+            if (m.Kind != kind) continue;
             float d = m.GlobalPosition.DistanceTo(area);
             if (d < bd) { bd = d; best = m; }
         }
         if (best == null) return;
+        _sentByKind[kind] = _sentByKind.GetValueOrDefault(kind) + 1;
         best.Dispatch(area); Sent++; if (SentAt < 0) SentAt = _t;
         _lastEncounter = _t;
         Util.Pass("director_sent_monster", $"kind={best.Kind} id={best.Id} target={target.Name} quiet={_quiet:0}");
