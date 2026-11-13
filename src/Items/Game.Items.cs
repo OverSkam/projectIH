@@ -63,7 +63,7 @@ public partial class Game
             if (o is VeinObj v && d <= radius - 1f)
             {
                 ServerDespawnObject(v.Id);
-                ServerSpawnObject("pickup", v.GlobalPosition + new Vector3(0, 0.45f, 0), "ore:" + v.OreId);
+                Loot2Module.OnVeinBroken(v.GlobalPosition, v.OreId, by);   // geodes, like a pickaxe-mined vein
                 veins++;
             }
             else if (o is IExplodable ex && d <= radius + 1f) ex.OnExplosion(pos, radius, maxDmg * Math.Max(0.1f, 1f - d / radius));

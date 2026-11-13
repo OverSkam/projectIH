@@ -24,7 +24,7 @@ public static class ItemsDebug
             Game.I.CallDeferred(Node.MethodName.AddChild, new ItemsDirector { Name = "ItemsDirector" });
     }
 
-    public static BotBrain MakeBot(string routine) => routine.StartsWith("t_") ? new ItemTestBot(routine) : new BotBrain(routine);
+    public static BotBrain MakeBot(string routine) => routine.StartsWith("t_") ? new ItemTestBot(routine) : routine.StartsWith("l2_") ? new Loot2Bot(routine) : new BotBrain(routine);
 
     static ServerPlayer ByName(Game g, string n) => g.Players.Values.FirstOrDefault(p => p.Name == n);
 

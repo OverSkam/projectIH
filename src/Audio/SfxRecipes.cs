@@ -622,5 +622,6 @@ public static class SfxRecipes
             }
             return o;
         }, 0.5f, "Ambience");
+        LootSfx.Register(Table);   // step 2 (src/Loot2): geodes, bright chests, mimics
     }
 }

@@ -46,10 +46,10 @@ Without the editor you can also start two copies of the Godot program with `--pa
 | Jump | Space |
 | Sprint | Left Shift |
 | Crouch / crawl | Left Ctrl |
-| Use / pick up / open / loot a downed miner | E |
+| Use / pick up / loot a downed miner. **Hold** E for 2.5 s to open a bright chest | E |
 | Take the stone / pour the bag / rob the downed miner under the crosshair (one item per press) | E |
 | Lantern on / off (saves oil) | L |
-| Mine (pickaxe) / strike | Left mouse button |
+| Mine veins, crack geodes (3 hits) with the pickaxe / strike | Left mouse button |
 | Use the held item (place dynamite, bear trap or rope; look at the map) | Right mouse button |
 | Select utility slot 1 / 2 | 1 / 2 |
 | Use the active power of your selected stein (e.g. Ethereal) | Q |
@@ -73,4 +73,5 @@ Mouse sensitivity and field of view are in **Settings** (main menu or pause menu
 - At 0 health you are **downed** for 30 seconds: you can only crawl very slowly, and any further hit kills you. Anyone may rob you: each E press takes **one** stone (the most valuable first) into their sack. If you die, your sack lies there as a **bag**: another miner interacts (E) and pours **all** of it into their own sack (burden included). You become a **ghost** until the next round and return with only a pickaxe and a lantern. Dying in the cave is not elimination. Only the weighing eliminates.
 - Thrown miners stay in the match as ghosts. The Hall is safe: no fighting, and monsters, traps and explosions do nothing there.
 - **Monsters cannot be killed.** The Stone Golem is stunned for a few seconds by a hit on the glowing crystal on its back; dynamite and bear traps stun monsters briefly. The Dragon (round 3 and later) sleeps on a hoard in the deepest room and wakes on noise. Traps: spikes, rockfalls, gas vents, dart tripwires, trapdoors, levers and cuttable rope bridges.
+- **Geodes, bright chests and mimics.** A mined vein breaks off 1 to 3 sealed **geodes**. Crack one with the pickaxe where it lies (3 hits, each louder, light leaking through the cracks): the stones fly out and land (E takes one), mostly junk, but depth, later rounds, big geodes and the Luck Stein improve the odds, and a few hold a power stein. The rarer the result, the brighter and louder the reveal (a power stein lights the whole tunnel and is heard 45 m away by miners and monsters). Some geodes are duds: gas (a gas mask protects) or bats that make a big noise. **Bright chests** glow gold in the dark: **hold E for 2.5 s** to open one (damage or walking away cancels it), 3 to 6 stones jump out, sometimes a stein. There are few, so miners race for them. About one in five is a **mimic**: it looks the same but its glow slowly breathes (and you hear it breathe if you stand still next to it). It bites and holds you for 4 s (30 damage, you cannot move, your lantern goes out), shrieks (everything hears it), then spits out bait and scuttles away to hide as a chest elsewhere. Another miner hitting it frees you; dynamite and bear traps stun it; nothing kills it.
 - **Power steins** are found in shrine trials, chests and geodes. The **Blood Stein** is powerful but you must kill a miner each round or you lose it and half of that round's tribute. The **Midas Stein** turns a miner you kill into a gold statue stone (tribute 15, burden 5) that goes into the sack of whoever picks it up. The **Infinity Stein** does nothing, but whoever carries it at the end of 3 rounds in a row wins on the spot.

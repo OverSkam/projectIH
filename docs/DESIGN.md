@@ -73,7 +73,7 @@ inside the Hall.
 - **The rarer the result, the brighter and louder the reveal** — a legendary lights the tunnel and is heard
   far away by miners and monsters.
 - **Bright chests** hold several stones or a stein. Some are **mimics** that bite and hold on.
-- Until geodes exist, veins drop stones directly as in v1.
+- Veins drop geodes (built, see "Step 2 as built" at the end).
 
 ## Power steins
 Every miner starts the match with one random Common stein. Found in geodes, chests, shrines. Never bought.
@@ -178,3 +178,7 @@ HUD redesign; real recorded sounds (owner will supply); character animation.
 - **Look:** no film grain. Instead drifting dust motes and layered fog lit by the lantern. With the lantern out
   it is not pitch black: like a blindness effect — you see dim shapes about 2.5 m around you and black beyond.
 - The game must not feel empty: step 2 (geodes, bright chests, mimics) and the first new monsters come now.
+
+## Step 2 as built (geodes, bright chests, mimics; details in docs/ARCHITECTURE.md "Step 2")
+- Veins break off 1-3 sealed geodes; 3 pickaxe hits crack one in place; the reveal scales with rarity (tiers: dull, bright, gem, power stein; stein = pillar of light, 45 m noise). 10% of geodes are duds (gas or bats). Odds: mostly junk; depth, round, geode size and Luck improve them; large geodes only: 4% Common stein, 1% Rare, 0.3% Legendary (deeper).
+- Bright chests (wooden / iron / gilded) glow as beacons, open with a 2.5 s hold of E, give 3-6 stones and sometimes a stein, about one per two miners plus a depth bonus. About 20% are mimics (never the chest nearest the Hall): bite and hold 4 s for 30 damage, huge shriek, bait, relocate. Unkillable; stunned by dynamite / bear trap; a second miner's hit frees the victim.

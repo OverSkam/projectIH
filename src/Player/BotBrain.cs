@@ -72,7 +72,7 @@ public class BotBrain : IMinerController
         NetObject best = null; float bd = float.MaxValue;
         foreach (var o in world.Objects.Values)
         {
-            bool ok = o is VeinObj || (o is PickupObj && o.Data.StartsWith("ore:"));
+            bool ok = o is VeinObj || o is GeodeObj || (o is PickupObj && o.Data.StartsWith("ore:"));
             if (!ok) continue;
             float d = o.GlobalPosition.DistanceTo(m.GlobalPosition);
             if (d < bd) { bd = d; best = o; }
@@ -85,6 +85,17 @@ public class BotBrain : IMinerController
             {
                 Face(m, ref inp, best.GlobalPosition);
                 if (_actTimer <= 0) { _actTimer = 0.4; g.SendInteract(best.Id); }
+            }
+            return;
+        }
+        if (best is GeodeObj)
+        {
+            EquipPickaxe(g);
+            if (WalkTo(m, ref inp, best.GlobalPosition, 1.7f) || m.GlobalPosition.DistanceTo(best.GlobalPosition) < 2.3f)
+            {
+                Face(m, ref inp, best.GlobalPosition + Vector3.Up * 0.4f);
+                inp.Move = Vector2.Zero;
+                if (inv.Held == "pickaxe") inp.Attack = true;
             }
             return;
         }
