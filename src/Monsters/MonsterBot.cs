@@ -86,7 +86,7 @@ public class MonsterBot : IMinerController
         static Vector3 flat(Vector3 v) => new Vector3(v.X, 0, v.Z);
         if (_path.Count == 0 || (flat(_pathGoal) - flat(goal)).Length() > 2f)
         {
-            _path = g.World.Cave.FindPath(pos, goal); _pathGoal = goal;
+            _path = MonsterNav.For(g.World.Cave).FindPath(NavProfile.Person, pos, goal) ?? g.World.Cave.FindPath(pos, goal); _pathGoal = goal;
         }
         while (_path.Count > 1 && (flat(_path[0]) - flat(pos)).Length() < 0.7f) _path.RemoveAt(0);
         var wp = _path[0];

@@ -13,12 +13,26 @@ public static class MonsterStage
 {
     static string _mode = "";
     static double _t;
-    static bool _done;
+    static bool _done, _probed;
 
     public static void Begin(Node n) { _mode = Util.Arg("cammonster", ""); _t = 0; _done = false; }
 
     public static void Tick(MonsterDirector d, float dt)
     {
+        if (Util.HasArg("probe") && !_probed && Game.I.Phase == GamePhase.Round && Game.I.World?.Cave != null)
+        {
+            _probed = true;
+            var pp = Util.Arg("probe").Split(',');
+            float px = float.Parse(pp[0]), pz = float.Parse(pp[1]);
+            var sp = d.GetViewport().World3D.DirectSpaceState;
+            foreach (float y in new[] { 0.3f, 1.0f, 1.7f })
+                foreach (var dv0 in new[] { Vector3.Forward, Vector3.Back, Vector3.Left, Vector3.Right })
+                {
+                    var q = PhysicsRayQueryParameters3D.Create(new Vector3(px, y, pz), new Vector3(px, y, pz) + dv0 * 3f, 0xFFFF);
+                    var r = sp.IntersectRay(q);
+                    Util.Log($"PROBE y={y} dir={dv0} hit={(r.Count > 0 ? r["collider"].AsGodotObject().ToString() + " at " + r["position"] : "none")}");
+                }
+        }
         if (_mode == "" || _done) return;
         _t += dt;
         var g = Game.I;

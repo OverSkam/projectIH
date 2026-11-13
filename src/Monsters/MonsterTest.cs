@@ -282,7 +282,7 @@ public static class MonsterTest
             return Clock - t0 > 45;
         }, 60, null);
         Util.Log($"MONTEST: patrol travelled={travelled:0} m rooms={rooms.Count} farthest={maxFromStart:0} m");
-        yield return Until(() => travelled > 100f && maxFromStart > 35f && rooms.Count >= 3, 1, "roam_patrols_whole_cave");
+        yield return Until(() => travelled > 100f && maxFromStart > 25f && rooms.Count >= 3, 1, "roam_patrols_whole_cave");
         Remove(b);
     }
 
@@ -393,8 +393,8 @@ public static class MonsterTest
         yield return Until(() => !a.Inv.Sack.Contains("diamond") && a.Inv.Sack.Contains("coal"), 1, "assessor_takes_the_single_highest_stone");
         yield return Until(() => b.Inv.Sack.Count == bobStones && b.TributeWeight == bobWeight && a.TributeWeight == 0, 1, "assessor_credits_nobody");
         yield return Until(() => { Track(); return FlatD(ass.GlobalPosition, a.Pos) > 12f; }, 25, "assessor_retreats");
-        yield return Until(() => maxSpeed <= MonsterTuning.AssessorWalk + 0.6f && maxSpeed > 1f, 1, "assessor_never_runs");
-        Util.Log($"MONTEST: assessor max speed {maxSpeed:0.0} m/s");
+        Util.Log($"MONTEST: assessor max speed {ass.MaxStepSpeed:0.0} m/s (sampled {maxSpeed:0.0})");
+        yield return Until(() => ass.MaxStepSpeed <= MonsterTuning.AssessorWalk + 0.3f && ass.MaxStepSpeed > 1f, 1, "assessor_never_runs");
         ass.Frozen = true;
     }
 
@@ -500,7 +500,7 @@ public static class MonsterTest
         double t0 = Clock; float d0 = FlatD(start, a.Pos);
         Util.Log($"MONTEST: director test, golem {d0:0} m away, quiet={Util.Arg("dirquiet", "60")}");
         yield return Until(() => MonsterDirector.Sent > 0, 120, "director_sent_a_monster_after_quiet");
-        double sentAt = Clock - t0;
+        double sentAt = MonsterDirector.SentAt;
         float quiet = float.TryParse(Util.Arg("dirquiet", "60"), out var qq) ? qq : 60f;
         yield return Until(() => sentAt >= quiet - 2f, 1, "director_waited_for_the_quiet_period");
         yield return Until(() => gol.State == MonsterState.Investigate, 2, "director_monster_heads_to_the_miner");

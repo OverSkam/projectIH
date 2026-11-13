@@ -22,6 +22,8 @@ public abstract partial class MonsterObj : NetObject
     public float Yaw;
     /// <summary>Debug/test: stops all AI and movement.</summary>
     public bool Frozen;
+    /// <summary>Test: the highest horizontal speed seen in one server physics tick (teleports over 30 m/s ignored).</summary>
+    public float MaxStepSpeed;
     /// <summary>Debug/test: never sees anyone (still hears).</summary>
     public bool Blind;
 
@@ -130,7 +132,9 @@ public abstract partial class MonsterObj : NetObject
         if (!IsInsideTree()) return;
         if (IsSrv)
         {
+            var before = GlobalPosition;
             ServerThink(dt);
+            if (dt > 0.0001f) { float sp = Flat(GlobalPosition - before).Length() / dt; if (sp < 30f && sp > MaxStepSpeed) MaxStepSpeed = sp; }
             if (Util.HasArg("mondebug") && (_dbgT -= dt) <= 0) { _dbgT = 1f; Util.Log($"MONDEBUG {Kind}#{Id} st={State} pos={GlobalPosition} yaw={Yaw:0.00} stuck={StuckT:0.0} goal={Goal}"); }
             Rotation = new Vector3(0, Yaw, 0);
             _syncT -= dt;
@@ -354,7 +358,9 @@ public abstract partial class MonsterObj : NetObject
     {
         var q = PhysicsRayQueryParameters3D.Create(a, b, mask);
         q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
-        return GetWorld3D().DirectSpaceState.IntersectRay(q).Count > 0;
+        bool hit = GetWorld3D().DirectSpaceState.IntersectRay(q).Count > 0;
+        q.Dispose();
+        return hit;
     }
 
     protected float? GroundAt(Vector3 p)
@@ -362,6 +368,7 @@ public abstract partial class MonsterObj : NetObject
         var q = PhysicsRayQueryParameters3D.Create(p + new Vector3(0, _groundTop, 0), p + new Vector3(0, -2.2f, 0), Layers.World);
         q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
         var r = GetWorld3D().DirectSpaceState.IntersectRay(q);
+        q.Dispose();
         if (r.Count == 0) return null;
         return r["position"].AsVector3().Y;
     }
@@ -420,7 +427,7 @@ public abstract partial class MonsterObj : NetObject
             _pathT -= dt;
             if (_path == null || _pathT <= 0f || Flat(_pathGoal - goal).Length() > 2.5f)
             {
-                _path = Nav.FindPath(Profile, pos, goal); _pathGoal = goal; _pathT = 2.5f;
+                _path = Nav.FindPath(Profile, pos, goal) ?? Nav.FindPathNear(Profile, pos, goal); _pathGoal = goal; _pathT = 2.5f;
                 if (_path == null) { StuckT += dt; return false; }     // no route for this body
                 // FindPath starts at the nearest node, which may lie behind us: skip nodes we are already past.
                 while (_path.Count > 1 && Flat(_path[1] - pos).Length() < Flat(_path[1] - _path[0]).Length()) _path.RemoveAt(0);

@@ -27,6 +27,8 @@ public sealed class MonsterNav
     public readonly List<float> Ceil = new();
     public readonly List<bool> Crawl = new(), Tunnel = new(), Squeeze = new(), Water = new(), Hall = new();
     public readonly List<List<int>> Adj = new();
+    /// <summary>Ore veins are solid 1.4 m blocks: the node next to one is blocked until the vein is mined away.</summary>
+    public readonly Dictionary<int, Node3D> VeinAt = new();
     public float[] HallDist;      // path metres to the nearest Hall-adjacent node (0 there), infinity when unreachable
 
     static MonsterNav _cached;
@@ -77,6 +79,14 @@ public sealed class MonsterNav
                 }
             }
         }
+        if (Game.I?.World != null)
+            foreach (var o in Game.I.World.Objects.Values)
+                if (o is VeinObj)
+                {
+                    int k = -1; float bd = 1.3f;
+                    for (int q = 0; q < Pos.Count; q++) { float d = new Vector2(Pos[q].X - o.GlobalPosition.X, Pos[q].Z - o.GlobalPosition.Z).Length(); if (d < bd) { bd = d; k = q; } }
+                    if (k >= 0) VeinAt[k] = o;
+                }
         ComputeHallDist();
     }
 
@@ -104,6 +114,7 @@ public sealed class MonsterNav
     public bool Ok(NavProfile pr, int k)
     {
         if (Hall[k]) return false;
+        if (VeinAt.Count > 0 && VeinAt.TryGetValue(k, out var vn) && GodotObject.IsInstanceValid(vn) && vn.IsInsideTree()) return false;
         if (Crawl[k]) return pr.Crawl;
         if (Ceil[k] < pr.MinCeil) return false;
         if (!pr.Squeeze && Squeeze[k]) return false;
@@ -181,6 +192,22 @@ public sealed class MonsterNav
         for (int i = 1; i < chain.Count; i++) res.Add(Pos[chain[i]]);
         if (res.Count == 0) res.Add(Pos[t]);
         return res;
+    }
+
+    /// <summary>When 'to' itself cannot be reached (inside the Hall, in rock, a sealed pocket): the route to the reachable node closest to it.</summary>
+    public List<Vector3> FindPathNear(NavProfile pr, Vector3 from, Vector3 to)
+    {
+        int s = Nearest(pr, from);
+        if (s < 0) return null;
+        var d = Distances(pr, s);
+        int best = -1; float bd = float.MaxValue;
+        for (int k = 0; k < d.Length; k++)
+        {
+            if (float.IsPositiveInfinity(d[k])) continue;
+            float e = new Vector2(Pos[k].X - to.X, Pos[k].Z - to.Z).LengthSquared();
+            if (e < bd) { bd = e; best = k; }
+        }
+        return best < 0 ? null : FindPath(pr, from, Pos[best]);
     }
 
     /// <summary>Path metres from node 'start' to every node the profile can reach (infinity elsewhere).</summary>

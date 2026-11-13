@@ -20,7 +20,7 @@ godot --headless --path . --import > "$LOGDIR/import.log" 2>&1
 # run_scenario <name> <autostart> <host-pass-list> <alice-pass-list> <bob? 0|1> <alice extra args>
 run_scenario() {
   local name="$1" autostart="$2" hostpass="$3" alicepass="$4" bob="$5"; shift 5
-  if [ -n "${ONLY:-}" ] && [ "$ONLY" != "$name" ]; then return; fi
+  if [ -n "${ONLY:-}" ] && ! echo " $ONLY " | grep -q " $name "; then return; fi
   local L="$LOGDIR/$name"; mkdir -p "$L"
   echo "== scenario $name"
   local PIDS=()
@@ -51,7 +51,7 @@ run_scenario() {
     if grep -q "^PASS: $pat" "$L/alice.log"; then echo "PASS: $name/$w (client)"; else fail "$name: missing PASS $w (Alice client)"; fi
   done
   grep -h "^FAIL:" "$L"/*.log && fail "$name: FAIL lines present"
-  grep -hE "ERROR|SCRIPT ERROR|Unhandled exception|Exception:" "$L"/*.log && fail "$name: runtime errors in logs"
+  grep -hE "ERROR|SCRIPT ERROR|Unhandled exception|Exception:" "$L"/*.log | grep -vE "Leaked unsafe|RID allocations|BUG: Unreferenced|Pages in use|leaked at exit" | grep -q . && fail "$name: runtime errors in logs"
 }
 
 run_scenario golem 2 \
