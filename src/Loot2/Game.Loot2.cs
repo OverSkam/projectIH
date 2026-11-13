@@ -63,6 +63,8 @@ public partial class Game
     }
 
     // ------------------------------------------------------------ test only (honoured on --bot=l2_* clients)
+    /// <summary>Test only: the scripted loot test ends the round when its script is done.</summary>
+    public void L2EndRoundIn(float secs) { if (_roundLeft > secs) _roundLeft = secs; }
     public void L2Step(string step, string arg) => Rpc(nameof(ClientL2Step), step, arg);
     public void L2Teleport(ServerPlayer p, Vector3 pos, float yaw) { p.Pos = pos; RpcId(p.Peer, nameof(ClientL2Teleport), pos, yaw); }
 

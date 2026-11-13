@@ -202,6 +202,13 @@ public class Loot2Bot : BotBrain
         return best;
     }
 
+    /// <summary>Step argument: "Name" or "Name|objectId" (a specific chest).</summary>
+    bool Mine(out int id)
+    {
+        var a = _arg.Split('|'); id = a.Length > 1 ? int.Parse(a[1]) : -1;
+        return Net.I.LocalName == a[0];
+    }
+
     void FaceTo(Miner m, Vector3 pt)
     {
         var d = pt - m.EyePos;
@@ -236,7 +243,7 @@ public class Loot2Bot : BotBrain
         {
             case "crack":
                 {
-                    if (me != _arg) break;
+                    if (!Mine(out int want)) break;
                     if (_t < 0.3) { int pi = Array.IndexOf(g.OwnInv.Utils, "pickaxe"); if (pi >= 0) g.SendSelectUtil(pi); break; }
                     var ge = Nearest<GeodeObj>(g, m.GlobalPosition, 12f);
                     if (ge != null)
@@ -259,7 +266,7 @@ public class Loot2Bot : BotBrain
                 }
             case "pick":
                 {
-                    if (me != _arg) break;
+                    if (!Mine(out int want)) break;
                     var p = Nearest<PickupObj>(g, m.GlobalPosition, 12f, o => o.Data.StartsWith("ore:"));
                     if (p == null) break;
                     FaceTo(m, p.GlobalPosition);
@@ -268,8 +275,9 @@ public class Loot2Bot : BotBrain
                 }
             case "open":
                 {
-                    if (me != _arg) break;
-                    var c = Nearest<GlowChestObj>(g, m.GlobalPosition, 10f, o => o.State is "closed" or "hold");
+                    if (!Mine(out int want)) break;
+                    var c = Nearest<GlowChestObj>(g, m.GlobalPosition, 10f, o => (want < 0 || o.Id == want) && o.State is "closed" or "hold");
+                    if (Util.HasArg("botdebug") && ((int)(_t * 2)) % 4 == 0 && _pick <= 0) { _pick = 1.9; Util.Log($"L2BOT open chest={(c == null ? "none" : c.Id.ToString())} pos={m.GlobalPosition} dist={(c == null ? -1 : m.GlobalPosition.DistanceTo(c.GlobalPosition)):0.0}"); }
                     if (c == null) break;
                     FaceTo(m, c.GlobalPosition + Vector3.Up * 0.4f);
                     if (Walk(m, ref i, c.GlobalPosition, 1.8f) && !_flag) { _flag = true; Loot2Client.Start(c.Id); Util.Pass("bot_hold_started", $"id={c.Id}"); }
@@ -277,9 +285,9 @@ public class Loot2Bot : BotBrain
                 }
             case "hit":
                 {
-                    if (me != _arg) break;
+                    if (!Mine(out int want)) break;
                     if (_t < 0.3) { int pi = Array.IndexOf(g.OwnInv.Utils, "pickaxe"); if (pi >= 0) g.SendSelectUtil(pi); break; }
-                    var c = Nearest<GlowChestObj>(g, m.GlobalPosition, 10f);
+                    var c = Nearest<GlowChestObj>(g, m.GlobalPosition, 10f, o => want < 0 || o.Id == want);
                     if (c == null) break;
                     FaceTo(m, c.GlobalPosition + Vector3.Up * 0.4f);
                     if (Walk(m, ref i, c.GlobalPosition, 1.7f) && g.OwnInv.Held == "pickaxe") i.Attack = true;
@@ -343,7 +351,9 @@ public partial class Loot2Director : Node
     int Pickups() => Game.I.World.Objects.Values.Count(o => o is PickupObj);
 
     /// <summary>Wait for both miners to stand somewhere, then move them.</summary>
-    void Put(string name, Vector3 pos) { var p = P(name); Game.I.L2Teleport(p, pos, 0f); }
+    void Put(string name, Vector3 pos) { var p = P(name); Game.I.L2Teleport(p, pos, 0f); foreach (var dl in new[] { 0.15, 0.4, 0.7 }) GetTree().CreateTimer(dl).Timeout += () => Util.Log($"L2POS {name} want={pos.X:0.0},{pos.Y:0.0},{pos.Z:0.0} have={p.Pos.X:0.0},{p.Pos.Y:0.0},{p.Pos.Z:0.0} hp={p.Health:0}"); }
+
+    static bool Sec(string n) => !Util.HasArg("l2only") || ("," + Util.Arg("l2only") + ",").Contains("," + n + ",");
 
     async Task RunAsync()
     {
@@ -353,8 +363,21 @@ public partial class Loot2Director : Node
         if (alice == null || host == null) { Util.Fail("l2_players", "Alice / Host missing"); return; }
         host.Stats.NoiseMul = 1f; alice.Stats.NoiseMul = 1f;
         Util.Pass("l2_start");
+        if (Util.HasArg("l2probe"))
+            foreach (float z in new[] { -9f, -8f, -5f, 0f, 5f, 9f })
+            {
+                var sb = new System.Text.StringBuilder();
+                for (float x = 23; x <= 41; x += 1)
+                {
+                    var q = PhysicsRayQueryParameters3D.Create(new Vector3(x, 2, z), new Vector3(x, -3, z), 1);
+                    var h = g.World.GetWorld3D().DirectSpaceState.IntersectRay(q);
+                    sb.Append(h.Count > 0 ? h["position"].AsVector3().Y.ToString("0.0") : "none").Append(' ');
+                }
+                Util.Log($"L2PROBE z={z}: {sb}");
+            }
 
         // ---------------------------------------------------------------- 1. a vein breaks into geodes, never into stones
+        if (Sec("vein"))
         {
             var vp = O + new Vector3(-7, 0, -7);
             var vein = Spawn<VeinObj>("vein", vp, VeinObj.MakeData("gold", 3, 3));
@@ -370,6 +393,7 @@ public partial class Loot2Director : Node
         }
 
         // ---------------------------------------------------------------- 2. a real client cracks a geode in 3 pickaxe hits; the stones replicate
+        if (Sec("geode"))
         {
             var gp = O + new Vector3(0, 0, -3);
             var ge = Spawn<GeodeObj>("geode", gp, GeodeObj.MakeData(1, 0));
@@ -390,6 +414,7 @@ public partial class Loot2Director : Node
         }
 
         // ---------------------------------------------------------------- 3. forced rarities: the reveal noise has the radius of its tier (stein: 45 m)
+        if (Sec("noise"))
         {
             var tiers = new (int tier, string item)[] { (0, "ore:coal"), (1, "ore:gold"), (2, "ore:ruby"), (3, "stein:luck") };
             int k = 0;
@@ -415,6 +440,7 @@ public partial class Loot2Director : Node
         }
 
         // ---------------------------------------------------------------- 4. duds: gas (damage, mask immunity) and bats (noise, no damage)
+        if (Sec("dud"))
         {
             var gp = O + new Vector3(-8, 0, -8);
             var ge = Spawn<GeodeObj>("geode", gp, GeodeObj.MakeData(0, 0)); ge.ForcedResult = new GeodeResult { Dud = GeodeDud.Gas };
@@ -443,12 +469,13 @@ public partial class Loot2Director : Node
         }
 
         // ---------------------------------------------------------------- 5. chest: hold E 2.5 s -> lid, light, 3-6 stones one by one
+        if (Sec("chest"))
         {
             var cp = O + new Vector3(6, 0, -5);
             var chest = Spawn<GlowChestObj>("bchest", cp, GlowChestObj.MakeData(0, "closed", false)); chest.Depth = 1;
             Put("Alice", cp + new Vector3(2.3f, 0.1f, 0)); Put("Host", O + new Vector3(8, 0.1f, 8)); await Wait(0.8f);
             int pk0 = Pickups(); double t0 = Now;
-            g.L2Step("open", "Alice");
+            g.L2Step("open", $"Alice|{chest.Id}");
             await Until(() => chest.State == "hold", 6f);
             double tHold = Now;
             bool open = await Until(() => chest.State == "open", 8f);
@@ -462,18 +489,19 @@ public partial class Loot2Director : Node
         }
 
         // ---------------------------------------------------------------- 6. chest: an interrupted hold gives nothing (damage, moving away)
+        if (Sec("interrupt"))
         {
             foreach (var how in new[] { "damage", "away" })
             {
-                var cp = O + new Vector3(how == "damage" ? 6 : 9, 0, 4);
+                var cp = O + new Vector3(how == "damage" ? 4 : -2, 0, 4);
                 var chest = Spawn<GlowChestObj>("bchest", cp, GlowChestObj.MakeData(1, "closed", false)); chest.Depth = 1;
                 Put("Alice", cp + new Vector3(2.3f, 0.1f, 0)); await Wait(0.8f);
                 int pk0 = Pickups();
-                g.L2Step("open", "Alice");
+                g.L2Step("open", $"Alice|{chest.Id}");
                 await Until(() => chest.State == "hold", 6f);
                 await Wait(1.0f);
                 if (how == "damage") alice.TakeDamage(4f, null, "fall");
-                else Put("Alice", cp + new Vector3(8f, 0.1f, 0));
+                else Put("Alice", cp + new Vector3(0f, 0.1f, -8f));
                 bool back = await Until(() => chest.State == "closed", 3f);
                 await Wait(3.5f);
                 Chk("chest_interrupted_" + how, back && Pickups() == pk0 && chest.State == "closed", $"state={chest.State} new pickups={Pickups() - pk0}");
@@ -484,15 +512,16 @@ public partial class Loot2Director : Node
         }
 
         // ---------------------------------------------------------------- 7. mimic: snaps when the hold completes, holds 4 s (30 damage, rooted, lantern out), shrieks, spits bait, runs away, settles, replicates
-        Vector3 mimicSettled;
-        GlowChestObj m1;
+        Vector3 mimicSettled = default;
+        GlowChestObj m1 = null;
+        if (Sec("mimic"))
         {
             var cp = O + new Vector3(-8, 0, 6);
             m1 = Spawn<GlowChestObj>("bchest", cp, GlowChestObj.MakeData(0, "closed", false)); m1.Depth = 1; m1.ServerMakeMimic(true);
             Put("Alice", cp + new Vector3(2.3f, 0.1f, 0)); Put("Host", O + new Vector3(8, 0.1f, 8)); await Wait(0.8f);
             int pk0 = Pickups(); _noise.Clear(); LootStats.BiteDamage = 0;
             float tell = 0;
-            g.L2Step("open", "Alice");
+            g.L2Step("open", $"Alice|{m1.Id}");
             bool bit = await Until(() => m1.State == "bite", 8f);
             double tb = Now; var apos = alice.Pos; float hp0 = alice.Health;
             await Wait(0.8f);
@@ -504,7 +533,7 @@ public partial class Loot2Director : Node
             Chk("mimic_bites", bit, "");
             Chk("mimic_holds_4s", dur > 3.6 && dur < 4.6, $"{dur:0.00}s");
             Chk("mimic_victim_cannot_move", maxMove < 0.9f, $"moved {maxMove:0.00} m");
-            Chk("mimic_30_damage", Math.Abs(hp0 - alice.Health - 30f) < 4f, $"hp {hp0:0.#} -> {alice.Health:0.#}");
+            Chk("mimic_30_damage", Math.Abs(LootStats.BiteDamage - 30f) < 1.5f && hp0 - alice.Health > 20f, $"dealt {LootStats.BiteDamage:0.#} hp {hp0:0.#} -> {alice.Health:0.#} (Regen stein heals meanwhile)");
             await Wait(0.5f);
             Chk("mimic_lantern_back", alice.Items.LanternOutUntil <= 0, "");
             Chk("mimic_spits_bait", Pickups() - pk0 >= 1 && Pickups() - pk0 <= 2, $"bait={Pickups() - pk0}");
@@ -521,9 +550,10 @@ public partial class Loot2Director : Node
         }
 
         // ---------------------------------------------------------------- 8. a hit snaps a mimic (the hitter is bitten); unkillable
+        if (Sec("mimic") && m1 != null)
         {
             Put("Host", mimicSettled + new Vector3(2.2f, 0.1f, 0)); Put("Alice", O + new Vector3(8, 0.1f, -8)); await Wait(1.0f);
-            g.L2Step("hit", "Host");
+            g.L2Step("hit", $"Host|{m1.Id}");
             bool bit = await Until(() => m1.State == "bite", 8f);
             Chk("mimic_snaps_when_hit", bit && m1.VictimPeer == host.Peer, $"victim={m1.VictimPeer}");
             g.L2Step("idle", "");
@@ -534,21 +564,22 @@ public partial class Loot2Director : Node
         }
 
         // ---------------------------------------------------------------- 9. a second miner hitting the mimic during the bite frees the victim early
+        if (Sec("free"))
         {
             var cp = O + new Vector3(8, 0, 6);
             var m2 = Spawn<GlowChestObj>("bchest", cp, GlowChestObj.MakeData(1, "closed", false)); m2.Depth = 1; m2.ServerMakeMimic(true); m2.Rooted = true;
-            Put("Alice", cp + new Vector3(0, 0.1f, 2.3f)); Put("Host", cp + new Vector3(-6, 0.1f, 0)); await Wait(1.0f);
-            float hp0 = alice.Health;
-            g.L2Step("open", "Alice");
+            Put("Alice", cp + new Vector3(0, 0.1f, 2.3f)); Put("Host", cp + new Vector3(-8, 0.1f, 0)); await Wait(1.0f);
+            float hp0 = alice.Health; LootStats.BiteDamage = 0;
+            g.L2Step("open", $"Alice|{m2.Id}");
             await Until(() => m2.State == "bite", 8f);
             double tb = Now;
-            Put("Host", cp + new Vector3(2.2f, 0.1f, 0));
+            Put("Host", cp + new Vector3(-2.2f, 0.1f, 0));
             await Wait(0.8f);
-            g.L2Step("hit", "Host");
+            g.L2Step("hit", $"Host|{m2.Id}");
             await Until(() => m2.State != "bite", 6f);
             double dur = Now - tb;
             Chk("mimic_freed_by_second_miner", dur < 3.4, $"bite lasted {dur:0.00}s");
-            Chk("mimic_freed_less_damage", hp0 - alice.Health < 25f, $"hp {hp0:0.#} -> {alice.Health:0.#}");
+            Chk("mimic_freed_less_damage", LootStats.BiteDamage < 22f && LootStats.BiteDamage > 3f, $"dealt {LootStats.BiteDamage:0.#} of 30");
             g.L2Step("idle", "");
             await Until(() => m2.State == "closed", 10f);
             Chk("mimic_rooted_stays", m2.GlobalPosition.DistanceTo(cp) < 0.5f, "");
@@ -556,6 +587,7 @@ public partial class Loot2Director : Node
         }
 
         // ---------------------------------------------------------------- 10. stun: a bear trap / dynamite stuns a mimic for 3 s; it cannot be opened meanwhile
+        if (Sec("stun"))
         {
             var cp = O + new Vector3(-8, 0, -4);
             var m3 = Spawn<GlowChestObj>("bchest", cp, GlowChestObj.MakeData(0, "closed", false)); m3.Depth = 1; m3.ServerMakeMimic(true); m3.Rooted = true;
@@ -572,5 +604,6 @@ public partial class Loot2Director : Node
         }
         await Wait(2f);
         Util.Pass("l2_done");
+        g.L2EndRoundIn(3f);
     }
 }
