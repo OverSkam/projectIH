@@ -1,6 +1,6 @@
 # App Stein
 
-App Stein is a first-person multiplayer mining game for 2 to 8 players. You and your friends climb down into a dark mineshaft, dig out stones and feed them to a giant Goblin, while monsters, traps and each other get in the way. After every round the Goblin weighs everybody's tribute and throws the lightest miner down the shaft. Only one miner wins: the last one left, or whoever holds the Infinity Stein long enough.
+App Stein is a first-person multiplayer mining game for 2 to 8 players. You and your friends climb down into a dark mineshaft, dig out stones into your one bottomless sack and carry them back to a giant Goblin, while monsters, traps and each other get in the way. After every round the Goblin weighs everybody's sack and throws the lightest miner down the shaft. Only one miner wins: the last one left, or whoever holds the Infinity Stein long enough.
 
 ## What you need (Windows)
 
@@ -47,15 +47,14 @@ Without the editor you can also start two copies of the Godot program with `--pa
 | Sprint | Left Shift |
 | Crouch / crawl | Left Ctrl |
 | Use / pick up / open / loot a downed miner | E |
-| Feed the Goblin: tap E for all stones in your sack, hold E (about 1 second) for the selected power stein | E at the Goblin |
+| Take the stone / pour the bag / rob the downed miner under the crosshair (one item per press) | E |
 | Lantern on / off (saves oil) | L |
 | Mine (pickaxe) / strike | Left mouse button |
 | Use the held item (place dynamite, bear trap or rope; look at the map) | Right mouse button |
 | Select utility slot 1 / 2 | 1 / 2 |
 | Use the active power of your selected stein (e.g. Ethereal) | Q |
 | Choose which stein slot is highlighted (the one swapped when you pick up a new stein) | F |
-| Drop the held utility item | G |
-| Drop a stone from your sack | T |
+| Tap: drop the held utility item. Hold (1 second): stuff the selected power stein into your sack (it loses its power, counts Common 6 / Rare 12 / Legendary 20) | G |
 | Show the miners list | Tab (hold) |
 | Pause menu / settings | Esc |
 | As a ghost: fly | W A S D, Space (up), Ctrl (down) |
@@ -67,11 +66,11 @@ Mouse sensitivity and field of view are in **Settings** (main menu or pause menu
 ## How a match works
 
 - With N miners a match has **N-1 rounds**. Every round is a new, deeper cave. Round 1 lasts **6 minutes**, every later round one minute more (up to 10).
-- You start with a **pickaxe**, a **lantern** and one random **power stein**. Mine stones from veins with the pickaxe or pick up loose ones, carry up to **4 in your sack**, and bring them to the Goblin in the **Hall**. Interact (E) to feed him every stone in your sack. Each stone adds its **weight** to *your tribute for this round*: Coal 1, Iron 2, Silver 4, Gold 7, Ruby 10, Diamond 14. A power stein can be fed too (hold E on the Goblin with that stein selected, F picks the slot): Common 6, Rare 12, Legendary 20. Fed items are gone.
-- When the timer ends the **lift leaves**. A miner who is not inside the Hall weighs **zero** and loses everything they carry. Then the **weighing**: every miner stands in the Hall facing the Scale and the piles are revealed one at a time, heaviest first, the lightest last. The **lightest miner is thrown down the shaft** and is out of the match (if several are tied for lightest, all of them are thrown, unless that would leave nobody; then one of them, picked at random). With two miners left, the heavier pile wins the match. Tribute starts from zero again every round.
-- **Nobody can see anyone else's tribute weight, sack or steins.** Weights become public only during the weighing.
-- Your **lantern burns oil**: about 4 minutes when full, and it starts every round full. Press **L** to switch it off and save oil (or to hide). When the oil runs low the light flickers; at zero it goes out. **Oil drums** in the cave refill it (a few refills each). The cave is nearly black without light.
-- At 0 health you are **downed** for 30 seconds: you can only crawl very slowly, anyone may rob you (E, one item at a time), and any further hit kills you. If you die, everything you carry drops in a **bag** that any living miner can loot; you become a **ghost** until the next round and return with only a pickaxe and a lantern. Dying in the cave is not elimination: tribute you already fed this round still counts. Only the Scale eliminates.
+- You start with a **pickaxe**, a **lantern** and one random **power stein**. Mine stones from veins with the pickaxe or pick up loose ones (E, a deliberate choice) into your single **bottomless sack**: there is no limit, but nothing can ever be dropped or taken out again. Each stone has a **tribute** (what it is worth) and a **burden** (how much it slows you): Coal 1/3, Iron 2/3, Silver 4/2, Gold 7/2, Ruby 10/1, Diamond 14/1 (tribute/burden; gold statue 15/5). Your speed is `max(35%, 1 / (1 + burden/36))` (about 55% at burden 30), sprinting tires you faster and your footsteps carry farther. A power stein can be stuffed into the sack (hold G): it loses its power and counts Common 6 / Rare 12 / Legendary 20, burden 1 (the Infinity Stein cannot be stuffed). The **Packmule Stein** halves your burden.
+- There is **no feeding during the round**. When the timer ends the **lift leaves**: your tribute is the content of your sack **if you are standing inside the Hall**; a miner outside weighs **zero** and the sack is lost. Everyone in the Hall is placed on their glowing **tribute ring**, the sacks drop in front of them, and the Goblin lifts each sack to his palm in turn while the weight counts up above it, heaviest first, lightest last. The **lightest miner is thrown down the shaft** and is out of the match (ties: all tied miners are thrown, unless that would leave nobody; then one at random). With two miners left, the heavier sack wins the match. After the weighing every sack is emptied. Hanging around in the Hall during the round earns you the Goblin's scorn.
+- **Nobody can see anyone else's tribute, sack or steins.** Sack contents become public only during the weighing (the sack models only vary a little in size).
+- Your **lantern burns oil**: about 4 minutes when full, and it starts every round full. Press **L** to switch it off and save oil (or to hide). When the oil runs low the light flickers; at zero it goes out. **Oil drums** in the cave refill it (a few refills each). With the lantern out you are almost blind: dim shapes within about 2.5 m, black beyond (nobody else sees that). Dust and haze drift in the lantern beam.
+- At 0 health you are **downed** for 30 seconds: you can only crawl very slowly, and any further hit kills you. Anyone may rob you: each E press takes **one** stone (the most valuable first) into their sack. If you die, your sack lies there as a **bag**: another miner interacts (E) and pours **all** of it into their own sack (burden included). You become a **ghost** until the next round and return with only a pickaxe and a lantern. Dying in the cave is not elimination. Only the weighing eliminates.
 - Thrown miners stay in the match as ghosts. The Hall is safe: no fighting, and monsters, traps and explosions do nothing there.
 - **Monsters cannot be killed.** The Stone Golem is stunned for a few seconds by a hit on the glowing crystal on its back; dynamite and bear traps stun monsters briefly. The Dragon (round 3 and later) sleeps on a hoard in the deepest room and wakes on noise. Traps: spikes, rockfalls, gas vents, dart tripwires, trapdoors, levers and cuttable rope bridges.
-- **Power steins** are found in shrine trials, chests and geodes. The **Blood Stein** is powerful but you must kill a miner each round or you lose it and half of that round's tribute. The **Midas Stein** turns a miner you kill into a gold statue stone (weight 15). The **Infinity Stein** does nothing, but whoever carries it at the end of 3 rounds in a row wins on the spot.
+- **Power steins** are found in shrine trials, chests and geodes. The **Blood Stein** is powerful but you must kill a miner each round or you lose it and half of that round's tribute. The **Midas Stein** turns a miner you kill into a gold statue stone (tribute 15, burden 5) that goes into the sack of whoever picks it up. The **Infinity Stein** does nothing, but whoever carries it at the end of 3 rounds in a row wins on the spot.

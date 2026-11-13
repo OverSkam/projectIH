@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Items / downed / lantern oil / elimination edge cases: scripted matches with separate headless processes (see src/Items/ItemsDebug.cs).
-#  util       (5 miners, 4 rounds): chest loot only to opener, stein stats owner-only, gas mask, dynamite, bear trap, rope climb/cut, Midas statue,
+#  util       (5 miners, 4 rounds): v2.1 sack (stuffed stein, Infinity not stuffable, unlimited sack, burden, bag pour all-or-nothing, robbery one stone per press highest first), chest loot only to opener, stein stats owner-only, gas mask, dynamite, bear trap, rope climb/cut, Midas statue,
 #                                   ghost meddling, respawn with pickaxe+lantern only, Blood stein penalty / kept with a kill, lantern oil (drain, toggle,
 #                                   public flicker/out, drum refill), downed -> looted -> bleeds out, downed -> hit again -> dies, final two
 #  infinity   (4 miners, 3 rounds): Infinity Stein reset on drop / transferred / counted per round, wins at the end of round 3 before the weighing
@@ -59,7 +59,7 @@ for n in chest_opened chest_loot_to_opener_only chest_loot_received stein_stats_
          blood_penalty_applied blood_kept_with_kill blood_penalty_verified blood_kept_verified \
          oil_starts_full oil_drains_while_lit lantern_toggled_off lantern_out_seen oil_not_burning_when_off lantern_toggled_on lantern_low_seen oil_refilled oil_refilled_to_full \
          lantern_out_of_oil lantern_out_when_oil_gone \
-         miner_downed downed_state_set downed_cannot_act downed_seen looted_downed downed_looted_by_other downed_bleeds_out downed_second_state downed_further_damage_kills \
+         stuffed_stein_counts infinity_cannot_be_stuffed sack_unlimited burden_grows burden_speed_formula bag_poured_all bag_poured miner_downed downed_state_set downed_cannot_act downed_seen looted_downed downed_looted_by_other downed_bleeds_out downed_second_state downed_further_damage_kills \
          miner_eliminated final_weighing winner_server match_end; do want $n; done
 grep -q "^PASS: dynamite_exploded.*victims=[1-9]" <<<"$ALL" || fail "dynamite hurt nobody"
 grep -q "^PASS: chest_opened opener=Alice" "$LOGDIR/util/host.log" || fail "chest opener is not Alice"
@@ -72,6 +72,8 @@ grep -q "^PASS: blood_penalty_applied name=Host" "$LOGDIR/util/host.log" || fail
 grep -q "^PASS: blood_kept_with_kill name=Alice" "$LOGDIR/util/host.log" || fail "blood not kept by Alice"
 grep -q "^PASS: midas_statue victim=Dave killer=Bob" "$LOGDIR/util/host.log" || fail "Midas statue not left for Dave by Bob"
 grep -q "^PASS: looted_downed looter=Alice victim=Host" "$LOGDIR/util/host.log" || fail "Alice did not loot the downed Host"
+grep '^PASS: looted_downed looter=Alice victim=Host' "$LOGDIR/util/host.log" | head -1 | grep -q 'item=ore:gold' || fail "robbery did not take the most valuable stone first"
+[ "$(grep -c '^PASS: looted_downed looter=Alice victim=Host' "$LOGDIR/util/host.log")" -ge 3 ] || fail "robbery should take one item per press (3 presses for gold, coal, swift)"
 grep -q "^PASS: lantern_low_seen" "$LOGDIR/util/host.log" || fail "the low-oil flicker was not visible on another client"
 grep -q "^PASS: death_bag_dropped victim=Host cause=bleed.*downed=True" "$LOGDIR/util/host.log" || fail "Host did not bleed out"
 grep -q "^PASS: death_bag_dropped victim=Alice cause=test.*downed=True" "$LOGDIR/util/host.log" || fail "a further hit did not kill the downed Alice"

@@ -453,6 +453,33 @@ public partial class ItemsDirector : Node
                 Chk("downed_looted_by_other", a.Inv.Sack.Contains("gold") && a.Inv.Sack.Contains("coal") && a.Inv.Steins.Contains("swift") && h.Inv.Sack.Count == 0 && h.Inv.Steins.Count == 0,
                     $"alice sack={string.Join(",", a.Inv.Sack)} steins={string.Join(",", a.Inv.Steins)} host sack={h.Inv.Sack.Count}");
             });
+            At(26, () =>
+            {
+                // v2.1 sack rules (server side, deterministic): stuffed stein, Infinity cannot be stuffed, bottomless sack, burden, bag pour (all or nothing)
+                var a = P("Alice");
+                int before = a.TributeWeight; int idx = a.Inv.Steins.IndexOf("swift");
+                bool ok = idx >= 0 && g.ServerStuffStein(a, idx);
+                Chk("stuffed_stein_counts", ok && !a.Inv.Steins.Contains("swift") && a.Inv.Sack.Contains("stein_c") && a.TributeWeight == before + 6, $"tribute {before}->{a.TributeWeight} sack={string.Join(",", a.Inv.Sack)}");
+                a.Inv.Steins.Add("infinity");
+                bool stuffedInf = g.ServerStuffStein(a, a.Inv.Steins.IndexOf("infinity"));
+                Chk("infinity_cannot_be_stuffed", !stuffedInf && a.Inv.Steins.Contains("infinity") && !a.Inv.Sack.Contains("stein_l"));
+                a.Inv.Steins.Remove("infinity");
+                int n0 = a.Inv.Sack.Count; float b0 = a.Burden;
+                for (int i = 0; i < 40; i++) if (!a.TryAdd("ore:coal")) Chk("sack_unlimited", false, "refused a stone");
+                Chk("sack_unlimited", a.Inv.Sack.Count == n0 + 40, $"stones={a.Inv.Sack.Count}");
+                Chk("burden_grows", Math.Abs(a.Burden - (b0 + 120)) < 0.01f && Burden.SpeedMul(a.Burden) < 0.35f + 0.001f + 0.1f, $"burden={a.Burden} speed={Burden.SpeedMul(a.Burden):0.00}");
+                Chk("burden_speed_formula", Math.Abs(Burden.SpeedMul(30f) - 0.545f) < 0.01f && Burden.SpeedMul(1000f) == 0.35f && Burden.SpeedMul(0f) == 1f);
+                a.Inv.Sack.RemoveRange(n0, 40);
+                int bag = g.ServerSpawnObject("bag", a.Pos, "");
+                if (g.World.Objects.TryGetValue(bag, out var o) && o is BagObj bo)
+                {
+                    bo.Items = new List<string> { "ore:ruby", "ore:coal", "ore:iron" };
+                    int sn = a.Inv.Sack.Count;
+                    bo.ServerInteract(a);
+                    Chk("bag_poured_all", a.Inv.Sack.Count == sn + 3 && bo.Items.Count == 0 && !g.World.Objects.ContainsKey(bag), $"sack {sn}->{a.Inv.Sack.Count}");
+                }
+                else Chk("bag_poured_all", false, "no bag");
+            });
             At(31, () => { var h = P("Host"); Chk("downed_bleeds_out", !h.Alive && !h.Downed, $"alive={h.Alive}"); });
             At(32, () =>
             {

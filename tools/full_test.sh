@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # App Stein full-game soak test: 1 headless host + 3 explorer bots in generated (ModularCave) caves with monsters AND traps,
 # (all four miners, host included, are explorer bots)
-# v2 rules, short rounds (preset soak: 105 s rounds; 4 miners = 3 rounds, the match must run to a winner). The explorer bots feed the Goblin
-# and keep their lantern oil topped up.
+# v2.1 rules (bottomless sack, burden, tribute rings), short rounds (preset soak: 105 s rounds; 4 miners = 3 rounds, the match must run to a winner). The explorer bots collect stones, walk home early enough for their burden
+# and stand on their ring inside the Hall when the timer ends; they also keep their lantern oil topped up.
 # Usage: tools/full_test.sh   (env: PORT=7777  LOGDIR=<dir>  TIMEOUT=600  SEED=11)
 set -u
 cd "$(dirname "$0")/.."
@@ -58,7 +58,9 @@ if [ "$(msum monster)" -gt 0 ] && [ "$mon" -eq 0 ]; then fail "monster markers p
 if [ "$(msum trap)" -gt 0 ] && [ "$trp" -eq 0 ]; then fail "trap markers produced no traps"; fi
 need() { if grep -qE "$2" "$H"; then echo "PASS: $1"; else fail "missing: $1 (/$2/)"; fi; }
 need ore_mined '^PASS: ore_mined'
-need stones_fed '^PASS: feed_server'
+need stones_counted_in_hall '^PASS: tribute_counted .*stones=[1-9].*in_hall=True'
+need bots_home '^PASS: explorer_home'
+need sacks_weighed '^PASS: palm_number'
 if grep -qh '^PASS: explorer_lantern_toggle' "$LOGDIR"/alice.log "$LOGDIR"/bob.log "$LOGDIR"/carol.log "$H"; then echo "PASS: lantern_managed"; else fail "missing: bots never switched their lantern"; fi
 if grep -qh 'oil_refilled' "$H"; then echo "PASS: oil_refilled"; else echo "note: no bot refilled at an oil drum this run"; fi
 need chest_opened '^PASS: chest_opened'

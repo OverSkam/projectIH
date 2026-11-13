@@ -1,4 +1,4 @@
-# App Stein — Architecture (v2 rules)
+# App Stein — Architecture (v2.1 rules)
 
 Godot 4.7.2 .NET, C# only. Everything (scenes, meshes, UI) is built in code; `scenes/Main.tscn` is a single node with `src/Core/Main.cs`.
 Game data lives in static C# registries (`src/Items/Defs.cs`), not `.tres`.
@@ -166,3 +166,21 @@ green-yellow glow, the shaft's red glow and existing effect lights. `FilmGrain` 
 The project uses Forward Plus; the screenshot tool and tests run with `opengl3` (Compatibility), so everything above is Compatibility-safe (no Forward-only features).
 **Staging views**: `--nohud`, `--camgoblin=entrance|face|q|profile|close|palm|hand|side|throw` (`--camfov=`), `--camtunnel=N [--camback=m --camcrouch]`, `--camdark` (no lantern), `--cavelist` also lists tunnels.
 Soak: brave explorer bots deliberately walk over one known damaging trap per match (`_trapRuns`), so `trap_hit_miner` no longer depends on luck.
+
+
+## v2.1 (bottomless sack, rings, atmosphere, bigger caves)
+- **Sack and burden** (`Defs.cs`, `Items/Burden.cs`, `Inventory.Sack`): one unlimited `List<string>` of ore ids per miner; nothing removes stones from it except the weighing, death and robbery. `OreDef.Burden` next to `TributeWeight`
+  (Coal 3/1, Iron 3/2, Silver 2/4, Gold 2/7, Ruby 1/10, Diamond 1/14, statue 5/15). Stuffed power steins are ores too (`stein_c/_r/_l`, 6/12/20, burden 1; `Game.ServerStuffStein`, hold G, `RequestStuffStein`). `ServerPlayer.TributeWeight`
+  is now computed (sack worth + `TributeAdj` for Blood and `--tribute`); `ServerPlayer.Burden` = sack burden x `Stats.BurdenMul` (Packmule 0.5). The owner gets `burden` in `ClientOwnState`; `Miner` applies `Burden.SpeedMul` (max(0.35, 1/(1+B/36))),
+  a sprint stamina bar (drain x(1+B/10)); `ItemsServer.Tick` makes footstep noise via `Game.ServerNoise` (`Burden.WalkNoise/SprintNoise`). The drop-ore action (T) and `RequestDrop` for stones are gone; G taps drop a utility, G held 1 s stuffs a stein.
+- **Death and robbery**: `KillMiner` drops the sack as a `bag` (server `BagObj.Items`); `BagObj.ServerInteract` pours all ores into the interacting sack (steins/utilities only into free slots). `ServerLootOne` takes one stone per press, highest tribute first. Midas statue is a `pickup` stone.
+- **Weighing without feeding** (`Game.Weighing.cs`): at timer end a miner outside `HallZone` loses the sack (`locked_out`), the others' sacks are their piles (`tribute_counted` PASS). Miners are placed on `CaveInfo.RingSpot(rank, n)` (the middle n of `WeighSpots`; rank = peer order at round start, `Game.RoundPeers`,
+  sent in `ClientBeginRound`). `ClientWeighBegin` also carries a vague size class per sack. `ClientWeighReveal` carries `revealSeconds`; client timeline: hand reaches (25%), lifts (45%), number counts. After the throw stage all sacks are emptied.
+  `Weighing.Resolve`, `Prepare`/`BeforeReveal`, `WeighingContext` and `--weighcheck` are unchanged. `HallScale` is gone; `src/World/HallCeremony.cs` holds rings (miner colour + name), sack models, the number above the palm and the shaft; `GoblinRig` moves its right hand
+  (reach/lift/hold, publishes `HallCeremony.PalmWorld`) and stays in the open-palm pose otherwise. `ScalePos` is only the centre of the ring arc. `GoblinObj` no longer has a prompt or feeding. The server barks (`loiter` cue) at miners idling > 28 s in the Hall.
+- **Cave scaling** (`ModularCave.RoomTarget(round, miners)`, `Crowd`): 2 miners = old base x1.3, 8 miners = x3 (cap 60 rooms), linear between; branches get longer (new rooms hang on the newest rooms), more shrines/nooks, `Max` per module scales, extra ore/oil/loot/monster markers (`AddExtraMarkers`).
+  `ICaveBuilder.Build(parent, seed, round, miners)`; the count comes from `Game.RoundPeers`. Debug: `--caveminers=N`. `--cavecheck` runs 2 (20 seeds), 4 and 8 miners (8 seeds), rounds 1-5, and checks the growth of rooms, depth and markers.
+- **Look** (`src/World/Atmosphere.cs`): the film grain/vignette shader and its setting are removed. Depth fog + faint height fog, lit translucent fog cards drifting slowly in every room/tunnel, dust motes (CPU particles, lit billboards) around the local camera,
+  and "blindness": with the lantern out `LocalAtmosphere` fades in a weak 3.6 m neutral light (local only, never replicated), fog 0.052 -> 0.42 and saturation 0.25 (not in the Hall). Only features of both renderers are used. The project has the `Forward Plus` feature and
+  `export_presets.cfg` has no renderer override, so the Windows export uses Forward+ (Vulkan); tests and screenshots use `opengl3` (Compatibility). Cards/dust are skipped headless. Staging: `--camdark`, `--camnoatmo`, `--atmodebug`.
+- Tests: smoke (sack, burden, ring/zero-outside, ceremony order identical on every peer, no_foreign_state), items (stuffing, Infinity, unlimited sack, burden, bag pour, robbery order), traps/full updated for the new loop.
