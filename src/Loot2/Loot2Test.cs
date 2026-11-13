@@ -288,7 +288,9 @@ public class Loot2Bot : BotBrain
                     if (!Mine(out int want)) break;
                     if (_t < 0.3) { int pi = Array.IndexOf(g.OwnInv.Utils, "pickaxe"); if (pi >= 0) g.SendSelectUtil(pi); break; }
                     var c = Nearest<GlowChestObj>(g, m.GlobalPosition, 10f, o => want < 0 || o.Id == want);
+                    if (Util.HasArg("botdebug") && _pick <= 0) { _pick = 0.5; Util.Log($"L2BOT hit chest={(c == null ? "none" : c.Id.ToString())} state={c?.State} pos={m.GlobalPosition} held={g.OwnInv.Held} root={m.RootLeft:0.0} vel={m.Velocity} dist={(c == null ? -1 : m.GlobalPosition.DistanceTo(c.GlobalPosition)):0.0}"); }
                     if (c == null) break;
+                    if (Util.HasArg("botdebug") && !_flag) { _flag = true; var q = PhysicsRayQueryParameters3D.Create(m.GlobalPosition + Vector3.Up * 0.5f, m.GlobalPosition + Vector3.Up * 0.5f + new Vector3(2f, 0, 0), 0xFF); q.Exclude = new Godot.Collections.Array<Rid> { m.GetRid() }; var h = m.GetWorld3D().DirectSpaceState.IntersectRay(q); Util.Log("L2BOT ray east: " + (h.Count > 0 ? h["collider"].As<Node>().Name + " pos " + h["collider"].As<Node3D>().GlobalPosition + " at " + h["position"].AsVector3() : "nothing")); }
                     FaceTo(m, c.GlobalPosition + Vector3.Up * 0.4f);
                     if (Walk(m, ref i, c.GlobalPosition, 1.7f) && g.OwnInv.Held == "pickaxe") i.Attack = true;
                     break;
@@ -566,7 +568,7 @@ public partial class Loot2Director : Node
         // ---------------------------------------------------------------- 9. a second miner hitting the mimic during the bite frees the victim early
         if (Sec("free"))
         {
-            var cp = O + new Vector3(8, 0, 6);
+            var cp = O + new Vector3(0, 0, 6);
             var m2 = Spawn<GlowChestObj>("bchest", cp, GlowChestObj.MakeData(1, "closed", false)); m2.Depth = 1; m2.ServerMakeMimic(true); m2.Rooted = true;
             Put("Alice", cp + new Vector3(0, 0.1f, 2.3f)); Put("Host", cp + new Vector3(-8, 0.1f, 0)); await Wait(1.0f);
             float hp0 = alice.Health; LootStats.BiteDamage = 0;

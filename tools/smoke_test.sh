@@ -56,7 +56,7 @@ done
 
 ALL=$(cat "$LOGDIR"/host.log "$LOGDIR"/alice.log "$LOGDIR"/bob.log)
 echo "== results"
-for want in connected peers_connected round_started ore_mined ore_picked_up tribute_counted burden_slows no_foreign_state locked_out \
+for want in connected peers_connected round_started ore_mined vein_geodes geode_cracked ore_picked_up tribute_counted burden_slows no_foreign_state locked_out \
             weigh_begin sacks_dropped sack_in_palm palm_number weigh_reveal weigh_verdict weigh_throw weigh_remain miner_eliminated eliminated_ghost final_weighing winner_server match_end; do
   if grep -q "^PASS: $want" <<<"$ALL"; then echo "PASS: $want"; else fail "missing PASS: $want"; fi
 done

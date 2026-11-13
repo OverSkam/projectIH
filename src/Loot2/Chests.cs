@@ -301,8 +301,11 @@ public partial class GlowChestObj : NetObject, IRootable, IExplodable
 
     public bool ServerStartHold(ServerPlayer p)
     {
-        if (!Closed || _stun > 0f || _opener != null || !Game.I.CanAct(p)) return false;
-        if (ObjUtil.Flat(p.Pos - GlobalPosition).Length() > LootTuning.HoldReach + 0.8f) return false;
+        if (!Closed || _stun > 0f || _opener != null || !Game.I.CanAct(p) || ObjUtil.Flat(p.Pos - GlobalPosition).Length() > LootTuning.HoldReach + 0.8f)
+        {
+            Game.I.RpcId(p.Peer, nameof(Game.ClientChestHold), Id, 0);   // refused: the client's bar must not hang
+            return false;
+        }
         _opener = p; _holdT = 0; _holdStartAt = Time.GetTicksMsec() / 1000.0; _noiseT = 0;
         SetState("hold");
         Game.ServerNoise(GlobalPosition, 9f, p);

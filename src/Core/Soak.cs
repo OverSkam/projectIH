@@ -77,6 +77,7 @@ public partial class SoakDirector : Node
         // counts that must match exactly
         if (C(byKind, "vein") != C(markers, "vein")) Bad($"r={g.Round} veins {C(byKind, "vein")} != markers {C(markers, "vein")}");
         if (C(byKind, "chest") != C(markers, "chest")) Bad($"r={g.Round} chests {C(byKind, "chest")} != markers {C(markers, "chest")}");
+        if (C(byKind, "bchest") != C(markers, "bchest")) Bad($"r={g.Round} bright chests {C(byKind, "bchest")} != markers {C(markers, "bchest")}");
         int shrineCap = Math.Min(C(markers, "shrine"), Math.Max(1, cave.Rooms.Count / 4));
         if (C(byKind, "shrine") != shrineCap) Bad($"r={g.Round} shrines {C(byKind, "shrine")} != expected {shrineCap} (markers {C(markers, "shrine")}, 1 per 4 rooms)");
         if (monsters > MonsterTuning.MaxTotal(g.Round)) Bad($"r={g.Round} {monsters} monsters exceed the cap {MonsterTuning.MaxTotal(g.Round)}");
@@ -131,7 +132,7 @@ public partial class SoakDirector : Node
             }
             if (o is MonsterObj && cave.InHall(p)) campMonsters++;
             // reachability for things a miner must get to
-            bool needsReach = o is ChestObj || o is ShrineObj || o is VeinObj || o is MonsterObj || o.Kind == "trap_lever" || (o is PickupObj && !flyer);
+            bool needsReach = o is ChestObj || o is GlowChestObj || o is ShrineObj || o is VeinObj || o is MonsterObj || o.Kind == "trap_lever" || (o is PickupObj && !flyer);
             if (needsReach)
             {
                 bool thin = room?.Name == "nook" || (mc != null && IsThinBehind(mc, p));

@@ -18,6 +18,9 @@ public static class Loot2Client
 
     public static void Reset() { Holding = false; HoldId = 0; }
 
+    /// <summary>A hold the server never answered (lost message, chest gone) must not stay on screen: give up shortly after the 2.5 s are over.</summary>
+    public static void Watchdog() { if (Holding && Now - _start > LootTuning.HoldSeconds + 2.5) { Holding = false; Util.Pass("chest_hold_timeout"); } }
+
     public static void Start(int id)
     {
         if (Holding && HoldId == id) return;
@@ -158,6 +161,7 @@ public partial class Loot2Ui : CanvasLayer
                 _shakeCam = null;
             }
         }
+        Loot2Client.Watchdog();
         // hold bar
         bool show = Loot2Client.Holding && Game.I.Phase == GamePhase.Round;
         if (show != _bar.Visible) _bar.Visible = show;
