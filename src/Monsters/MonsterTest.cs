@@ -44,6 +44,7 @@ public static class MonsterTest
         "assessor" => AssessorTest(),
         "plug" => PlugTest(),
         "plugwalk" => PlugWalk(),
+        "loudloot" => LoudLoot(),
         "wicks" => WicksTest(),
         "director" => DirectorTest(),
         "replicate" => Replicate(),
@@ -575,5 +576,35 @@ public static class MonsterTest
         yield return Until(() => maxJump < 1.8f, 1, "miner_not_launched_by_creeping_plug");
         yield return Until(() => (a.Pos - c0).Dot(axis) < plugS2 + 0.1f, 1, "miner_pushed_back_not_through");
         plug.Frozen = true;
+    }
+
+    // ------------------------------------------------------------------ loot noise pulls monsters: a legendary geode reveal (45 m) and a mimic shriek (70 m)
+    static IEnumerable<Wait> LoudLoot()
+    {
+        var a = Find("Alice"); var spot = Deep(60f);
+        yield return Until(() => a.Alive && FlatD(a.Pos, spot) < 3f, 150, "alice_in_position");
+        var far = FarFrom(spot, 30f, 42f, NavProfile.Tall);
+        var gol = Mk<GolemObj>("golem", far, spot); gol.Blind = true; gol.TestHold(1000f);
+        int gid = Game.I.ServerSpawnObject("geode", spot + new Vector3(1.5f, 0.1f, 0), GeodeObj.MakeData(1, 2));
+        var ge = (GeodeObj)Game.I.World.Objects[gid];
+        ge.ForcedResult = new GeodeResult { Items = { "stein:midas" } };
+        yield return Sleep(1f);
+        yield return Until(() => gol.State == MonsterState.Idle, 1, "golem_waits_before_the_reveal");
+        float d0 = FlatD(gol.GlobalPosition, a.Pos);
+        ge.Crack(a);   // the legendary reveal: Game.ServerNoise(45 m)
+        yield return Until(() => gol.State == MonsterState.Investigate, 3, "reveal_noise_pulls_a_far_golem");
+        yield return Until(() => FlatD(gol.GlobalPosition, a.Pos) < d0 - 12f, 40, "golem_walks_toward_the_reveal");
+        Remove(gol);
+        var far2 = FarFrom(spot, 50f, 68f, NavProfile.Tall);
+        var g2 = Mk<GolemObj>("golem", far2, spot); g2.Blind = true; g2.TestHold(1000f);
+        yield return Sleep(0.5f);
+        Game.ServerNoise(spot, LootTuning.ShriekNoise, null);   // a mimic's shriek
+        yield return Until(() => g2.State == MonsterState.Investigate, 3, "mimic_shriek_pulls_a_far_golem");
+        g2.Frozen = true;
+        // mimics only settle where there is room all round (1 m clear), so a one-wide tunnel can never be plugged by one
+        var nav = Nav; int tunnelNodes = 0, roomyTunnelNodes = 0;
+        for (int k = 0; k < nav.Count; k++) if (nav.Tunnel[k]) { tunnelNodes++; if (LootPlacement.Clear(Game.I.World, nav.Pos[k] + new Vector3(0, 0.05f, 0), 1.0f)) roomyTunnelNodes++; }
+        Util.Log($"MONTEST: tunnel nodes={tunnelNodes} with 1 m clear all round={roomyTunnelNodes}");
+        yield return Until(() => roomyTunnelNodes == 0, 1, "mimic_cannot_settle_in_a_tunnel");
     }
 }
