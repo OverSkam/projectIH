@@ -108,7 +108,8 @@ public class ExplorerBot : IMinerController
         if (_target is OilDrumObj && (g.OwnOil > g.OwnOilMax * 0.8f || Kv(_target, "uses") == "0")) Drop();
         if (_target != null && (!GodotObject.IsInstanceValid(_target) || Gone(_target, world))) { _target = null; _holdUntil = 0; }
         else if (_target is ChestObj && Kv(_target, "open") == "1" || _target is LeverObj && Kv(_target, "s") != "ready" || _target is ShrineObj && Kv(_target, "state") == "done") Drop();
-        if (_target != null && _clock - _targetSince > 45) { Util.Log($"EXPLORER {_name} giving up on {_target.Kind}#{_target.Id} at {_target.GlobalPosition}"); _skip.Add(_target.Id); _target = null; }
+        if (_target != null && _clock - _targetSince > (_target is MonsterObj ? 80 : 45)) { Util.Log($"EXPLORER {_name} giving up on {_target.Kind}#{_target.Id} at {_target.GlobalPosition}"); _skip.Add(_target.Id); _target = null; }
+        if (_brave && _trapRuns < 1 && !_deliberateTrap && _target != null && g.TimeLeft > 35f && TrapCandidate(g, cave, pos) != null) _target = null;   // the deliberate trap run preempts whatever the bot was doing
         if (_target == null) PickTarget(m, g);
         if (_target == null) { Walk(m, ref inp, RoamGoal(cave, pos), 1.5f); return; }
         Work(m, ref inp, g);
@@ -152,6 +153,19 @@ public class ExplorerBot : IMinerController
         }
     }
 
+    NetObject TrapCandidate(Game g, CaveInfo cave, Vector3 pos)
+    {
+        NetObject tb = null; float tbs = float.MaxValue;
+        foreach (var o in g.World.Objects.Values)
+        {
+            if (o.Kind is not ("trap_spikes" or "trap_darts" or "trap_gas" or "trap_rockfall") || _skip.Contains(o.Id) || cave.InHall(o.GlobalPosition)) continue;
+            if (!Reachable(cave, o.GlobalPosition, 3.2f)) continue;
+            float d = Flat(o.GlobalPosition).DistanceTo(Flat(pos));
+            if (d < tbs) { tbs = d; tb = o; }
+        }
+        return tb;
+    }
+
     void PickTarget(Miner m, Game g)
     {
         var inv = g.OwnInv; var cave = g.World.Cave; var pos = m.GlobalPosition;
@@ -160,14 +174,7 @@ public class ExplorerBot : IMinerController
         // brave bots deliberately walk over one known damaging trap per match, so the soak test's "a trap hurt a miner" check never depends on luck
         if (_brave && _trapRuns < 1 && g.TimeLeft > 35f)
         {
-            NetObject tb = null; float tbs = float.MaxValue;
-            foreach (var o in g.World.Objects.Values)
-            {
-                if (o.Kind is not ("trap_spikes" or "trap_darts" or "trap_gas" or "trap_rockfall") || _skip.Contains(o.Id) || cave.InHall(o.GlobalPosition)) continue;
-                if (!Reachable(cave, o.GlobalPosition, 3.2f)) continue;
-                float d = Flat(o.GlobalPosition).DistanceTo(Flat(pos));
-                if (d < tbs) { tbs = d; tb = o; }
-            }
+            var tb = TrapCandidate(g, cave, pos);
             if (tb != null) { _target = tb; _targetSince = _clock; _targetTries = 0; _trapPassed = false; _stuckCount = 0; _crossing = false; _deliberateTrap = true; return; }
         }
         if (_brave && g.TimeLeft > 40f && _leverRound != g.Round)
