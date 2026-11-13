@@ -563,7 +563,9 @@ public partial class Miner : CharacterBody3D
     void HandleInteract(MinerInput c)
     {
         var g = Game.I;
+        if (!(Controller is BotBrain) && Loot2Client.Update(Target, c)) return;   // bright chests: hold E for 2.5 s (src/Loot2)
         if (!c.Interact) return;
+        if (Target is GlowChestObj) return;
         if (Target != null) g.SendInteract(Target.Id);
         else if (LootTarget != null && IsInstanceValid(LootTarget)) g.SendLoot(LootTarget.PeerId);
     }

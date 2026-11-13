@@ -35,6 +35,12 @@ public static class SfxNames
     public const string GolemStep = "golem_step", GolemWindup = "golem_windup", GolemSlam = "golem_slam", GolemCrack = "golem_crack", GolemStun = "golem_stun";
     public const string EmberCrackle = "ember_crackle", EmberLunge = "ember_lunge", EmberSizzle = "ember_sizzle", WispHiss = "wisp_hiss";
     public const string DragonBreath = "dragon_breath", DragonStir = "dragon_stir", DragonRoar = "dragon_roar", DragonFire = "dragon_fire";
+    // loot step 2 (recipes in src/Loot2/LootSfx.cs)
+    public const string GeodeHit1 = "geode_hit1", GeodeHit2 = "geode_hit2", GeodeHit3 = "geode_hit3";
+    public const string RevealDull = "reveal_dull", RevealBright = "reveal_bright", RevealGem = "reveal_gem", RevealStein = "reveal_stein";
+    public const string ChestCreak = "chest_creak", ChestBurst = "chest_burst";
+    public const string ChestPing1 = "chest_ping1", ChestPing2 = "chest_ping2", ChestPing3 = "chest_ping3", ChestPing4 = "chest_ping4", ChestPing5 = "chest_ping5", ChestPing6 = "chest_ping6";
+    public const string MimicBreath = "mimic_breath", MimicSnap = "mimic_snap", MimicShriek = "mimic_shriek", MimicScuttle = "mimic_scuttle", Bats = "bats", GasPuff = "gas_puff";
     // ambience
     public const string AmbDrone = "amb_drone", AmbDrip = "amb_drip", AmbCreak = "amb_creak", AmbSettle = "amb_settle", Campfire = "campfire", WaterLap = "water_lap";
 

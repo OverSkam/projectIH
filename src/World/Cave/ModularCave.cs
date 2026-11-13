@@ -399,6 +399,44 @@ public class ModularCave : ICaveBuilder
         }
     }
 
+
+    /// <summary>Bright chests (marker kind "bchest", see src/Loot2): roughly one per two miners plus a bonus for deep / late caves, in distinct ordinary rooms, deeper rooms preferred.
+    /// Placed on an interior floor cell (all 8 neighbours open, no crawl) so a chest never blocks a tunnel. Deterministic per (seed, round, miners).</summary>
+    void AddChestMarkers()
+    {
+        var r = new Rnd(Seed * 53L + Round * 1301L + 9);
+        var cands = Slots.Where(s => s.Id != 0 && !(s.Mod.Role is "nook" or "shrine" or "lair")).ToList();
+        if (cands.Count == 0) return;
+        int maxD = cands.Max(s => Info.Rooms[s.Id].Depth);
+        int n = Math.Min((Miners + 1) / 2 + (maxD >= 5 ? 1 : 0) + (Round >= 3 ? 1 : 0), cands.Count);
+        var tried = new HashSet<int>();
+        int placed = 0;
+        for (int guard = 0; placed < n && guard < 200 && tried.Count < cands.Count; guard++)
+        {
+            // weighted pick without replacement: weight (depth + 1)^1.4
+            double total = 0; foreach (var c in cands) if (!tried.Contains(c.Id)) total += Math.Pow(Info.Rooms[c.Id].Depth + 1, 1.4);
+            double pick = r.F() * total; Slot s = null;
+            foreach (var c in cands) { if (tried.Contains(c.Id)) continue; pick -= Math.Pow(Info.Rooms[c.Id].Depth + 1, 1.4); if (pick <= 0) { s = c; break; } }
+            s ??= cands.First(c => !tried.Contains(c.Id));
+            tried.Add(s.Id);
+            var ri = Info.Rooms[s.Id];
+            for (int tries = 0; tries < 30; tries++)
+            {
+                int rr = 3 + r.I(8), cc = 3 + r.I(8);
+                if (s.Map[rr][cc] != '.') continue;
+                int i = s.OX + cc, j = s.OY + rr;
+                if (!OpenAt(i, j) || NodeAt[Idx(i, j)] < 0 || At(i, j).Crawl || At(i, j).Thin) continue;
+                var pos = CellPos(i, j, 0f);
+                if (ri.Markers.Any(m => Math.Abs(m.Pos.X - pos.X) < 1.5f && Math.Abs(m.Pos.Z - pos.Z) < 1.5f)) continue;
+                bool all = true;
+                for (int dj = -1; dj <= 1 && all; dj++) for (int di = -1; di <= 1; di++) if (!OpenAt(i + di, j + dj) || At(i + di, j + dj).Crawl) { all = false; break; }
+                if (!all) continue;
+                ri.Markers.Add(new SpawnMarker("bchest", pos)); placed++;
+                break;
+            }
+        }
+    }
+
     /// <summary>Hall furniture (the giant Goblin's body and palm, the Scale, the shaft, the cage lift) is solid: no nav nodes inside or hugging it.</summary>
     static bool HallBlocked(CaveInfo info, Vector3 p)
     {
@@ -481,6 +519,7 @@ public class ModularCave : ICaveBuilder
                 info.NavNodes.Add(CellPos(x + OX, y + OY, c.Mean));
             }
         AddExtraMarkers();
+        AddChestMarkers();
         bool L(int i, int j, int di, int dj) => NodeAt[Idx(i, j)] >= 0 && OpenAt(i + di, j + dj) && NodeAt[Idx(i + di, j + dj)] >= 0 && Linked(i, j, di, dj);
         for (int j = OY; j < OY + H; j++)
             for (int i = OX; i < OX + W; i++)
