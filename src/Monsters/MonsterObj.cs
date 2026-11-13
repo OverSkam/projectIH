@@ -15,6 +15,7 @@ public enum MonsterState { Idle, Wander, Investigate, Chase, Windup, Attack, Rec
 public abstract partial class MonsterObj : NetObject
 {
     public static readonly List<MonsterObj> Live = new(); // server-side instances
+    static readonly HashSet<string> _seen = new();
 
     public MonsterState State = MonsterState.Idle;
     public int Extra;                       // subclass-defined small int carried in Data (dragon stage)
@@ -27,6 +28,12 @@ public abstract partial class MonsterObj : NetObject
     // ---- tuning set by subclasses
     protected float WalkSpeed = 1.5f, InvestigateSpeed = 2f, ChaseSpeed = 3f, TurnRate = 3f, MoveAlign = 0.6f;
     protected float SightDark = MonsterTuning.SightDark, SightLantern = MonsterTuning.SightLantern, HearMul = 1f;
+    /// <summary>Detection radius against a miner WITHOUT a lit lantern: standing still / walking / sprinting.</summary>
+    protected float DetectStill = MonsterTuning.DetectStill, DetectWalk = MonsterTuning.DetectWalk, DetectSprint = MonsterTuning.DetectSprint;
+    protected float IdleMin = 0.5f, IdleRand = 1.5f;
+    protected bool PatrolTunnelsOnly;
+    /// <summary>Where this monster may walk (ceiling, crawls, squeezes): its collision must fit there.</summary>
+    protected NavProfile Profile = NavProfile.Person;
     protected float SightCos = -1f;         // -1 = full circle
     protected float AttackRange = 2f, AttackAlign = 0.3f, BodyRadius = 0.6f, EyeH = 1.5f, WanderRadius = 10f;
     protected bool Flying;
@@ -46,8 +53,8 @@ public abstract partial class MonsterObj : NetObject
     protected Vector3 LastSeen, Goal;
     protected bool VisibleNow, Arrived;
     protected float LostT, Timer, StuckT, StunT;
-    float _senseT, _syncT, _pathT, _dbgT;
-    List<Vector3> _path;
+    float _senseT, _syncT, _pathT, _dbgT, _groundTop = 1.2f;
+    protected List<Vector3> _path;
     Vector3 _pathGoal;
     bool _hadData;
 
@@ -85,7 +92,9 @@ public abstract partial class MonsterObj : NetObject
         else Util.Pass("monster_replicated", $"kind={Kind} id={Id}");
     }
 
-    public override void _ExitTree() { Live.Remove(this); }
+    public override void _ExitTree() { Live.Remove(this); OnLeave(); }
+    /// <summary>Client/server: the node leaves the tree (stop loops).</summary>
+    protected virtual void OnLeave() { }
 
     public override void ApplyData(string data)
     {
@@ -96,6 +105,7 @@ public abstract partial class MonsterObj : NetObject
         if (kv.TryGetValue("x", out var x)) int.TryParse(x, out Extra);
         if (!_hadData || old != State) _stateStart = Now;
         if (_hadData && State == MonsterState.Stunned && old != MonsterState.Stunned) Flash = 0.25f;
+        if (!IsSrv && _hadData && old != State && _seen.Add(Kind + ":" + State)) Util.Pass("monster_state_seen", $"kind={Kind} st={State}");
         _hadData = true;
     }
 
@@ -153,12 +163,16 @@ public abstract partial class MonsterObj : NetObject
 
     // ================================================================= server AI
     protected virtual void ServerInit() { }
+    protected MonsterNav Nav => MonsterNav.For(Cave);
+    /// <summary>True while it is out patrolling / investigating (not busy with a target, an attack or a stun).</summary>
+    public bool IsRoaming => State == MonsterState.Idle || State == MonsterState.Wander || State == MonsterState.Investigate || State == MonsterState.Return;
+    public bool IsHunting => State == MonsterState.Chase || State == MonsterState.Windup || State == MonsterState.Attack || State == MonsterState.Recover;
 
     /// <summary>Melee never hurts a monster. Subclasses may react (the golem is stunned by a hit on its back crystal).</summary>
     public override void ServerHit(ServerPlayer p, float mining, bool pickaxe) { }
 
     /// <summary>Server: the monster stops and staggers for <paramref name="seconds"/> (golem crystal, dynamite, bear trap). Never damage.</summary>
-    public void Stun(float seconds)
+    public virtual void Stun(float seconds)
     {
         if (!IsSrv || State == MonsterState.Stunned) return;
         StunT = seconds; Target = null; VisibleNow = false;
@@ -180,55 +194,64 @@ public abstract partial class MonsterObj : NetObject
         {
             case MonsterState.Idle:
                 Timer -= dt;
-                if (Timer <= 0) StartWander();
+                if (Timer <= 0) StartPatrol();
                 break;
             case MonsterState.Wander:
                 Timer -= dt;
-                if (MoveTo(Goal, WalkSpeed, dt, false) || StuckT > 2.5f || Timer <= 0) GoIdle();
+                if (MoveTo(Goal, WalkSpeed, dt, false, 1.2f) || StuckT > 3f || Timer <= 0) GoIdle();
                 break;
             case MonsterState.Investigate:
                 if (!Arrived)
                 {
-                    if (MoveTo(Goal, InvestigateSpeed, dt, false, 1.5f) || StuckT > 2.5f) { Arrived = true; Timer = 2.5f; }
+                    if (MoveTo(Goal, InvestigateSpeed, dt, false, 1.5f) || StuckT > 3f) { Arrived = true; Timer = MonsterTuning.SearchSeconds; }
                 }
                 else
                 {
                     Yaw += 0.9f * dt; // look around
                     Timer -= dt;
-                    if (Timer <= 0) SetState(MonsterState.Return);
+                    if (Timer <= 0) StartPatrol();
                 }
                 break;
             case MonsterState.Chase: ChaseTick(dt); break;
             case MonsterState.Windup:
             case MonsterState.Attack:
             case MonsterState.Recover: AttackTick(dt); break;
-            case MonsterState.Return:
-                if (MoveTo(Home, WalkSpeed, dt, false, 1.5f)) GoIdle();
-                else if (StuckT > 2.5f) { Home = GlobalPosition; GoIdle(); }
-                break;
+            case MonsterState.Return: StartPatrol(); break;
         }
     }
 
-    void GoIdle() { Timer = 2f + GD.Randf() * 3f; StuckT = 0; SetState(MonsterState.Idle); }
+    protected void GoIdle() { Timer = IdleMin + GD.Randf() * IdleRand; StuckT = 0; SetState(MonsterState.Idle); }
 
-    void StartWander()
+    /// <summary>Walk to a random far node of the cave (monsters roam the whole nav graph, not around a home).</summary>
+    protected virtual void StartPatrol()
     {
-        for (int i = 0; i < 8; i++)
-        {
-            float a = GD.Randf() * Mathf.Tau, r = 3f + GD.Randf() * (WanderRadius - 3f);
-            var g = Home + new Vector3(Mathf.Cos(a) * r, 0, Mathf.Sin(a) * r);
-            if (!WanderOk(g)) continue;
-            Goal = g; Timer = 14f; StuckT = 0; SetState(MonsterState.Wander);
-            return;
-        }
-        Timer = 3f;
+        Target = null; VisibleNow = false;
+        var g = Nav.RandomGoal(Profile, GlobalPosition, MonsterTuning.PatrolMinPath, 220f, PatrolTunnelsOnly);
+        if (g == null) { Timer = 2f; if (State != MonsterState.Idle) SetState(MonsterState.Idle); return; }
+        Goal = g.Value; Timer = 150f; StuckT = 0; _path = null;
+        SetState(MonsterState.Wander);
+    }
+
+    /// <summary>Server: head toward a rough area (director / test). Senses still take over on the way.</summary>
+    public virtual void Dispatch(Vector3 area)
+    {
+        if (!IsSrv || Frozen || State == MonsterState.Stunned) return;
+        Goal = SnapGoal(area); Arrived = false; Timer = 0; StuckT = 0; _path = null;
+        Target = null; VisibleNow = false;
+        if (State == MonsterState.Investigate) { Broadcast(); return; }
+        State = MonsterState.Wander; SetState(MonsterState.Investigate);
+    }
+
+    /// <summary>A goal the monster can actually walk to (never inside the Hall buffer).</summary>
+    protected Vector3 SnapGoal(Vector3 g)
+    {
+        int k = Nav.Nearest(Profile, g, 12f);
+        return k >= 0 ? Nav.Pos[k] : g;
     }
 
     protected virtual bool WanderOk(Vector3 g)
     {
         if (HallBlock(g)) return false;
-        var r = Cave.RoomAt(Home);
-        if (r != null && !r.Bounds.Grow(-1.5f).HasPoint(new Vector3(g.X, r.Bounds.Position.Y + 1f, g.Z))) return false;
         return Flying || GroundAt(g) != null;
     }
 
@@ -236,7 +259,6 @@ public abstract partial class MonsterObj : NetObject
     {
         var pos = GlobalPosition;
         if (Target != null && (!Target.Alive || Cave.InHall(Target.Pos))) { Target = null; VisibleNow = false; }
-        if (Flat(pos - Home).Length() > MonsterTuning.LeashDistance) { Target = null; SetState(MonsterState.Return); return; }
         if (VisibleNow && Target != null)
         {
             float d = Flat(Target.Pos - pos).Length();
@@ -264,13 +286,16 @@ public abstract partial class MonsterObj : NetObject
     protected virtual void OnSighted(ServerPlayer p) { }
 
     // ---------------------------------------------------------------- senses
-    protected static bool HoldsLight(ServerPlayer p) => Utilities.Get(p.Inv.Held)?.IsLight == true;
+    protected static bool HoldsLight(ServerPlayer p) => MonsterSenses.Lit(p);
 
-    protected bool CanSee(ServerPlayer p, out float dist)
+    /// <summary>Sight: a lit lantern in line of sight is seen from far; without one a miner is noticed only close by (2 m if standing still, more when moving).</summary>
+    protected virtual bool CanSee(ServerPlayer p, out float dist)
     {
         var pos = GlobalPosition;
         dist = pos.DistanceTo(p.Pos);
-        float range = HoldsLight(p) ? SightLantern : SightDark;
+        float range;
+        if (MonsterSenses.Lit(p)) range = SightLantern;
+        else { float sp = MonsterSenses.Speed(p); range = sp < MonsterTuning.StillSpeed ? DetectStill : sp > MonsterTuning.SprintSpeedThreshold ? DetectSprint : DetectWalk; }
         if (dist > range) return false;
         if (SightCos > -0.99f && dist > 4f)
         {
@@ -280,7 +305,7 @@ public abstract partial class MonsterObj : NetObject
         return !Ray(pos + new Vector3(0, EyeH, 0), p.Pos + new Vector3(0, 1.2f, 0));
     }
 
-    void Sense(float dt)
+    protected void Sense(float dt)
     {
         if (!VisibleNow && State == MonsterState.Chase) { }
         _senseT -= dt;
@@ -309,7 +334,7 @@ public abstract partial class MonsterObj : NetObject
         if (State == MonsterState.Chase || State == MonsterState.Windup || State == MonsterState.Attack || State == MonsterState.Recover) return;
         if (GlobalPosition.DistanceTo(pos) > loud * HearMul) return;
         if (Cave.InHall(pos)) return;
-        Goal = pos; Arrived = false; Timer = 0; StuckT = 0;
+        Goal = SnapGoal(pos); Arrived = false; Timer = 0; StuckT = 0; _path = null;
         if (State == MonsterState.Investigate) return;
         SetState(MonsterState.Investigate);
         Util.Log($"MONSTER: heard kind={Kind} id={Id}");
@@ -324,12 +349,14 @@ public abstract partial class MonsterObj : NetObject
     protected bool Ray(Vector3 a, Vector3 b, uint mask = Layers.World)
     {
         var q = PhysicsRayQueryParameters3D.Create(a, b, mask);
+        q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
         return GetWorld3D().DirectSpaceState.IntersectRay(q).Count > 0;
     }
 
     protected float? GroundAt(Vector3 p)
     {
-        var q = PhysicsRayQueryParameters3D.Create(p + new Vector3(0, 1.2f, 0), p + new Vector3(0, -2.2f, 0), Layers.World);
+        var q = PhysicsRayQueryParameters3D.Create(p + new Vector3(0, _groundTop, 0), p + new Vector3(0, -2.2f, 0), Layers.World);
+        q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
         var r = GetWorld3D().DirectSpaceState.IntersectRay(q);
         if (r.Count == 0) return null;
         return r["position"].AsVector3().Y;
@@ -341,14 +368,22 @@ public abstract partial class MonsterObj : NetObject
         return zone.HasPoint(new Vector3(p.X, Cave.HallZone.Position.Y + 1f, p.Z));
     }
 
-    /// <summary>Extra veto on a step (water, lair bounds...). Camp is always vetoed.</summary>
-    /// <summary>Ceiling height this monster needs to walk somewhere (tunnels are ~2.2 m: a golem cannot follow into them).</summary>
+    /// <summary>Kept for the Dragon (its lair needs 5 m of headroom); other monsters use <see cref="Profile"/>.</summary>
     protected float Headroom = 0f;
 
+    /// <summary>May the monster stand at np? Never inside the Hall, never in rock, never through thin walls; ceiling / crawl / squeeze rules come from <see cref="Profile"/>.</summary>
     protected virtual bool Allowed(Vector3 np, bool chasing)
     {
-        if (Headroom > 0f && ModularCave.Last is { } mc && mc.At((int)Math.Round(np.X / 2f), (int)Math.Round(np.Z / 2f)).Ceil < Headroom) return false;
         if (HallBlock(np) && !HallBlock(GlobalPosition)) return false;
+        if (HallBlock(np) && HallBlock(GlobalPosition) && Flat(np - Cave.HallZone.GetCenter()).LengthSquared() < Flat(GlobalPosition - Cave.HallZone.GetCenter()).LengthSquared()) return false;
+        if (ModularCave.Last is { } mc)
+        {
+            int i = (int)Math.Round(np.X / 2f), j = (int)Math.Round(np.Z / 2f);
+            ref var c = ref mc.At(i, j);
+            if (!c.Open || c.Thin) return false;
+            if (c.Crawl ? !Profile.Crawl : c.Ceil < Mathf.Max(Profile.MinCeil, Headroom)) return false;
+            if (!Profile.Squeeze && Cave.InSqueeze(np + new Vector3(0, 0.8f, 0))) return false;
+        }
         return true;
     }
 
@@ -356,36 +391,43 @@ public abstract partial class MonsterObj : NetObject
     {
         var d = Flat(b - a);
         if (d.LengthSquared() < 0.01f) return true;
-        var side = new Vector3(-d.Z, 0, d.X).Normalized() * 0.6f;
+        var side = new Vector3(-d.Z, 0, d.X).Normalized() * 0.3f;
         var up = new Vector3(0, 0.9f, 0);
         return !Ray(a + up, b + up) && !Ray(a + up + side, b + up + side) && !Ray(a + up - side, b + up - side);
     }
 
     bool FreeAhead(Vector3 pos, Vector3 dir)
     {
-        float len = BodyRadius + 0.9f;
+        float len = Mathf.Min(BodyRadius, 0.5f) + 0.55f;
         return !Ray(pos + new Vector3(0, 0.5f, 0), pos + new Vector3(0, 0.5f, 0) + dir * len)
             && !Ray(pos + new Vector3(0, 1.4f, 0), pos + new Vector3(0, 1.4f, 0) + dir * len);
     }
 
-    /// <summary>Steps toward goal (nav path when not in direct line of sight). True when within 'arrive' metres.</summary>
+    /// <summary>Steps toward goal along the monster's own route (nav graph, profile-aware; a short direct run when the line is clear). True when within 'arrive' metres.</summary>
     protected bool MoveTo(Vector3 goal, float speed, float dt, bool chasing, float arrive = 0.9f)
     {
         var pos = GlobalPosition;
         float dist = Flat(goal - pos).Length();
         if (dist <= arrive) { StuckT = 0; return true; }
+        _groundTop = Profile.Crawl ? 0.7f : 1.2f;
         Vector3 wp = goal;
-        if (!(dist < 16f && ClearLine(pos, goal)))
+        if (!(dist < 5f && ClearLine(pos, goal)))
         {
             _pathT -= dt;
-            if (_path == null || _pathT <= 0f || Flat(_pathGoal - goal).Length() > 2f)
+            if (_path == null || _pathT <= 0f || Flat(_pathGoal - goal).Length() > 2.5f)
             {
-                _path = Cave.FindPath(pos, goal); _pathGoal = goal; _pathT = 2.5f;
+                _path = Nav.FindPath(Profile, pos, goal); _pathGoal = goal; _pathT = 2.5f;
+                if (_path == null) { StuckT += dt; return false; }     // no route for this body
                 // FindPath starts at the nearest node, which may lie behind us: skip nodes we are already past.
-                while (_path.Count > 2 && Flat(_path[1] - pos).Length() < Flat(_path[1] - _path[0]).Length()) _path.RemoveAt(0);
+                while (_path.Count > 1 && Flat(_path[1] - pos).Length() < Flat(_path[1] - _path[0]).Length()) _path.RemoveAt(0);
             }
-            while (_path.Count > 1 && Flat(_path[0] - pos).Length() < 1.8f) _path.RemoveAt(0);
-            wp = _path[0];
+            while (_path.Count > 1 && Flat(_path[0] - pos).Length() < 0.9f) _path.RemoveAt(0);
+            if (_path.Count == 1 && Flat(_path[0] - pos).Length() < 0.9f)
+            {
+                if (dist < 3.5f || !chasing) { StuckT = 0; return true; }   // end of the route: close enough
+                wp = goal;
+            }
+            else wp = _path[0];
         }
         else _path = null;
         var dir = Flat(wp - pos);
@@ -394,19 +436,35 @@ public abstract partial class MonsterObj : NetObject
         float want = Mathf.Atan2(-dir.X, -dir.Z);
         if (!FreeAhead(pos, dir))
         {
-            foreach (var a in new[] { 0.7f, -0.7f, 1.4f, -1.4f, 2.1f, -2.1f })
+            foreach (var a in new[] { 0.6f, -0.6f, 1.2f, -1.2f })
             {
                 var alt = dir.Rotated(Vector3.Up, a);
                 if (FreeAhead(pos, alt)) { want = Mathf.Atan2(-alt.X, -alt.Z); break; }
             }
         }
         Yaw = RotateToward(Yaw, want, TurnRate * dt);
-        if (Mathf.Abs(Wrap(want - Yaw)) > MoveAlign) return false;
-        if (!Step(pos + Forward * speed * dt, chasing, dt)) StuckT += dt; else StuckT = 0;
+        float diff = Mathf.Abs(Wrap(want - Yaw));
+        if (diff > MoveAlign) return false;
+        float scale = Mathf.Clamp(1.15f - diff / MoveAlign, 0.35f, 1f);
+        if (!Step(pos + Forward * speed * scale * dt, chasing, dt)) StuckT += dt; else StuckT = 0;
         return false;
     }
 
     protected bool Step(Vector3 np, bool chasing, float dt)
+    {
+        var pos = GlobalPosition;
+        if (!StepTo(np, chasing, dt))
+        {
+            // slide along walls: try each axis alone
+            var d = np - pos;
+            if (Mathf.Abs(d.X) > 0.0001f && StepTo(new Vector3(np.X, np.Y, pos.Z), chasing, dt)) return true;
+            if (Mathf.Abs(d.Z) > 0.0001f && StepTo(new Vector3(pos.X, np.Y, np.Z), chasing, dt)) return true;
+            return false;
+        }
+        return true;
+    }
+
+    bool StepTo(Vector3 np, bool chasing, float dt)
     {
         var pos = GlobalPosition;
         if (!Allowed(np, chasing)) return false;

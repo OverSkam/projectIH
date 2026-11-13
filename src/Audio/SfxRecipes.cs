@@ -481,8 +481,9 @@ public static class SfxRecipes
             return Reverb(o, 0.7f, 0.3f);
         });
 
-        // ---------- monsters
-        Add(GolemStep, 55, 2, (r, v) =>
+        // ---------- monsters (v2.1 monsters: src/Monsters/MonsterSfx.cs)
+        MonsterSfx.Register();
+        Add(GolemStep, 75, 3, (r, v) =>
         {
             var o = Mix(Thump(60 + v * 6, 28, 0.5f, 8f, 20f), Burst(r, 0.3f, 50, 500, 10f), 0, 0.7f);
             o = Mix(o, Burst(r, 0.08f, 600, 3000, 45f), 0.02f, 0.3f);
