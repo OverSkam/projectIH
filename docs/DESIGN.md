@@ -155,3 +155,26 @@ HUD redesign; real recorded sounds (owner will supply); character animation.
 3. The Turned and the new monsters.
 4. Cooperation pieces.
 5. New steins and rooms.
+
+## v2.1 changes (owner feedback after the first v2 build) — these OVERRIDE anything above that conflicts
+- **The sack.** The 4 sack slots are gone. Every miner has one bottomless sack. Anything put in stays in: a
+  stone cannot be dropped, thrown away or taken out by its owner. Each stone has a **burden** (how much it slows
+  you) separate from its **tribute weight** (what it is worth). Junk is bulky: Coal burden 3 / tribute 1,
+  Iron 3/2, Silver 2/4, Gold 2/7, Ruby 1/10, Diamond 1/14. Speed falls with total burden (no hard cap; at
+  burden 30 about 55% speed, never below 35%), sprint drains faster, noise grows. The choice is: take the junk
+  in front of you and get slow, or gamble on going deeper for something better.
+- A power stein can be stuffed into the sack (hold E in inventory key flow): it loses its power for good and
+  counts as tribute (burden 1).
+- **No feeding during the round, no giant Scale.** The Goblin's palm is not a deposit point any more. The Hall
+  has one **tribute ring** per miner (glowing circle on the floor with their colour). When the timer ends,
+  miners inside the Hall are placed on their ring and their sack drops in front of them. The Goblin's hand
+  lifts each sack in turn, weighs it in his palm (the number appears above it), lightest last, then throws the
+  lightest miner down the shaft. The big balance Scale model is removed.
+- A miner outside the Hall at timer end still weighs zero. A miner who dies drops the sack as a bag; anyone can
+  pour it into their own sack (and take its burden). Downed miners can be robbed stone by stone.
+- **Monsters must be met.** Monsters roam the whole cave, hunt by light and noise, and there are more of them
+  the more miners there are and the later the round. A match must never pass without monster encounters.
+- **Caves scale with players**: more and longer branches per miner (2 miners small; 8 miners roughly 3x).
+- **Look:** no film grain. Instead drifting dust motes and layered fog lit by the lantern. With the lantern out
+  it is not pitch black: like a blindness effect — you see dim shapes about 2.5 m around you and black beyond.
+- The game must not feel empty: step 2 (geodes, bright chests, mimics) and the first new monsters come now.
