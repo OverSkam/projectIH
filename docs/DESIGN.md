@@ -166,7 +166,7 @@ HUD redesign; real recorded sounds (owner will supply); character animation.
 - A power stein can be stuffed into the sack (hold E in inventory key flow): it loses its power for good and
   counts as tribute (burden 1).
 - **No feeding during the round, no giant Scale.** The Goblin's palm is not a deposit point any more. The Hall
-  has one **tribute ring** per miner (glowing circle on the floor with their colour). When the timer ends,
+  has one **tribute minecart** per miner (v2.2; it was a glowing ring). When the timer ends,
   miners inside the Hall are placed on their ring and their sack drops in front of them. The Goblin's hand
   lifts each sack in turn, weighs it in his palm (the number appears above it), lightest last, then throws the
   lightest miner down the shaft. The big balance Scale model is removed.
@@ -182,3 +182,11 @@ HUD redesign; real recorded sounds (owner will supply); character animation.
 ## Step 2 as built (geodes, bright chests, mimics; details in docs/ARCHITECTURE.md "Step 2")
 - Veins break off 1-3 sealed geodes; 3 pickaxe hits crack one in place; the reveal scales with rarity (tiers: dull, bright, gem, power stein; stein = pillar of light, 45 m noise). 10% of geodes are duds (gas or bats). Odds: mostly junk; depth, round, geode size and Luck improve them; large geodes only: 4% Common stein, 1% Rare, 0.3% Legendary (deeper).
 - Bright chests (wooden / iron / gilded) glow as beacons, open with a 2.5 s hold of E, give 3-6 stones and sometimes a stein, about one per two miners plus a depth bonus. About 20% are mimics (never the chest nearest the Hall): bite and hold 4 s for 30 damage, huge shriek, bait, relocate. Unkillable; stunned by dynamite / bear trap; a second miner's hit frees the victim.
+
+## v2.2 changes (owner feedback after the second playtest) — these OVERRIDE anything above that conflicts
+- **Minimal HUD.** Only what is needed right now, small, dark and translucent, fading when unchanged: thin health / oil / run bars (bottom-left), the two steins and two tools as small icons (bottom-centre; name + one line for 3 s on select / pickup / round start), one sack icon that bulges with burden with your tribute number beside it and a "+10 RUBY" toast (bottom-right). No permanent help text, no round box: miners remaining only on the hold-Tab screen and for 4 s at round start. Key help lives in the Guide and the hold-Tab overlay.
+- **The timer has no numbers.** A pocket-watch dial with one hand and a shrinking arc shows the fraction of the round left. In the last minute a rope fuse burns down across the top of the screen (sparks, a hiss that rises in the last 10 s, flickering screen edges). In the Hall a big candle beside the Goblin burns down with the round.
+- **Tribute minecarts replace the floor rings.** Each miner has an ore cart (1.6 x 1.0 x 1.0 m, on a rail, painted in their colour with a name plate) on an arc in the Hall; they stand empty during the round. At timer end each miner in the Hall is placed beside their cart, the sack drops INTO it and the Goblin lifts it out onto his open palm to weigh it. Standing next to your cart: "Your cart - be here when the fuse burns out".
+- **Wicks, one readable rule.** They are drawn only to a lantern that is lit right now (>= 1 s, within 22 m, at most 30 m of tunnel) and fly to where the light is. When it goes out they go to the last lit spot, circle it for 2.5 s and wander off; they never follow a dark miner. They glow faintly, chitter louder and higher as they come, make your flame gutter and your oil bar flash while they drink.
+- **The golem is imposing**: 2.9 m standing and broad in rooms, crouching and hunching to fit tunnels; heavy steps shake the camera within 8 m. Stats unchanged.
+- **Variety.** A round with 4 or more roamers always has at least 3 kinds (round 1: golem, Lamplighter, Wicks, + Plug from 5 roamers); the director rotates the kind it sends.
