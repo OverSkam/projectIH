@@ -15,6 +15,7 @@ public partial class Main : Node
         if (Util.HasArg("name")) Net.I.LocalName = Util.Arg("name");
         else if (Util.HasArg("bot")) Net.I.LocalName = "Bot" + (int)(GD.Randi() % 1000);
 
+        AddChild(new FilmGrain { Name = "FilmGrain" });
         AddChild(new Hud { Name = "Hud" });
         AddChild(new WeighingUi { Name = "WeighingUi" });
         AddChild(new Screens { Name = "Screens" });

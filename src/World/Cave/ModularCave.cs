@@ -71,6 +71,8 @@ public class ModularCave : ICaveBuilder
         CaveBuilder.Emit(g, parent);
         Last = g;
         if (Util.HasArg("cavelist"))
+            for (int ti = 0; ti < g.Tunnels.Count; ti++) Util.Log($"CAVE tunnel={ti} kind={g.Tunnels[ti].Kind} width={g.Tunnels[ti].Width:0.00} ceil={g.Tunnels[ti].Ceil:0.00}");
+        if (Util.HasArg("cavelist"))
             foreach (var sl in g.Slots) Util.Log($"CAVE room={sl.Id} {sl.Mod.Name} rot={sl.Rot} depth={sl.Depth} center={g.Info.Rooms[sl.Id].Center}");
         return g.Info;
     }
@@ -348,9 +350,9 @@ public class ModularCave : ICaveBuilder
         if (!info.HallZone.HasPoint(p + Vector3.Up)) return false;
         var h0 = info.GoblinSeat + new Vector3(0, 0, 9.2f);
         float x = p.X - h0.X, z = p.Z - h0.Z;
-        if (z < -3.5f && Math.Abs(x) < 6.0f) return true;                                 // Goblin, throne, legs, palm
-        if (new Vector2(x, z + 1.8f).Length() < 2.4f) return true;                         // Scale
-        if (new Vector2(x - 7.2f, z + 2.0f).Length() < 2.8f) return true;                  // shaft
+        if (z < -3.5f) return true;                                 // Goblin, throne, legs, palm
+        if (new Vector2(Math.Abs(x) - 6.2f, z + 1.8f).Length() < 1.4f) return true;       // Scale gantry posts
+        if (new Vector2(x - 9.4f, z + 2.0f).Length() < 2.8f) return true;                  // shaft
         if (Math.Abs(x + 9.5f) < 2.4f && Math.Abs(z - 10f) < 2.4f) return true;           // cage lift
         return false;
     }
@@ -397,7 +399,7 @@ public class ModularCave : ICaveBuilder
         info.GoblinPos = h0 + new Vector3(-4.2f, 0, -4.8f);          // floor under the centre of the feeding palm
         info.PalmPos = info.GoblinPos + new Vector3(0, 1.4f, 0);
         info.ScalePos = h0 + new Vector3(0, 0, -1.8f);
-        info.ShaftPos = h0 + new Vector3(7.2f, 0, -2.0f);
+        info.ShaftPos = h0 + new Vector3(9.4f, 0, -2.0f);
         info.CagePos = h0 + new Vector3(-9.5f, 0, 10.0f);
         info.MakeWeighSpots(8, 3.2f, 1.05f);
         info.SqueezeZones.AddRange(Squeezes);

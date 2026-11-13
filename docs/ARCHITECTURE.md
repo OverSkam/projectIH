@@ -111,7 +111,7 @@ To avoid merge conflicts in `Game.cs`, put new gameplay RPCs in a `partial class
 - Hit detection is a single server ray from the reported eye position; remote miners on the server are interpolated, so very fast movers can be slightly off. No lag compensation.
 - Movement is client-authoritative (speed/teleport are not validated). Fall damage is trusted within clamps.
 - Peer ids are Godot's random ints (not 1..8). Timings and tribute numbers are first guesses (`Config.cs`, `Defs.cs`).
-- The Scale, shaft and thrown-miner animation are placeholders (`HallScale`, `Miner.StartThrow`); the Goblin is still the small v1 model behind `PalmPos`.
+- Only one thrown miner gets the Goblin's reaching arm at a time (a tie throws the others without a hand). `--cave=greybox` is a legacy test cave: the giant does not fit its small hall (visuals poke through the walls; positions and rules still work).
 - Not verifiable headless: visuals, lighting, input feel, mouse capture/pause menu behaviour, HUD layout. Bots navigate only via the nav graph.
 - A hard-killed host is noticed by clients only after the ENet timeout (~30 s); a normal quit disconnects immediately.
 
@@ -141,4 +141,28 @@ Tests: `tools/items_test.sh` (scripted by `--itest=util|infinity|tie|disconnect`
 ## Modular cave (src/World/Cave)
 Default builder `ModularCave` (`--cave=greybox` selects the old one). 14x14-cell (2 m) hand-built modules in `CaveModules.cs` (ASCII legend in the file), rotated and joined on an 18-cell slot grid.
 Debug: `-- --cavecheck` (headless self-check, seeds 1-20 x rounds 1-5), `--caveseed=N --caveround=N`, `--cavelist`, screenshots with `--camroom=N [--camat=<marker kind>] [--camoff=x,y,z --camyaw=deg --campitch=deg]` or `--cam=x,y,z`.
-Nav graph = one node per walkable cell (crawl and thin-wall cells excluded); `FindPath` is A*. Miners collide with layer 16 (thin walls).
+Nav graph = one node per walkable cell (crawl, thin-wall and Hall-furniture cells excluded); `FindPath` is A*. Miners collide with layer 16 (thin walls).
+
+
+## Step 1B: the look and the space
+**Hall of the Scale** (the `camp` module, ceiling 12 m, north door never connected). Local frame (origin = hall centre `h0`, x east, z south): the giant Goblin sits at the north wall
+(`CaveInfo.GoblinSeat` = h0 + (0,0,-9.2)); the `GoblinObj` network object (`GoblinPos`) sits on the floor under his feeding palm (seat + (-4.2,0,4.4)); `PalmPos` = GoblinPos + 1.4 m up; bots and the
+feed prompt stand 2.3 m in front of `GoblinPos`. `ScalePos` = h0 + (0,0,-1.8) with the gantry posts at x = +-6.2; `ShaftPos` = h0 + (9.4,0,-2); `WeighSpots` = 8 places on a 3.2 m arc around the Scale;
+`CagePos` (cage lift on a chain, visual + box collider) = h0 + (-9.5,0,10); `MinerSpawns` rows 9/10. Hall furniture is solid; `ModularCave.HallBlocked` removes nav nodes inside/around it
+(`cavecheck` asserts the feeding spot and all weigh spots stay walkable and connected).
+**Goblin rig** (`src/Goblin/`): `GMesh` (flat-shaded ellipsoid/tube/box kit with per-triangle colour variation), `GoblinParts` (geometry: the face is a sculpted height field of Gaussian features
+- brow, sockets, hooked nose, cheekbones, lips with a smirk, chin, jowls - split into a static upper face and a jaw node; hair, ears, eyes, lids, brows, torso with navy quarter-zip and popped collar, legs, throne),
+`GoblinRig` (animation + collision: breathing, blink, ear twitch; eyes follow the nearest miner fast, head slowly; jaw moves while `GoblinVoice.Said` fires; chewing on `feed_*` cues; `React("happy"|"angry")`;
+lit from below by sickly green-yellow omni lights). Right hand (world -X) = the open feeding palm (glow disc + "FEED HIM" label, collision slab top at y = 1.45 m); the left arm is a stretchy two-bone IK arm
+(bones scale up to 1.5x) that reaches the thrown miner, lifts, swings over the shaft and releases, driven by `Miner.ThrowU` (the same timeline the miner uses: `ThrowReachEnd/LiftEnd/SwingEnd`,
+`Miner.ThrowHold/ThrowTop`), with a spotlight on the victim. `HallScale` = the gantry balance (beam tilts with the shown weight, the left pan's pile grows, big number above) + the shaft (wellhead, red glow, solid parapet).
+**Tunnels and rooms** (`src/World/Cave/`): connecting tunnels are ONE grid cell wide; a *lattice warp* (`ModularCave.Warp`: cell-corner points pulled inward) turns them into 1.2-1.4 m wide passages, used by both the
+mesh (`CaveVisuals.P`) and the collision (`CaveBuilder`: convex prisms fill the gap). Kinds (`TunnelDef.Kind`): 0 ordinary (ceiling 2.1-2.3 m), 1 crawl (middle two cells 1.1 m: crouch only; never the only way
+to a room, max 2 per cave), 2 squeeze (0.85 m wide in the middle, `CaveInfo.SqueezeZones`, miners move at 55%). Tunnel mouths (door cells) are 3 m high. Room modules are small chambers with 3.0-5.0 m ceilings (monster rooms
+>= 4.4 m; golems have `Headroom` 4 m and cannot enter lower cells, so they stay in their rooms). The miner capsule is 0.32 m radius, 1.0 m high when crouched.
+`--cavecheck` additionally asserts tunnel widths/heights from the warp table and the cell grid, crawl count, room ceilings and sizes, that every room is reachable, and the Hall seams.
+**Look**: no ambient light, near-black cold rock, exponential fog 0.042, lantern = warm omni (3.0 energy, 13 m range, shadows on). Light sources are only lanterns, glowing ore (emissive + faint light), the Hall's
+green-yellow glow, the shaft's red glow and existing effect lights. `FilmGrain` (`src/UI/FilmGrain.cs`, canvas layer 2 under the HUD) draws grain + vignette; toggle in the settings (`UserSettings.FilmGrain`).
+The project uses Forward Plus; the screenshot tool and tests run with `opengl3` (Compatibility), so everything above is Compatibility-safe (no Forward-only features).
+**Staging views**: `--nohud`, `--camgoblin=entrance|face|q|profile|close|palm|hand|side|throw` (`--camfov=`), `--camtunnel=N [--camback=m --camcrouch]`, `--camdark` (no lantern), `--cavelist` also lists tunnels.
+Soak: brave explorer bots deliberately walk over one known damaging trap per match (`_trapRuns`), so `trap_hit_miner` no longer depends on luck.

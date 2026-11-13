@@ -23,6 +23,9 @@ public partial class SettingsPanel : PanelContainer
         var fs = new CheckBox { Text = "  Fullscreen", ButtonPressed = UserSettings.Fullscreen, FocusMode = FocusModeEnum.None };
         fs.Toggled += on => { UserSettings.Fullscreen = on; UserSettings.Apply(GetWindow()); UserSettings.Save(); Sfx.Play(SfxNames.UiClick); };
         v.AddChild(fs);
+        var gr = new CheckBox { Text = "  Film grain and vignette", ButtonPressed = UserSettings.FilmGrain, FocusMode = FocusModeEnum.None };
+        gr.Toggled += on => { UserSettings.FilmGrain = on; FilmGrain.I?.Apply(); UserSettings.Save(); Sfx.Play(SfxNames.UiClick); };
+        v.AddChild(gr);
         v.AddChild(UiKit.Spacer(4));
         var back = UiKit.MakeButton("Back", () => { UserSettings.Save(); OnBack?.Invoke(); }, 200, true);
         back.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;

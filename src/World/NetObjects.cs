@@ -86,13 +86,14 @@ public partial class VeinObj : NetObject
         var rng = new RandomNumberGenerator { Seed = (ulong)(Id * 7919 + 13) };
         for (int i = 0; i < 4; i++)
         {
-            var c = Util.BoxMesh(new Vector3(0.35f, 0.35f, 0.35f), def.Color, Math.Max(0.4f, def.Glow));
+            var c = Util.BoxMesh(new Vector3(0.38f, 0.38f, 0.38f), def.Color, Math.Max(1.1f, def.Glow));   // veins glow faintly: findable in the dark
             c.Position = new Vector3(rng.RandfRange(-0.5f, 0.5f), rng.RandfRange(0.3f, 1.2f), rng.RandfRange(-0.5f, 0.5f)).Normalized() * 0.75f + new Vector3(0, 0.7f, 0);
             c.Rotation = new Vector3(rng.Randf(), rng.Randf(), rng.Randf());
             _rock.AddChild(c);
             c.Position -= _rock.Position;
         }
         AddChild(Util.BoxShape(new Vector3(1.5f, 1.5f, 1.5f), new Vector3(0, 0.75f, 0)));
+        AddChild(new OmniLight3D { Position = new Vector3(0, 0.9f, 0), LightColor = def.Color.Lerp(Colors.White, 0.25f), LightEnergy = 0.22f, OmniRange = 3.2f, ShadowEnabled = false });
     }
 
     public override void ApplyData(string data)

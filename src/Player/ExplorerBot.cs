@@ -27,7 +27,8 @@ public class ExplorerBot : IMinerController
     bool[] _comp;
     string _mode = "explore";
     double _pathLenT; float _pathLen = 30f;
-    bool _trapPassed; Vector3 _trapBeyond;
+    bool _trapPassed, _deliberateTrap; Vector3 _trapBeyond;
+    static int _trapRuns;   // deliberate trap visits completed in this process (= this match)
     bool _crossing; double _etherealUntil;
 
     public ExplorerBot(string routine) { _brave = routine.Contains("brave"); _name = routine; }
@@ -155,6 +156,19 @@ public class ExplorerBot : IMinerController
         var inv = g.OwnInv; var cave = g.World.Cave; var pos = m.GlobalPosition;
         bool sackRoom = inv.Sack.Count < g.OwnSackCap;
         NetObject best = null; float bs = float.MaxValue;
+        // brave bots deliberately walk over one known damaging trap per match, so the soak test's "a trap hurt a miner" check never depends on luck
+        if (_brave && _trapRuns < 1 && g.TimeLeft > 35f)
+        {
+            NetObject tb = null; float tbs = float.MaxValue;
+            foreach (var o in g.World.Objects.Values)
+            {
+                if (o.Kind is not ("trap_spikes" or "trap_darts" or "trap_gas" or "trap_rockfall") || _skip.Contains(o.Id) || cave.InHall(o.GlobalPosition)) continue;
+                if (!Reachable(cave, o.GlobalPosition, 3.2f)) continue;
+                float d = Flat(o.GlobalPosition).DistanceTo(Flat(pos));
+                if (d < tbs) { tbs = d; tb = o; }
+            }
+            if (tb != null) { _target = tb; _targetSince = _clock; _targetTries = 0; _trapPassed = false; _stuckCount = 0; _crossing = false; _deliberateTrap = true; return; }
+        }
         bool chestFirst = !_brave && g.TimeLeft > 55f;   // the thin-wall chest is far away: go for it early
         foreach (var o in g.World.Objects.Values)
         {
@@ -268,7 +282,7 @@ public class ExplorerBot : IMinerController
                     else
                     {
                         Walk(m, ref inp, _trapBeyond, 1.2f);
-                        if (_clock > _holdUntil) { _holdUntil = 0; Drop(); }
+                        if (_clock > _holdUntil) { _holdUntil = 0; if (_deliberateTrap) { _trapRuns++; _deliberateTrap = false; Util.Log("EXPLORER deliberate trap run done"); } Drop(); }
                     }
                     break;
                 }

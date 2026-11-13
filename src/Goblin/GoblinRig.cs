@@ -122,7 +122,7 @@ public partial class GoblinRig : Node3D
         foreach (float s in new[] { -1f, 1f })
             AddChild(new OmniLight3D { Position = new Vector3(4.2f * s, 7.5f, 3.6f), LightColor = new Color(0.55f, 0.82f, 0.25f), LightEnergy = 1.3f, OmniRange = 7.5f, ShadowEnabled = false });
         // follows the miner being thrown so the throw is easy to see
-        _victimLight = new OmniLight3D { LightColor = new Color(1f, 0.93f, 0.62f), LightEnergy = 3.2f, OmniRange = 9f, Visible = false, TopLevel = true, ShadowEnabled = false };
+        _victimLight = new OmniLight3D { LightColor = new Color(1f, 0.93f, 0.62f), LightEnergy = 5f, OmniRange = 10f, Visible = false, TopLevel = true, ShadowEnabled = false };
         AddChild(_victimLight);
     }
 

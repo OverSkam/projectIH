@@ -60,7 +60,7 @@ public static partial class CaveVisuals
     static Color Rock(int depth, int kind, uint h, bool camp, float y)
     {
         float t = Mathf.Clamp(depth / 6f, 0, 1);
-        var c = new Color(0.33f, 0.33f, 0.35f).Lerp(new Color(0.20f, 0.23f, 0.29f), t);   // cold, desaturated rock: only light sources reveal it
+        var c = new Color(0.40f, 0.42f, 0.47f).Lerp(new Color(0.25f, 0.28f, 0.38f), t);   // cold, desaturated rock: only light sources reveal it
         if (camp) c = new Color(0.36f, 0.36f, 0.34f);
         float m = kind == 0 ? 0.8f : kind == 2 ? 0.62f : 1f;
         if (y < -2f) m *= 0.8f;
