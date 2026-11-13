@@ -19,10 +19,18 @@ public class MonsterBot : IMinerController
     Vector3 _lastPos;
     bool _hurtSeen, _arrived;
     double _equipT;
+    bool _lanternDone;
+    Vector3? _goal;
 
+    /// <summary>--monpos=x:z, or deep:H[:variant] = a room spot about H path metres from the Hall (the same spot the server scenarios compute).</summary>
     static Vector3? ParseXZ(string s)
     {
         var p = s.Split(':');
+        if (p.Length >= 2 && p[0] == "deep" && float.TryParse(p[1], out var hd) && Game.I?.World?.Cave != null)
+        {
+            var v = MonsterNav.For(Game.I.World.Cave).DeepNode(hd, p.Length > 2 && int.TryParse(p[2], out var vi) ? vi : 0);
+            return v == Vector3.Zero ? null : v;
+        }
         if (p.Length == 2 && float.TryParse(p[0], out var x) && float.TryParse(p[1], out var z)) return new Vector3(x, 0, z);
         return null;
     }
@@ -34,7 +42,8 @@ public class MonsterBot : IMinerController
         if (g.Phase != GamePhase.Round || g.World == null) return inp;
         if (!_hurtSeen && g.OwnHealth < 99f && g.OwnHealth > 0f) { _hurtSeen = true; Util.Pass("miner_hurt_seen", $"hp={g.OwnHealth}"); }
 
-        var goal = ParseXZ(Util.Arg("monpos", ""));
+        _goal ??= ParseXZ(Util.Arg("monpos", ""));
+        var goal = _goal;
         var pos = m.GlobalPosition;
         if (goal.HasValue && !_arrived)
         {
@@ -43,6 +52,7 @@ public class MonsterBot : IMinerController
         }
         if (goal.HasValue && !_arrived) { if (_unstick > 0) { _unstick -= dt; inp.Jump = true; inp.Move = new Vector2(1, 0.5f); } _yaw = inp.Yaw; _pitch = inp.Pitch; return inp; }
 
+        if (_arrived && Util.Arg("monlantern", "") == "off" && !_lanternDone && g.OwnInv.Held == "lantern") { inp.ToggleLantern = true; _lanternDone = true; }
         // in position: look at the interesting thing
         MonsterObj mon = null; float bd = float.MaxValue;
         foreach (var o in g.World.Objects.Values)

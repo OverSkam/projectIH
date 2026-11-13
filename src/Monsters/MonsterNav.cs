@@ -205,6 +205,25 @@ public sealed class MonsterNav
         return dist;
     }
 
+    /// <summary>A room node (ceiling >= 3 m) whose path distance from the Hall is closest to hallDist; variant picks the next-best spots that are at least 12 m apart (tests/bots).</summary>
+    public Vector3 DeepNode(float hallDist, int variant)
+    {
+        var idx = new List<int>();
+        for (int k = 0; k < Count; k++)
+            if (Ok(NavProfile.Tall, k) && !float.IsPositiveInfinity(HallDist[k]) && Ceil[k] >= 3f && !Tunnel[k]) idx.Add(k);
+        idx.Sort((a, b) => { int c = Math.Abs(HallDist[a] - hallDist).CompareTo(Math.Abs(HallDist[b] - hallDist)); return c != 0 ? c : a.CompareTo(b); });
+        var picks = new List<int>();
+        foreach (int k in idx)
+        {
+            bool far = true;
+            foreach (int q in picks) if (Pos[q].DistanceTo(Pos[k]) < 12f) { far = false; break; }
+            if (!far) continue;
+            picks.Add(k);
+            if (picks.Count > variant) break;
+        }
+        return picks.Count == 0 ? Vector3.Zero : Pos[picks[Math.Min(variant, picks.Count - 1)]];
+    }
+
     /// <summary>A random reachable node at least minPath metres away (falls back to anything reachable). Optionally only tunnel cells. Returns its position, or null.</summary>
     public Vector3? RandomGoal(NavProfile pr, Vector3 from, float minPath, float maxPath = 200f, bool tunnelsOnly = false, float minHallDist = 0f)
     {

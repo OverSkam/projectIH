@@ -55,7 +55,7 @@ public partial class GolemObj : MonsterObj
         var ember = new Color(1f, 0.1f, 0.05f);
         _eyeL = Box(_head, new Vector3(0.1f, 0.06f, 0.06f), ember, new Vector3(-0.12f, 0.03f, -0.26f), 2.4f);
         _eyeR = Box(_head, new Vector3(0.1f, 0.06f, 0.06f), ember, new Vector3(0.12f, 0.03f, -0.26f), 2.4f);
-        _eyeGlow = new OmniLight3D { Position = new Vector3(0, 0.05f, -0.45f), LightColor = new Color(1f, 0.12f, 0.06f), LightEnergy = 0.5f, OmniRange = 3.5f, ShadowEnabled = false };
+        _eyeGlow = new OmniLight3D { Position = new Vector3(0, 0.05f, -0.45f), LightColor = new Color(1f, 0.12f, 0.06f), LightEnergy = 0.12f, OmniRange = 2.2f, ShadowEnabled = false };
         _head.AddChild(_eyeGlow);
         // long arms (pivot at the shoulder, hang to the knees)
         _armL = Pivot(_torso, new Vector3(-0.52f, 0.3f, 0));
@@ -183,7 +183,7 @@ public partial class GolemObj : MonsterObj
         _light.LightEnergy = State == MonsterState.Windup ? 2f : pulse * 0.7f;
         // eyes: steady dim red; flare in the wind-up, dark when stunned
         bool eyesOn = State != MonsterState.Stunned;
-        float eyeE = State == MonsterState.Windup ? 1.6f : State == MonsterState.Chase ? 1.0f : 0.6f;
+        float eyeE = State == MonsterState.Windup ? 0.5f : State == MonsterState.Chase ? 0.3f : 0.15f;
         _eyeGlow.Visible = eyesOn; _eyeGlow.LightEnergy = eyeE;
         _eyeL.Visible = _eyeR.Visible = eyesOn;
         if (State == MonsterState.Stunned)

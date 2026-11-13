@@ -24,22 +24,22 @@ public partial class WicksObj : MonsterObj
 
     protected override void BuildModel()
     {
-        var pale = new Color(0.86f, 0.85f, 0.76f);
+        var pale = new Color(0.74f, 0.72f, 0.62f);
         var rng = new RandomNumberGenerator { Seed = 4242 };
         for (int i = 0; i < MonsterTuning.WicksCount; i++)
         {
             var b = new Node3D();
             // a plump pale grub with a head, two flickering wings and a tail wick
-            var body = new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.06f, Height = 0.12f, RadialSegments = 6, Rings = 3 }, MaterialOverride = Util.Mat(pale, 0.9f) };
+            var body = new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.06f, Height = 0.12f, RadialSegments = 6, Rings = 3 }, MaterialOverride = Util.Mat(pale, 0.25f) };
             body.Scale = new Vector3(1f, 0.9f, 1.8f);
             b.AddChild(body);
-            var head = Util.SphereMesh(0.045f, pale, 0.9f); head.Position = new Vector3(0, 0.01f, -0.12f); b.AddChild(head);
+            var head = Util.SphereMesh(0.045f, pale, 0.25f); head.Position = new Vector3(0, 0.01f, -0.12f); b.AddChild(head);
             var eyeA = Util.BoxMesh(new Vector3(0.012f, 0.012f, 0.01f), new Color(0.05f, 0.04f, 0.04f)); eyeA.Position = new Vector3(-0.022f, 0.02f, -0.16f); b.AddChild(eyeA);
             var eyeB = Util.BoxMesh(new Vector3(0.012f, 0.012f, 0.01f), new Color(0.05f, 0.04f, 0.04f)); eyeB.Position = new Vector3(0.022f, 0.02f, -0.16f); b.AddChild(eyeB);
             var tail = Util.BoxMesh(new Vector3(0.012f, 0.012f, 0.1f), new Color(0.35f, 0.3f, 0.22f)); tail.Position = new Vector3(0, 0.01f, 0.2f); b.AddChild(tail);
             var wl = new Node3D { Position = new Vector3(-0.05f, 0.05f, 0) }; var wr = new Node3D { Position = new Vector3(0.05f, 0.05f, 0) };
-            var wlm = Util.BoxMesh(new Vector3(0.2f, 0.006f, 0.11f), new Color(0.92f, 0.92f, 0.86f), 0.5f); wlm.Position = new Vector3(-0.1f, 0, 0);
-            var wrm = Util.BoxMesh(new Vector3(0.2f, 0.006f, 0.11f), new Color(0.92f, 0.92f, 0.86f), 0.5f); wrm.Position = new Vector3(0.1f, 0, 0);
+            var wlm = Util.BoxMesh(new Vector3(0.2f, 0.006f, 0.11f), new Color(0.8f, 0.8f, 0.72f), 0.2f); wlm.Position = new Vector3(-0.1f, 0, 0);
+            var wrm = Util.BoxMesh(new Vector3(0.2f, 0.006f, 0.11f), new Color(0.8f, 0.8f, 0.72f), 0.2f); wrm.Position = new Vector3(0.1f, 0, 0);
             wl.AddChild(wlm); wr.AddChild(wrm); b.AddChild(wl); b.AddChild(wr);
             _wings.Add(wl); _wings.Add(wr);
             Rig.AddChild(b);

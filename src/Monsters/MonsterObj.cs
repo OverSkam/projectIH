@@ -164,6 +164,10 @@ public abstract partial class MonsterObj : NetObject
     // ================================================================= server AI
     protected virtual void ServerInit() { }
     protected MonsterNav Nav => MonsterNav.For(Cave);
+    /// <summary>Test hook: stand still (Idle, senses on) for this long before patrolling again.</summary>
+    public void TestHold(float seconds) { Timer = seconds; Target = null; VisibleNow = false; StuckT = 0; if (State == MonsterState.Stunned) return; if (State != MonsterState.Idle) { State = MonsterState.Wander; SetState(MonsterState.Idle); } }
+    public ServerPlayer Stalking => Target;
+    public Vector3 GoalPos => Goal;
     /// <summary>True while it is out patrolling / investigating (not busy with a target, an attack or a stun).</summary>
     public bool IsRoaming => State == MonsterState.Idle || State == MonsterState.Wander || State == MonsterState.Investigate || State == MonsterState.Return;
     public bool IsHunting => State == MonsterState.Chase || State == MonsterState.Windup || State == MonsterState.Attack || State == MonsterState.Recover;

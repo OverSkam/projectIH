@@ -168,6 +168,7 @@ public partial class MonsterDirector : Node
     float _nearTimer, _checkT, _encT;
     double _lastEncounter, _t;
     bool _density;
+    public static int Sent;
     float _quiet = MonsterTuning.DirectorQuiet, _check = MonsterTuning.DirectorCheck;
     IEnumerator<MonsterTest.Wait> _scenario;
     MonsterTest.Wait _cur;
@@ -179,7 +180,7 @@ public partial class MonsterDirector : Node
         _density = !Util.HasArg("nomonsters") || Util.HasArg("mondirector");
         if (float.TryParse(Util.Arg("dirquiet", ""), out var dq)) _quiet = dq;
         if (float.TryParse(Util.Arg("dircheck", ""), out var dc)) _check = dc;
-        _checkT = _check; _lastEncounter = 0;
+        _checkT = _check; _lastEncounter = 0; Sent = 0;
         MonsterStage.Begin(this);
         foreach (var part in Util.Arg("spawnmonster", "").Split(',', StringSplitOptions.RemoveEmptyEntries))
         {
@@ -248,7 +249,7 @@ public partial class MonsterDirector : Node
             if (d < bd) { bd = d; best = m; }
         }
         if (best == null) return;
-        best.Dispatch(area);
+        best.Dispatch(area); Sent++;
         _lastEncounter = _t;
         Util.Pass("director_sent_monster", $"kind={best.Kind} id={best.Id} target={target.Name} quiet={_quiet:0}");
     }
