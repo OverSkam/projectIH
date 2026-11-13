@@ -61,7 +61,7 @@ public class BotBrain : IMinerController
         if (_clock - _homeT > 3) { _homeT = _clock; _homeLen = PathLen(cave.FindPath(m.GlobalPosition, ring)); }
         _clock += 1.0 / 60;
         float speed = 3.4f * Burden.SpeedMul(g.OwnBurden);
-        bool lateRound = g.TimeLeft < _homeLen / speed + 12f;
+        bool lateRound = g.TimeLeft < _homeLen / speed + 20f;   // margin for the carts around the stand spot
         if (lateRound)
         {
             if (WalkTo(m, ref inp, ring, 0.6f)) { inp.Move = Vector2.Zero; }
