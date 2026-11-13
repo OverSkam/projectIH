@@ -93,10 +93,9 @@ public class ExplorerBot : IMinerController
         if (_mode == "home") _mode = "explore";
 
         // cautious bot backs off from awake monsters
-        if (!_brave)
         {
             foreach (var o in world.Objects.Values)
-                if (o is MonsterObj mo && mo.State is MonsterState.Chase or MonsterState.Windup or MonsterState.Attack && mo.GlobalPosition.DistanceTo(pos) < 7f && !cave.InHall(pos))
+                if (!(_brave && o is GolemObj) && o is MonsterObj mo && mo.State is MonsterState.Chase or MonsterState.Windup or MonsterState.Attack && mo.GlobalPosition.DistanceTo(pos) < (mo is GolemObj ? 11f : 8f) && !cave.InHall(pos))
                 { _mode = "flee"; _flee = _clock + 8; return; }
         }
 
@@ -110,13 +109,19 @@ public class ExplorerBot : IMinerController
         Work(m, ref inp, g);
     }
 
-    double _lanternT;
+    double _lanternT, _wicksT = -100;
     /// <summary>Basic oil management: lantern off while standing in the Hall (it is lit there anyway), on again in the cave.</summary>
     void LanternEconomy(Miner m, ref MinerInput inp, Game g, CaveInfo cave, Inventory inv)
     {
         if (_clock - _lanternT < 2.0 || g.OwnOil <= 0f || Array.IndexOf(inv.Utils, "lantern") < 0) return;
         bool inHall = cave.InHall(m.GlobalPosition);
-        if (inHall == m.LanternOut) return;   // already as wanted (off in the Hall, on elsewhere)
+        // Wicks (a pale swarm) come for any lit lantern within ~38 m: put it out while they are about, light it again once they are gone
+        bool wicks = false;
+        foreach (var o in g.World.Objects.Values) if (o is WicksObj w && w.GlobalPosition.DistanceTo(m.GlobalPosition) < 48f) { wicks = true; break; }
+        if (wicks) _wicksT = _clock;
+        bool dark = inHall || (_clock - _wicksT < 6.0);
+        if (dark == m.LanternOut) return;   // already as wanted (off in the Hall or with Wicks near, on elsewhere)
+        inHall = dark;
         _lanternT = _clock; inp.ToggleLantern = true;
         Util.Pass("explorer_lantern_toggle", $"inHall={inHall}");
     }

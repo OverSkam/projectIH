@@ -55,6 +55,8 @@ public abstract partial class MonsterObj : NetObject
     protected Vector3 LastSeen, Goal;
     protected bool VisibleNow, Arrived;
     protected float LostT, Timer, StuckT, StunT;
+    readonly Dictionary<int, double> _ignore = new();
+    float _noProgT;
     float _senseT, _syncT, _pathT, _dbgT, _groundTop = 1.2f;
     protected List<Vector3> _path;
     Vector3 _pathGoal;
@@ -281,6 +283,9 @@ public abstract partial class MonsterObj : NetObject
         }
         var goal = VisibleNow && Target != null ? Target.Pos : LastSeen;
         bool arrived = MoveTo(goal, ChaseSpeed, dt, true, 0.7f);
+        // a stand-off: it has gone as near as its route allows (Hall edge, a crawl, rubble) but the target is still out of reach: look elsewhere for a while
+        if (VisibleNow && Target != null && (arrived || StuckT > 0.5f) && Flat(Target.Pos - pos).Length() > AttackRange + 1.0f) _noProgT += dt; else _noProgT = 0;
+        if (_noProgT > 3f && Target != null) { _ignore[Target.Peer] = Now + 15; _noProgT = 0; Target = null; VisibleNow = false; StartPatrol(); return; }
         LostT += VisibleNow ? 0 : dt;
         if (LostT > MonsterTuning.LoseSightSeconds || (arrived && !VisibleNow) || StuckT > 3f)
         {
@@ -325,6 +330,7 @@ public abstract partial class MonsterObj : NetObject
             foreach (var p in Game.I.Players.Values)
             {
                 if (!p.Alive || !p.Participant || Cave.InHall(p.Pos)) continue;
+                if (_ignore.TryGetValue(p.Peer, out var until) && until > Now) continue;
                 if (CanSee(p, out var d) && d < bd) { best = p; bd = d; }
             }
         VisibleNow = best != null;

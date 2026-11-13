@@ -19,7 +19,7 @@ public static class MonsterTuning
     // ---- density director
     public const int BaseRoamers = 2;              // roaming monsters at round start = BaseRoamers + miners/2 + round (cap RoamCap)
     public const int RoamCap = 12;
-    public const float SpawnHallPath = 25f;        // spawn at least this many path metres from the Hall
+    public const float SpawnHallPath = 40f;        // spawn at least this many path metres from the Hall
     public const float SpawnSpacing = 14f;         // and this far (straight) from each other
     public const float DirectorCheck = 40f;        // seconds between director checks
     public const float DirectorQuiet = 60f;        // no miner had a monster within EncounterRadius for this long -> send one
