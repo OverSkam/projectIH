@@ -183,8 +183,7 @@ public partial class Game : Node
             p.Dirty = true;
         }
         foreach (var p in Players.Values.Where(p => p.Eliminated && Net.I.Names.ContainsKey(p.Peer))) EliminatedRole.OnRoundStart(this, p);
-        foreach (var p in fresh)
-            if (p.Inv.Steins.Count > 0) ServerNotice(p, "You start with: " + ItemInfo.Line("stein:" + p.Inv.Steins[0]));
+        // (the starting stein is announced by the HUD tip at round start)
         Util.Log($"ROUND: {Round} start miners={parts.Count} time={_roundLeft}");
     }
 

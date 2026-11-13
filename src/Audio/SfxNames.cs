@@ -20,7 +20,7 @@ public static class SfxNames
     public const string Feed = "feed", GoblinLaugh = "goblin_laugh", GoblinGrowl = "goblin_growl", GoblinBlip = "goblin_blip";
     // ui / round
     public const string UiClick = "ui_click", UiHover = "ui_hover", UiOpen = "ui_open", UiClose = "ui_close";
-    public const string RoundStart = "round_start", Warning = "warning", Heartbeat = "heartbeat";
+    public const string RoundStart = "round_start", Warning = "warning", Heartbeat = "heartbeat", RoundFuse = "round_fuse";
     public const string LiftRumble = "lift_rumble", RockCrash = "rock_crash";
     public const string StingerSafe = "stinger_safe", StingerVerdict = "stinger_verdict", StingerThrow = "stinger_throw", Fanfare = "fanfare";
     // world objects / items in use

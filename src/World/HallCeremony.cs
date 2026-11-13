@@ -20,7 +20,7 @@ public partial class HallCeremony : Node3D
     class Sack
     {
         public int Peer; public Node3D Node; public Vector3 Floor; public float Size = 1f; public float Delay, Fall = -1f, Vy, Deflate;
-        public bool Held;
+        public bool Held; public float HeldK;
     }
     readonly Dictionary<int, Sack> _sacks = new();
     readonly Dictionary<int, Vector3> _ringPos = new();
@@ -151,7 +151,9 @@ public partial class HallCeremony : Node3D
             s.Held = s.Peer == holder && grabbed;
             if (s.Delay > 0f) { s.Delay -= dt; if (s.Delay <= 0f) { s.Node.Visible = true; s.Vy = 0f; } else continue; }
             if (deflate) s.Deflate = Mathf.Min(1f, s.Deflate + dt * 1.6f);
-            float sy = s.Size * (1f - 0.7f * s.Deflate), sxz = s.Size * (1f + 0.22f * s.Deflate);
+            s.HeldK = Mathf.MoveToward(s.HeldK, s.Held ? 1f : 0f, dt * 1.2f);
+            float big = 1f + 0.5f * Mathf.SmoothStep(0f, 1f, s.HeldK);   // lifted out of the cart it is shown bigger so the number's owner is clearly visible in the palm
+            float sy = s.Size * big * (1f - 0.7f * s.Deflate), sxz = s.Size * big * (1f + 0.22f * s.Deflate);
             s.Node.Scale = new Vector3(sxz, sy, sxz);
             if (s.Held && PalmValid)
             {

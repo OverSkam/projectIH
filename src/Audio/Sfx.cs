@@ -225,7 +225,7 @@ public static class Sfx
             else
             {
                 var p = new AudioStreamPlayer { Stream = stream, Bus = rc.Bus, VolumeDb = rc.Db + dbOffset };
-                _node.AddChild(p); p.Play(); Loops2D[key] = p;
+                _node.AddChild(p); p.Play(); Loops2D[key] = p; LoopDb[key] = rc.Db + dbOffset;
             }
         }
         catch (Exception e) { if (Warned.Add("ex:" + name)) GD.Print("SFX: loop failed: " + e.Message); }
@@ -236,9 +236,17 @@ public static class Sfx
     /// <summary>Changes a running positional loop's pitch (1 = normal) and loudness (dB relative to its first level), e.g. a chitter that rises as the swarm approaches.</summary>
     public static void TuneLoop(string key, float pitch, float dbDelta)
     {
-        if (Sim || !Loops3D.TryGetValue(key, out var p) || !GodotObject.IsInstanceValid(p)) return;
-        p.PitchScale = Mathf.Clamp(pitch, 0.5f, 2.5f);
-        p.VolumeDb = (LoopDb.TryGetValue(key, out var b) ? b : 0f) + dbDelta;
+        if (Sim) return;
+        if (Loops3D.TryGetValue(key, out var p) && GodotObject.IsInstanceValid(p))
+        {
+            p.PitchScale = Mathf.Clamp(pitch, 0.5f, 2.5f);
+            p.VolumeDb = (LoopDb.TryGetValue(key, out var b) ? b : 0f) + dbDelta;
+        }
+        else if (Loops2D.TryGetValue(key, out var p2) && p2 != null && GodotObject.IsInstanceValid(p2))
+        {
+            p2.PitchScale = Mathf.Clamp(pitch, 0.5f, 2.5f);
+            p2.VolumeDb = (LoopDb.TryGetValue(key, out var b2) ? b2 : 0f) + dbDelta;
+        }
     }
 
     public static bool IsLooping(string key)

@@ -241,7 +241,7 @@ public partial class DebugCam : Camera3D
             // --camgoblin=entrance|palm|side: views of the giant
             string w = Util.Arg("camgoblin", "entrance");
             var gs = cave.GoblinSeat;
-            pos = w == "palm" ? cave.GoblinPos + new Vector3(0, 1.6f, 2.3f) : w == "side" ? gs + new Vector3(14f, 3f, 6f) : w == "face" ? gs + new Vector3(0, 6.5f, 9f) : w == "q" ? gs + new Vector3(6.5f, 7f, 7.5f) : w == "profile" ? gs + new Vector3(9f, 7.2f, 1.5f) : w == "close" ? gs + new Vector3(0, 7.0f, 6f) : w == "throw" ? gs + new Vector3(-1f, 2.8f, 14.5f) : w == "carts" ? gs + new Vector3(0, 9.0f, 19.8f) : w == "cartclose" ? gs + new Vector3(-5.5f, 2.2f, 18.5f) : w == "cartside" ? gs + new Vector3(-2.2f, 1.5f, 15.2f) : w == "ceremony" ? gs + new Vector3(0, 5.5f, 21f) : w == "spawn" ? gs + new Vector3(0, 1.6f, 15f) : w == "hand" ? gs + new Vector3(-9f, 3.5f, 11f) : gs + new Vector3(0, 1.6f, 21f);
+            pos = w == "palm" ? cave.GoblinPos + new Vector3(0, 1.6f, 2.3f) : w == "side" ? gs + new Vector3(14f, 3f, 6f) : w == "face" ? gs + new Vector3(0, 6.5f, 9f) : w == "q" ? gs + new Vector3(6.5f, 7f, 7.5f) : w == "profile" ? gs + new Vector3(9f, 7.2f, 1.5f) : w == "close" ? gs + new Vector3(0, 7.0f, 6f) : w == "throw" ? gs + new Vector3(-1f, 2.8f, 14.5f) : w == "carts" ? gs + new Vector3(0, 9.0f, 19.8f) : w == "cartclose" ? gs + new Vector3(-5.5f, 2.2f, 18.5f) : w == "cartside" ? gs + new Vector3(-2.2f, 1.5f, 15.2f) : w == "hold" ? gs + new Vector3(-0.6f, 5.0f, 12.5f) : w == "ceremony" ? gs + new Vector3(0, 5.5f, 21f) : w == "spawn" ? gs + new Vector3(0, 1.6f, 15f) : w == "hand" ? gs + new Vector3(-9f, 3.5f, 11f) : gs + new Vector3(0, 1.6f, 21f);
             var look = gs + new Vector3(0, w == "side" ? 4f : w == "hand" ? 2f : 7.2f, w == "hand" ? 4f : 1f);
             if (w == "q" || w == "profile" || w == "close") look = gs + new Vector3(0, 7.1f, 0.6f);
             if (w == "throw") look = gs + new Vector3(4f, 4.0f, 3f);
@@ -249,6 +249,7 @@ public partial class DebugCam : Camera3D
             if (w == "carts") look = gs + new Vector3(0, 0f, 10.5f);
             if (w == "cartclose") look = gs + new Vector3(-3.4f, 0.6f, 14.2f);
             if (w == "cartside") look = gs + new Vector3(-1.0f, 0.6f, 11.6f);
+            if (w == "hold") look = gs + new Vector3(-1.2f, 3.6f, 5.6f);
             if (w == "ceremony") look = gs + new Vector3(-1.5f, 2.6f, 6.5f);
             if (Util.HasArg("camfov")) { }
             var dd = look - pos;

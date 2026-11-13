@@ -365,6 +365,13 @@ public static class SfxRecipes
             var o = Am(Filt(Filt(Noise(r, 1.4f), Ft.Hp, 2500f), Ft.Lp, 9000f), 30f, 0.3f);
             return Mix(Gain(o, 0.5f), SparklePops(r, 1.4f, 10, 0.5f, 3000, 9000), 0);
         }, 0.2f);
+        // the round fuse (last minute): a steady hiss with crackling sparks; Hud raises its pitch and volume towards the end
+        AddLoop(RoundFuse, 30, -7, 1.6f, (r, v) =>
+        {
+            var o = Am(Filt(Filt(Noise(r, 1.6f), Ft.Hp, 2200f), Ft.Lp, 9500f), 26f, 0.35f);
+            o = Mix(Gain(o, 0.55f), SparklePops(r, 1.6f, 18, 0.65f, 2500, 9000), 0);
+            return Mix(o, Gain(Filt(Noise(r, 1.6f), Ft.Bp, 700f, 1.2f), 0.12f), 0);
+        }, 0.2f);
         Add(Explosion, 130, 6, (r, v) =>
         {
             var o = Burst(r, 0.06f, 500, 9000, 40f);

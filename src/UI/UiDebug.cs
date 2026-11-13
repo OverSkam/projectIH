@@ -3,11 +3,12 @@ using Godot;
 namespace AppStein;
 
 /// <summary>Screenshot helper: `--screen=<name>` stages a state so tools/screenshot.sh can capture it. Does nothing without the arg.
-/// goblin | goblin_happy | goblin_angry | miner | hands_pick | hands_lantern | hud | downed | lootprompt | stuffprompt | lowoil | score | pause | matchend | settings | guide | ghost</summary>
+/// goblin | goblin_happy | goblin_angry | miner | hands_pick | hands_lantern | hud | hud_idle | hud_pick | hud_full | dial | fuse | fuse10 | wicksdrain | downed | lootprompt | stuffprompt | lowoil | score | pause | matchend | settings | guide | ghost
+/// (the minimal-HUD screens: hud_idle = nothing happened for a while, hud_pick = a ruby was just picked up, hud_full = heavy sack, dial = 55% of the round left (use --roundsecs=360), fuse = 34 s left, fuse10 = 6.5 s left, wicksdrain = Wicks drinking the oil)</summary>
 public partial class UiDebug : Node
 {
     string _screen;
-    double _t;
+    double _t, _rt = -1;
     bool _done;
     Camera3D _cam;
 
@@ -21,6 +22,7 @@ public partial class UiDebug : Node
     {
         _screen = Util.Arg("screen");
         ProcessMode = ProcessModeEnum.Always;
+        ProcessPriority = -100;   // staged values are applied before the HUD reads them each frame
     }
 
     public override void _Process(double delta)
@@ -29,6 +31,7 @@ public partial class UiDebug : Node
         if (_done) return;
         var g = Game.I;
         bool inRound = g.Phase == GamePhase.Round && g.World?.Cave != null && (g.LocalMiner != null || g.LocalGhost != null);
+        if (inRound) { if (_rt < 0) _rt = 0; _rt += delta; } else _rt = -1;
         switch (_screen)
         {
             case "goblin": case "goblin_happy": case "goblin_angry":
@@ -95,6 +98,25 @@ public partial class UiDebug : Node
                 if (g.LocalMiner != null) g.LocalMiner.Burden = g.OwnBurden;
                 if (_screen == "downed") { g.OwnDowned = true; g.OwnDownedUntil = Time.GetTicksMsec() / 1000.0 + 22; g.OwnHealth = 0; }
                 break;
+            case "hud_idle": break;   // nothing staged: the HUD fades away by itself
+            case "hud_pick":   // applied every frame (the server's own-state updates would overwrite it): coal + iron, then a ruby arrives at 3.2 s
+                if (!inRound || _rt < 2.5 || g.LocalMiner == null) return;
+                g.OwnInv.Sack.Clear(); g.OwnInv.Sack.AddRange(_rt < 3.2 ? new[] { "coal", "iron" } : new[] { "coal", "iron", "ruby" });
+                g.OwnTribute = Ores.TributeSum(g.OwnInv.Sack); g.OwnBurden = Ores.BurdenSum(g.OwnInv.Sack); g.LocalMiner.Burden = g.OwnBurden;
+                break;
+            case "hud_full":
+                if (!inRound || _rt < 2.5 || g.LocalMiner == null) return;
+                g.OwnInv.Sack.Clear(); for (int i = 0; i < 9; i++) g.OwnInv.Sack.Add(i % 3 == 0 ? "coal" : i % 3 == 1 ? "iron" : "silver");
+                g.OwnInv.Sack.Add("gold"); g.OwnInv.Sack.Add("ruby");
+                g.OwnTribute = Ores.TributeSum(g.OwnInv.Sack); g.OwnBurden = Ores.BurdenSum(g.OwnInv.Sack); g.LocalMiner.Burden = g.OwnBurden;
+                break;
+            case "dial": if (inRound) g.TimeLeft = g.RoundTotal * 0.55f; break;
+            case "fuse": if (inRound) g.TimeLeft = 34f; break;
+            case "fuse10": if (inRound) g.TimeLeft = 6.5f; break;
+            case "wicksdrain":
+                if (!inRound || _rt < 3.0) return;
+                if (!Hud.I.DebugDrain) Hud.I.ShowHint("Wicks drink lamp oil. Put the light out (L).", 8);
+                Hud.I.DebugDrain = true; g.OwnOil = 120; break;
             case "stuffprompt":
                 if (!inRound || g.LocalMiner == null || _t < 1.0) return;
                 g.LocalMiner.DebugHoldProgress(0.6f);
