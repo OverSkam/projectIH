@@ -6,7 +6,7 @@ namespace AppStein;
 public struct MinerInput
 {
     public Vector2 Move;      // x = right, y = forward
-    public bool Jump, Sprint, Crouch, Attack, Interact, InteractHeld, Drop, DropOre, UseUtility, Ability, SteinCycle, ToggleLantern;
+    public bool Jump, Sprint, Crouch, Attack, Interact, InteractHeld, Drop, DropHeld, UseUtility, Ability, SteinCycle, ToggleLantern;
     public int UtilSlot;      // -1 none
     public float Yaw, Pitch;  // absolute look angles (radians)
 }
@@ -49,7 +49,7 @@ public class HumanController : IMinerController
         i.InteractHeld = Input.IsActionPressed("interact");
         i.ToggleLantern = Input.IsActionJustPressed("toggle_lantern");
         i.Drop = Input.IsActionJustPressed("drop");
-        i.DropOre = Input.IsActionJustPressed("drop_ore");
+        i.DropHeld = Input.IsActionPressed("drop");
         i.UseUtility = Input.IsActionJustPressed("use_utility");
         i.Ability = Input.IsActionJustPressed("stein_ability");
         i.SteinCycle = Input.IsActionJustPressed("stein_cycle");
@@ -75,13 +75,17 @@ public partial class Miner : CharacterBody3D
     public bool IsDowned { get; private set; }
     /// <summary>Client: the downed miner under the crosshair that E would loot (set by UpdateTarget).</summary>
     public Miner LootTarget;
-    /// <summary>Client: 0..1 progress of the hold-interact (feeding a stein to the Goblin).</summary>
+    /// <summary>Client: 0..1 progress of the hold on G (stuffing the selected stein into the sack).</summary>
     public float HoldProgress;
+    /// <summary>Own burden (from the private own state) and sprint stamina 0..1 (local simulation only).</summary>
+    public float Burden, Stamina = 1f;
+    bool _exhausted; double _noRegenUntil;
     /// <summary>Screenshot staging only.</summary>
     public void DebugHoldProgress(float v) { _dbgHold = v; }
     float _dbgHold;
-    public const float HoldFeedSeconds = 1.0f, TapSeconds = 0.35f, DownedSpeedMul = 0.12f;
-    float _holdT; bool _holding; NetObject _holdTarget;
+    public const float HoldStuffSeconds = 1.0f, TapSeconds = 0.35f, DownedSpeedMul = 0.12f;
+    public const float SprintSeconds = 12f;   // unburdened: how long a full stamina bar lasts
+    float _holdT; bool _holding;
     // thrown by the Goblin: scripted flight (no physics, no input)
     bool _thrown; double _throwT; float _throwLen; Vector3 _throwFrom, _throwPalm, _throwShaft;
     float _lightBase = 1f;
@@ -391,7 +395,7 @@ public partial class Miner : CharacterBody3D
         if (weighing || IsDowned)
         {
             if (weighing) c.Move = Vector2.Zero;
-            c.Jump = c.Sprint = c.Crouch = c.Attack = c.Interact = c.InteractHeld = c.Drop = c.DropOre = c.UseUtility = c.Ability = c.SteinCycle = c.ToggleLantern = false;
+            c.Jump = c.Sprint = c.Crouch = c.Attack = c.Interact = c.InteractHeld = c.Drop = c.DropHeld = c.UseUtility = c.Ability = c.SteinCycle = c.ToggleLantern = false;
             c.UtilSlot = -1;
         }
         Rotation = new Vector3(0, _yaw, 0);
@@ -407,7 +411,22 @@ public partial class Miner : CharacterBody3D
             _head.Position = new Vector3(0, _crouching ? 0.95f : 1.6f, 0);
         }
 
-        float speed = (_crouching ? CrouchSpeed : (c.Sprint ? SprintSpeed : WalkSpeed)) * SpeedMul * (IsDowned ? DownedSpeedMul : 1f);
+        // sprint stamina: a full bar lasts 12 s unburdened and drains faster the heavier the sack; empty = no sprint until 30% is back
+        bool wantSprint = c.Sprint && !_crouching && c.Move.LengthSquared() > 0.01f && !IsDowned;
+        bool sprint = wantSprint && !_exhausted && Stamina > 0f;
+        if (sprint)
+        {
+            Stamina = Mathf.Max(0f, Stamina - dt / SprintSeconds * AppStein.Burden.SprintDrainMul(Burden));
+            _noRegenUntil = Time.GetTicksMsec() / 1000.0 + 0.6;
+            if (Stamina <= 0f) _exhausted = true;
+        }
+        else if (Time.GetTicksMsec() / 1000.0 > _noRegenUntil)
+        {
+            Stamina = Mathf.Min(1f, Stamina + dt / 6f);
+            if (_exhausted && Stamina >= 0.3f) _exhausted = false;
+        }
+        c.Sprint = sprint;
+        float speed = (_crouching ? CrouchSpeed : (sprint ? SprintSpeed : WalkSpeed)) * SpeedMul * AppStein.Burden.SpeedMul(Burden) * (IsDowned ? DownedSpeedMul : 1f);
         if (Game.I.World?.Cave != null && Game.I.World.Cave.InSqueeze(GlobalPosition)) speed *= 0.55f;   // sideways squeeze: slow going
         var wish = Transform.Basis * new Vector3(c.Move.X, 0, -c.Move.Y);
         wish = wish.LengthSquared() > 1f ? wish.Normalized() : wish;
@@ -467,11 +486,10 @@ public partial class Miner : CharacterBody3D
         if (c.ToggleLantern) Game.I.SendToggleLantern();
         if (c.Ability) Game.I.SendAbility();
         if (c.SteinCycle) Game.I.SendSteinSel((Game.I.OwnInv.SteinSel + 1) % Inventory.SteinSlots);
-        if (c.Drop) Game.I.SendDrop("util", Game.I.OwnInv.Selected);
-        if (c.DropOre) Game.I.SendDrop("ore", Game.I.OwnInv.Sack.Count - 1);
+        HandleDrop(c, dt);
 
         if (!(Controller is BotBrain)) UpdateTarget();
-        HandleInteract(c, dt);
+        HandleInteract(c);
 
         // state report ~20 Hz
         _sendTimer -= dt;
@@ -538,37 +556,39 @@ public partial class Miner : CharacterBody3D
         }
     }
 
-    /// <summary>E on a normal object interacts at once. At the Goblin: a tap feeds all sack stones; holding E for a second feeds the selected power stein (deliberate, separate).
-    /// E on a downed miner takes one item from them.</summary>
-    void HandleInteract(MinerInput c, float dt)
+    /// <summary>E interacts at once with whatever is under the crosshair (taking a stone is a deliberate press; a bag is poured into the sack; a downed miner is robbed one item per press).</summary>
+    void HandleInteract(MinerInput c)
     {
         var g = Game.I;
-        bool canStein = g.OwnInv.Steins.Count > 0;
-        if (c.Interact)
+        if (!c.Interact) return;
+        if (Target != null) g.SendInteract(Target.Id);
+        else if (LootTarget != null && IsInstanceValid(LootTarget)) g.SendLoot(LootTarget.PeerId);
+    }
+
+    /// <summary>G: a tap drops the selected utility; holding it for a second stuffs the selected power stein into the sack (anywhere). Stones can never be dropped.</summary>
+    void HandleDrop(MinerInput c, float dt)
+    {
+        var g = Game.I;
+        int sel = Mathf.Clamp(g.OwnInv.SteinSel, 0, Math.Max(0, g.OwnInv.Steins.Count - 1));
+        if (c.Drop)
         {
-            if (Target is GoblinObj && canStein) { _holding = true; _holdT = 0; _holdTarget = Target; }
-            else if (Target != null) g.SendInteract(Target.Id);
-            else if (LootTarget != null && IsInstanceValid(LootTarget)) g.SendLoot(LootTarget.PeerId);
+            if (g.OwnInv.Steins.Count == 0) g.SendDrop(g.OwnInv.Selected);
+            else { _holding = true; _holdT = 0; }
         }
         if (_holding)
         {
-            bool still = c.InteractHeld && Target == _holdTarget && IsInstanceValid(_holdTarget);
-            if (still)
+            if (c.DropHeld)
             {
                 _holdT += dt;
-                if (_holdT >= HoldFeedSeconds)
-                {
-                    _holding = false; _holdT = 0;
-                    g.SendFeedStein(Math.Clamp(g.OwnInv.SteinSel, 0, Math.Max(0, g.OwnInv.Steins.Count - 1)));
-                }
+                if (_holdT >= HoldStuffSeconds) { _holding = false; _holdT = 0; g.SendStuffStein(sel); }
             }
             else
             {
-                if (_holdT < TapSeconds && IsInstanceValid(_holdTarget)) g.SendInteract(_holdTarget.Id);
+                if (_holdT < TapSeconds) g.SendDrop(g.OwnInv.Selected);
                 _holding = false; _holdT = 0;
             }
         }
-        HoldProgress = _dbgHold > 0f ? _dbgHold : (_holding && _holdT > TapSeconds ? Mathf.Clamp(_holdT / HoldFeedSeconds, 0f, 1f) : 0f);
+        HoldProgress = _dbgHold > 0f ? _dbgHold : (_holding && _holdT > TapSeconds ? Mathf.Clamp(_holdT / HoldStuffSeconds, 0f, 1f) : 0f);
     }
 
     void UpdateTarget()

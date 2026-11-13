@@ -8,7 +8,7 @@ namespace AppStein;
 /// <summary>
 /// Scripted controller for automated tests (--bot=routine). Runs on the bot's own client and only uses
 /// information a real player has (public miner positions, world objects, own inventory).
-/// Routines: idle, miner (mine -> pick up -> deliver loop), killer (idle round 1, hunts others from round 2).
+/// Routines: idle, miner (mine -> pick up stones into the bottomless sack, be inside the Hall on its tribute ring before the timer ends), killer (idle round 1, hunts others from round 2).
 /// </summary>
 public class BotBrain : IMinerController
 {
@@ -20,6 +20,8 @@ public class BotBrain : IMinerController
     Vector3 _lastPos;
     int _lastSack;
     bool _statedMine;
+    double _clock, _homeT; float _homeLen = 30f;
+    static float PathLen(List<Vector3> p) { float l = 0; for (int i = 1; i < p.Count; i++) l += p[i - 1].DistanceTo(p[i]); return l; }
 
     readonly IMinerController _ext; // monsters workstream test bot (--bot=mon)
     public BotBrain(string routine) { _routine = routine; if (routine == "mon") _ext = new MonsterBot(); else if (routine.StartsWith("explorer")) _ext = new ExplorerBot(routine); }
@@ -52,21 +54,17 @@ public class BotBrain : IMinerController
     {
         var inv = g.OwnInv;
         var world = g.World;
-        bool lateRound = g.TimeLeft < 16f;
-        NetObject goblin = world.Objects.Values.FirstOrDefault(o => o is GoblinObj);
-        if (goblin == null) return;
-        Vector3 goblinStand = goblin.GlobalPosition + new Vector3(0, 0, 2.3f);
-
-        // Round 1: deliver every ore at once. Later rounds: keep mining until the last seconds (stays out in the cave, so the killer bot can find it).
-        int deliverAt = g.Round >= 2 ? g.OwnSackCap + 1 : 1;
-        if (inv.Sack.Count >= deliverAt || lateRound)
+        // The tribute is the sack's content at timer end IF the miner is inside the Hall: keep mining (the sack never fills up) until it is time to walk home to the ring.
+        var cave = world.Cave;
+        int rank = Math.Max(0, Array.IndexOf(g.RoundPeers, Net.I.MyId));
+        var ring = cave.RingSpot(rank, Math.Max(1, g.RoundPeers.Length));
+        if (_clock - _homeT > 3) { _homeT = _clock; _homeLen = PathLen(cave.FindPath(m.GlobalPosition, ring)); }
+        _clock += 1.0 / 60;
+        float speed = 3.4f * Burden.SpeedMul(g.OwnBurden);
+        bool lateRound = g.TimeLeft < _homeLen / speed + 12f;
+        if (lateRound)
         {
-            if (inv.Sack.Count == 0) { WalkTo(m, ref inp, new Vector3(0, 0, 3)); return; }
-            if (WalkTo(m, ref inp, goblinStand, 1.0f) || m.GlobalPosition.DistanceTo(goblin.GlobalPosition) < 3.2f)
-            {
-                Face(m, ref inp, goblin.GlobalPosition + Vector3.Up * 1f);
-                if (_actTimer <= 0) { _actTimer = 0.5; g.SendInteract(goblin.Id); }
-            }
+            if (WalkTo(m, ref inp, ring, 0.6f)) { inp.Move = Vector2.Zero; }
             return;
         }
 
@@ -74,7 +72,7 @@ public class BotBrain : IMinerController
         NetObject best = null; float bd = float.MaxValue;
         foreach (var o in world.Objects.Values)
         {
-            bool ok = o is VeinObj || (o is PickupObj && o.Data.StartsWith("ore:") && inv.Sack.Count < g.OwnSackCap);
+            bool ok = o is VeinObj || (o is PickupObj && o.Data.StartsWith("ore:"));
             if (!ok) continue;
             float d = o.GlobalPosition.DistanceTo(m.GlobalPosition);
             if (d < bd) { bd = d; best = o; }

@@ -8,8 +8,9 @@ namespace AppStein;
 /// heavy brows, big hooked nose, long ears, heavy lids, smug half-smile, navy quarter-zip with a popped collar. Faces +Z (south, toward the miners).
 /// Built from faceted primitives in code (see <see cref="GoblinParts"/>); lit from below by a sickly green-yellow glow so the face is the brightest thing in the game.
 /// Animation (all procedural): breathing, blinking, ear twitch, eyes and head slowly follow the nearest miner, the jaw moves while he speaks (GoblinVoice.Said),
-/// chewing when fed, reactions (happy / angry). The right hand (world -X) is a huge open palm = the feeding point (PalmPos); the left arm is a stretchy two-bone
-/// IK arm that reaches the thrown miner, lifts and swings them over the shaft and lets go in sync with Miner.StartThrow (it reads Miner.ThrowU).
+/// reactions (happy / angry). The right hand (world -X) is a huge open palm: his resting pose (PalmPos). At the weighing it reaches for each miner's sack in turn, lifts it
+/// to the palm and holds it there while the number counts up (HallCeremony shows sack and number, this class publishes HallCeremony.PalmWorld); the left arm is a stretchy
+/// two-bone IK arm that reaches the thrown miner, lifts and swings them over the shaft and lets go in sync with Miner.StartThrow (it reads Miner.ThrowU).
 /// </summary>
 public partial class GoblinRig : Node3D
 {
@@ -20,7 +21,9 @@ public partial class GoblinRig : Node3D
     readonly Node3D[] _upper = new Node3D[2], _fore = new Node3D[2], _upperHold = new Node3D[2], _foreHold = new Node3D[2], _hand = new Node3D[2], _elbowBall = new Node3D[2];
     readonly Node3D[][] _fingers = new Node3D[2][], _tips = new Node3D[2][];
     readonly Node3D[] _thumb = new Node3D[2];
-    MeshInstance3D _palmGlow; OmniLight3D _victimLight, _faceLight;
+    OmniLight3D _victimLight, _faceLight;
+    Vector3 _wristR = GoblinParts.PalmWrist, _handFrom = GoblinParts.PalmWrist, _handDirR = new(0, -0.05f, 1f);
+    double _lastRevealAt = -1; float _sackLean;
     float _t, _earTimer = 2f, _earTwitch, _blinkTimer = 3f, _blink, _speakT, _chewT, _react, _headYaw, _headPitch, _eyeYaw, _eyePitch, _lean, _torsoYaw, _armBlend, _curlL, _roll;
     string _reactKind = "";
     Vector3 _gripLast, _wristL = GoblinParts.RestWristL;
@@ -46,10 +49,10 @@ public partial class GoblinRig : Node3D
         _reactKind = kind; _react = kind == "happy" ? 2.4f : 2.0f;
         Sfx.Play(kind == "happy" ? SfxNames.GoblinLaugh : SfxNames.GoblinGrowl, GlobalPosition + new Vector3(0, 6f, 3f));
     }
-    void OnCue(string cat, string seed, string a0, string a1, string mood) { if (cat.StartsWith("feed")) _chewT = 2.6f; }
+    void OnCue(string cat, string seed, string a0, string a1, string mood) { }
     void OnSaid(GoblinSaying s) { _speakT = Mathf.Clamp(0.9f + s.Text.Length * 0.055f, 1.2f, 7f); }
 
-    /// <summary>Called by GoblinObj.Build(): collision (layers 1|4) + the animated rig. The host sits under the feeding palm; the body is built at CaveInfo.GoblinSeat.</summary>
+    /// <summary>Called by GoblinObj.Build(): collision (layers 1|4) + the animated rig. The host sits under the resting palm; the body is built at CaveInfo.GoblinSeat.</summary>
     public static void Attach(NetObject host)
     {
         host.CollisionLayer = 1 | 4; host.CollisionMask = 0;
@@ -101,12 +104,6 @@ public partial class GoblinRig : Node3D
             GoblinParts.Hand(_hand[i], out _fingers[i], out _tips[i], out _thumb[i]);
         }
 
-        // the feeding palm: faint glowing disc + a pulsing prompt so it is obvious where to go
-        var glowMat = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, AlbedoColor = new Color(0.75f, 1f, 0.3f, 0.22f), CullMode = BaseMaterial3D.CullModeEnum.Disabled };
-        _palmGlow = new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 1.1f, BottomRadius = 1.1f, Height = 0.02f, RadialSegments = 20, Rings = 1 }, MaterialOverride = glowMat, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
-        _palmGlow.Position = new Vector3(-4.2f, 1.5f, 4.35f);
-        AddChild(_palmGlow);
-
 
         // lighting: sickly green-yellow from below, so the face is the brightest, most readable thing
         _faceLight = new OmniLight3D { Position = new Vector3(0, 4.4f, 6.2f), LightColor = new Color(0.86f, 0.94f, 0.52f), LightEnergy = 8.0f, OmniRange = 17f, OmniAttenuation = 1.0f, ShadowEnabled = false };
@@ -123,11 +120,11 @@ public partial class GoblinRig : Node3D
 
     // ------------------------------------------------------------------ IK + bones
     /// <summary>Two-bone arm with stretchy bones (the giant's arm can reach about 1.5x its resting length). Returns the wrist position actually used.</summary>
-    Vector3 SolveArm(int i, Vector3 shoulder, Vector3 wrist, Vector3 pole, Vector3 handDir, float roll)
+    Vector3 SolveArm(int i, Vector3 shoulder, Vector3 wrist, Vector3 pole, Vector3 handDir, float roll, float maxStretch = 1.5f)
     {
         float l1 = GoblinParts.UpperLen, l2 = GoblinParts.ForeLen;
         var d = wrist - shoulder; float dist = d.Length();
-        float maxReach = (l1 + l2) * 1.5f;
+        float maxReach = (l1 + l2) * maxStretch;
         if (dist > maxReach) { wrist = shoulder + d / dist * maxReach; dist = maxReach; }
         float stretch = Mathf.Max(1f, dist / ((l1 + l2) * 0.985f));
         float a1 = l1 * stretch, a2 = l2 * stretch;
@@ -204,6 +201,19 @@ public partial class GoblinRig : Node3D
             var lv = ToLocal(victim.GlobalPosition);
             twistT = Mathf.Clamp(Mathf.Atan2(lv.X - 0f, Mathf.Max(2f, lv.Z)) * 0.5f, -0.3f, 0.3f) * up * down;
         }
+        // the weighing: which sack is he reaching for (the current reveal), and how far along is the hand
+        var gv = Game.I; var wv = gv?.Weigh;
+        bool sackCeremony = victim == null && gv != null && gv.Phase == GamePhase.Weighing && wv != null && wv.CurPeer >= 0 && HallCeremony.I != null && (wv.Stage == "reveal" || wv.Stage == "verdict" || wv.Stage == "throw");
+        float rk1 = 0f, rk2 = 0f;
+        if (sackCeremony)
+        {
+            double tr = wv.Stage == "reveal" ? Time.GetTicksMsec() / 1000.0 - wv.CurAt : 999.0;
+            rk1 = Mathf.Clamp((float)(tr / Mathf.Max(0.05f, wv.GrabDelay)), 0f, 1f);
+            rk2 = Mathf.Clamp((float)((tr - wv.GrabDelay) / Mathf.Max(0.05f, wv.CountDelay - wv.GrabDelay)), 0f, 1f);
+            _sackLean = Mathf.Lerp(_sackLean, 0.5f * Mathf.SmoothStep(0f, 1f, rk1) * (1f - 0.55f * Mathf.SmoothStep(0f, 1f, rk2)), Mathf.Min(1f, dt * 10f));
+        }
+        else _sackLean = Mathf.Lerp(_sackLean, 0f, Mathf.Min(1f, dt * 3f));
+        leanT += _sackLean;
         _lean = Mathf.Lerp(_lean, GoblinParts.RestLean + leanT, Mathf.Min(1f, dt * 8f));
         _torsoYaw = Mathf.Lerp(_torsoYaw, twistT, Mathf.Min(1f, dt * 6f));
         _torso.Rotation = new Vector3(_lean + 0.006f * br, _torsoYaw, 0);
@@ -259,9 +269,35 @@ public partial class GoblinRig : Node3D
         // ---- arms
         var tm = _torso.Transform;
         var shR = tm * (GoblinParts.ShoulderR - GoblinParts.TorsoPos); var shL = tm * (GoblinParts.ShoulderL - GoblinParts.TorsoPos);
-        // right: the open feeding palm, palm up, fingers toward the miners
-        SolveArm(0, shR, GoblinParts.PalmWrist + new Vector3(0, 0.03f * br, 0), new Vector3(-1f, -0.25f, -0.7f), new Vector3(0, -0.05f, 1f), 0f);
-        Curl(0, 0.22f + 0.04f * br, 0.18f, 0.2f);
+        // right: the open palm, palm up, fingers toward the miners (resting pose). At the weighing it fetches the current sack: reach (palm under the sack), lift to the hold point.
+        Vector3 restR = GoblinParts.PalmWrist + new Vector3(0, 0.03f * br, 0);
+        float curlR = 0.22f + 0.04f * br; float stretchR = 1.5f;
+        if (sackCeremony)
+        {
+            if (wv.Stage == "reveal" && wv.CurAt != _lastRevealAt) { _lastRevealAt = wv.CurAt; _handFrom = _wristR; }
+            var floor = HallCeremony.I.SackFloor(wv.CurPeer);
+            var s = ToLocal(floor);
+            var toS = new Vector3(s.X - shR.X, 0f, s.Z - shR.Z); toS = toS.LengthSquared() < 1e-3f ? Vector3.Back : toS.Normalized();
+            var hdS = new Vector3(toS.X, -0.12f, toS.Z).Normalized();
+            var palmS = s + new Vector3(0, -0.14f, 0);
+            var wristS = palmS - hdS * 1.15f;
+            var hdH = new Vector3(0.12f, 0.08f, 1f).Normalized();
+            var palmH = HoldPoint;
+            var wristH = palmH - hdH * 1.15f;
+            Vector3 w0;
+            if (wv.Stage == "reveal" && rk1 < 1f) { w0 = _handFrom.Lerp(wristS, Mathf.SmoothStep(0f, 1f, rk1)); _handDirR = _handDirR.Lerp(hdS, Mathf.Min(1f, dt * 8f)); }
+            else { w0 = wristS.Lerp(wristH, Mathf.SmoothStep(0f, 1f, rk2)) + new Vector3(0, Mathf.Sin(rk2 * Mathf.Pi) * 0.9f, 0); _handDirR = hdS.Lerp(hdH, Mathf.SmoothStep(0f, 1f, rk2)).Normalized(); }
+            if (rk2 >= 1f) w0 += new Vector3(0, 0.05f * Mathf.Sin(_t * 1.8f), 0);
+            _wristR = w0; stretchR = 1.9f; curlR = Mathf.Lerp(0.15f, 0.55f, rk2);
+        }
+        else
+        {
+            _wristR = _wristR.Lerp(restR, Mathf.Min(1f, dt * 2.5f)); _handDirR = _handDirR.Lerp(new Vector3(0, -0.05f, 1f), Mathf.Min(1f, dt * 2.5f));
+        }
+        SolveArm(0, shR, _wristR, new Vector3(-1f, -0.25f, -0.7f), _handDirR, 0f, stretchR);
+        Curl(0, curlR, 0.18f, 0.2f);
+        // publish the palm (top surface, centre) so the sack and the number follow the hand
+        HallCeremony.PalmWorld = ToGlobal(_wristR + _handDirR.Normalized() * 1.15f + new Vector3(0, 0.26f, 0)); HallCeremony.PalmValid = true;
         // left: resting on his thigh, or reaching/lifting/swinging/releasing the victim
         Vector3 wrist = GoblinParts.RestWristL; Vector3 hdir = new(0, -0.1f, 1f); float roll = Mathf.Pi; float curl = 0.25f;
         if (victim != null)
@@ -302,11 +338,11 @@ public partial class GoblinRig : Node3D
         _victimLight.Visible = victim != null;
         if (victim != null) _victimLight.GlobalPosition = victim.GlobalPosition + new Vector3(0, 2.2f, 2.0f);
 
-        // palm prompt pulse (stronger when a miner is close and could feed)
-        float pulse = 0.5f + 0.5f * Mathf.Sin(_t * 2.4f);
-        ((StandardMaterial3D)_palmGlow.MaterialOverride).AlbedoColor = new Color(0.75f, 1f, 0.3f, 0.12f + 0.14f * pulse);
         _faceLight.LightEnergy = 7.0f * (1f + 0.04f * Mathf.Sin(_t * 1.7f) + (_react > 0 && _reactKind == "angry" ? 0.25f * Mathf.Sin(_t * 30f) : 0f));
     }
+
+    /// <summary>Where the sack is held while it is weighed: in front of his chest, in rig space.</summary>
+    static readonly Vector3 HoldPoint = new(-1.2f, 3.6f, 5.6f);
 
     /// <summary>Debug / screenshots: pretend a reaction happened.</summary>
     public void Debug(string kind) => OnReact(kind);

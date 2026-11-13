@@ -25,16 +25,20 @@ public static class CaveCheck
         int fails = 0, caves = 0, oilless = 0;
         var usage = new Dictionary<string, int>();
         void Bad(string m) { fails++; Util.Fail("cavecheck", m); }
-        for (int seed = 1; seed <= 20; seed++)
+        // cave size scales with the number of miners: 2 (20 seeds), 4 and 8 (8 seeds each), rounds 1-5
+        var rooms = new Dictionary<(int miners, int seed, int round), (int rooms, int depth, int markers)>();
+        foreach (int miners in new[] { 2, 4, 8 })
+        for (int seed = 1; seed <= (miners == 2 ? 20 : 8); seed++)
             for (int round = 1; round <= 5; round++)
             {
-                var g = ModularCave.Generate(seed, round);
-                string tag = $"seed={seed} round={round}";
+                var g = ModularCave.Generate(seed, round, miners);
+                string tag = $"miners={miners} seed={seed} round={round}";
                 caves++;
+                rooms[(miners, seed, round)] = (g.Info.Rooms.Count, g.Slots.Max(s => s.Depth), g.Info.Rooms.Sum(r => r.Markers.Count));
                 foreach (var e in g.Errors) Bad($"{tag} {e}");
                 foreach (var s0 in g.Slots) usage[s0.Mod.Name] = usage.GetValueOrDefault(s0.Mod.Name) + 1;
                 var info = g.Info;
-                int target = (int)(8 + (round - 1) * 2.5f + 0.5f);
+                int target = ModularCave.RoomTarget(round, miners);
                 if (info.Rooms.Count != target) Bad($"{tag} rooms={info.Rooms.Count} want {target}");
                 if (info.Rooms[0].Name != "camp") Bad($"{tag} camp missing");
                 // Hall of the Scale seams
@@ -43,7 +47,12 @@ public static class CaveCheck
                 foreach (var (nm, pt) in new[] { ("scale", info.ScalePos), ("palm", info.PalmPos), ("shaft", info.ShaftPos), ("goblin", info.GoblinPos) })
                     if (!info.HallZone.HasPoint(pt + Vector3.Up)) Bad($"{tag} {nm} {pt} outside the Hall");
                 if (info.WeighSpots.Select(w => new Vector2(w.X, w.Z)).Distinct().Count() != info.WeighSpots.Count) Bad($"{tag} duplicate weigh spots");
-                if (info.Rooms.Sum(r => r.Markers.Count(m => m.Kind == "oil")) == 0 && round >= 2) oilless++;
+                if (info.Rooms.Sum(r => r.Markers.Count(m => m.Kind == "oil")) == 0 && round >= 2 && miners == 2) oilless++;
+                if (miners >= 8 && info.Rooms.Sum(r => r.Markers.Count(m => m.Kind == "oil")) == 0) Bad($"{tag} no oil drum in a big cave");
+                // the tribute rings: one per miner on the arc, inside the Hall, in a walkable place and not overlapping (>= 1.3 m apart)
+                for (int a = 0; a < info.WeighSpots.Count; a++)
+                    for (int b2 = a + 1; b2 < info.WeighSpots.Count; b2++)
+                        if (new Vector2(info.WeighSpots[a].X - info.WeighSpots[b2].X, info.WeighSpots[a].Z - info.WeighSpots[b2].Z).Length() < 1.3f) Bad($"{tag} tribute rings {a} and {b2} overlap");
                 if (info.MinerSpawns.Count < 8) Bad($"{tag} spawns={info.MinerSpawns.Count}");
                 if (info.Rooms.Count >= 6 && g.LoopCount < 1) Bad($"{tag} no loop");
                 if (round >= 3 && !info.Rooms.Any(r => r.Markers.Any(m => m.Kind == "dragon"))) Bad($"{tag} no dragon lair");
@@ -148,7 +157,7 @@ public static class CaveCheck
                         }
                     }
                 foreach (var sp in info.MinerSpawns) if (!InMain(sp)) Bad($"{tag} spawn {sp} not walkable");
-                if (!InMain(info.GoblinPos + new Vector3(0, 0, 2.3f))) Bad($"{tag} feeding spot in front of the palm blocked");
+                if (!InMain(info.GoblinPos + new Vector3(0, 0, 2.3f))) Bad($"{tag} floor in front of the Goblin's palm blocked");
                 foreach (var ws in info.WeighSpots) if (!InMain(ws)) { Bad($"{tag} weigh spot {ws} not walkable"); break; }
                 // a path must exist from camp to every room centre marker
                 foreach (var room in info.Rooms.Skip(1))
@@ -159,9 +168,19 @@ public static class CaveCheck
                     if (path.Count < 2) Bad($"{tag} no path to {room.Name}");
                 }
             }
+        // size scaling: round 1-5 averages. 2 miners ~ 1.3x the old base (10 rooms in round 1); 8 miners ~ 3x the old base; longer branches (deeper); more markers
+        double Avg(int miners, Func<(int rooms, int depth, int markers), double> f) { var l = rooms.Where(k => k.Key.miners == miners).Select(k => f(k.Value)).ToList(); return l.Average(); }
+        double ra2 = Avg(2, v => v.rooms), ra4 = Avg(4, v => v.rooms), ra8 = Avg(8, v => v.rooms);
+        double d2 = Avg(2, v => v.depth), d8 = Avg(8, v => v.depth), m2 = Avg(2, v => v.markers), m8 = Avg(8, v => v.markers);
+        Util.Log($"CAVECHECK size: rooms 2/4/8 miners = {ra2:0.0}/{ra4:0.0}/{ra8:0.0}, depth {d2:0.0}/{d8:0.0}, markers {m2:0.0}/{m8:0.0}");
+        if (!(ra2 < ra4 && ra4 < ra8)) Bad($"room counts do not grow with the miner count: {ra2:0.0}/{ra4:0.0}/{ra8:0.0}");
+        if (ra8 < 2.1 * ra2) Bad($"8 miners should have roughly 2.3x the rooms of 2 miners: {ra8:0.0} vs {ra2:0.0}");
+        if (d8 < 1.5 * d2) Bad($"branches are not longer with 8 miners (depth {d8:0.0} vs {d2:0.0})");
+        if (m8 < 2.0 * m2) Bad($"markers do not scale with the cave: {m8:0.0} vs {m2:0.0}");
+        if (rooms[(2, 1, 1)].rooms < 10) Bad($"2-miner base cave in round 1 has {rooms[(2, 1, 1)].rooms} rooms, want at least 10 (old base 8 + 30%)");
         foreach (var m in CaveModule.All) if (!usage.ContainsKey(m.Name)) Bad($"module {m.Name} never used in {caves} caves");
         Util.Log("CAVECHECK modules: " + string.Join(", ", usage.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}")));
-        if (oilless > caves / 4) Bad($"{oilless} of {caves} caves have no oil drum marker");
+        if (oilless > 25) Bad($"{oilless} of {caves} caves have no oil drum marker");
         if (fails == 0) Util.Pass("cavecheck", $"caves={caves} oilless={oilless}");
         return fails;
     }

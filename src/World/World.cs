@@ -14,15 +14,15 @@ public partial class World : Node3D
 
     public static ICaveBuilder Builder = Util.Arg("cave", "modular") == "greybox" ? new GreyBoxCave() : new ModularCave();
 
-    public void BuildCave(int seed, int round)
+    public void BuildCave(int seed, int round, int miners = 2)
     {
         var geo = new Node3D { Name = "Geometry" };
         AddChild(geo);
-        Cave = Builder.Build(geo, seed, round);
+        Cave = Builder.Build(geo, seed, round, miners);
         MinersRoot = new Node3D { Name = "Miners" };
         ObjectsRoot = new Node3D { Name = "Objects" };
         AddChild(MinersRoot); AddChild(ObjectsRoot);
-        AddChild(new HallScale { Name = "HallScale" });
+        AddChild(new HallCeremony { Name = "HallCeremony" });
 
         // Pitch black: no ambient light, black background.
         var env = new Godot.Environment

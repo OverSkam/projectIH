@@ -3,7 +3,7 @@ using Godot;
 namespace AppStein;
 
 /// <summary>Screenshot helper: `--screen=<name>` stages a state so tools/screenshot.sh can capture it. Does nothing without the arg.
-/// goblin | goblin_happy | goblin_angry | miner | hands_pick | hands_lantern | hud | downed | lootprompt | feedprompt | feedprompt_stein | lowoil | score | pause | matchend | settings | guide | ghost</summary>
+/// goblin | goblin_happy | goblin_angry | miner | hands_pick | hands_lantern | hud | downed | lootprompt | stuffprompt | lowoil | score | pause | matchend | settings | guide | ghost</summary>
 public partial class UiDebug : Node
 {
     string _screen;
@@ -90,15 +90,14 @@ public partial class UiDebug : Node
                 Hud.I.ForceScoreboard = true; _done = true; break;
             case "hud": case "downed": case "lowoil":
                 if (!inRound || _t < 1.0) return;
-                g.OwnTribute = 14; g.OwnOil = _screen == "lowoil" ? 38 : 150;
+                g.OwnInv.Sack.Clear(); g.OwnInv.Sack.AddRange(new[] { "coal", "coal", "coal", "iron", "iron", "silver", "gold", "coal", "iron", "silver" });
+                g.OwnTribute = Ores.TributeSum(g.OwnInv.Sack); g.OwnBurden = Ores.BurdenSum(g.OwnInv.Sack); g.OwnOil = _screen == "lowoil" ? 38 : 150;
+                if (g.LocalMiner != null) g.LocalMiner.Burden = g.OwnBurden;
                 if (_screen == "downed") { g.OwnDowned = true; g.OwnDownedUntil = Time.GetTicksMsec() / 1000.0 + 22; g.OwnHealth = 0; }
                 break;
-            case "feedprompt": case "feedprompt_stein":
+            case "stuffprompt":
                 if (!inRound || g.LocalMiner == null || _t < 1.0) return;
-                var gob = g.World.Cave.GoblinPos;
-                g.LocalMiner.Teleport(gob + new Vector3(0, 0, 2.3f), 0);
-                g.LocalMiner.FaceYaw(0f);
-                if (_screen == "feedprompt_stein") g.LocalMiner.DebugHoldProgress(0.6f);
+                g.LocalMiner.DebugHoldProgress(0.6f);
                 break;
             case "hands_pick":
             case "hands_lantern":

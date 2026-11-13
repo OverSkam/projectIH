@@ -361,10 +361,7 @@ public partial class AudioDirector : Node
         }
         else _hbT = 0;
 
-        // sack full: pressing E on loose ore with no room (client-side prediction of the server's refusal)
-        var lm = g.LocalMiner;
-        if (lm != null && Input.IsActionJustPressed("interact") && lm.Target is PickupObj po && po.Data.StartsWith("ore:") && g.OwnInv.Sack.Count >= g.OwnSackCap)
-            Sfx.PlayUi(SfxNames.SackFull);
+        var lm = g.LocalMiner;   // (the sack is bottomless now: there is no "sack full" any more)
 
         // ethereal stein activated (owner only)
         bool eth = g.OwnEtherealUntil > Now;

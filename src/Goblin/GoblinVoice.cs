@@ -62,8 +62,8 @@ public partial class GoblinVoice : Node
 
     static string MoodOf(string cat) => cat switch
     {
-        "feed_large" or "feed_stein" or "winner" or "reveal_first" => "happy",
-        "reveal_last" or "reveal_zero" or "verdict" or "verdict_tie" or "throw" or "final_two" or "all_dead" or "weigh_start" or "downed" => "angry",
+        "winner" or "reveal_first" => "happy",
+        "reveal_last" or "reveal_zero" or "verdict" or "verdict_tie" or "throw" or "final_two" or "all_dead" or "weigh_start" or "downed" or "loiter" => "angry",
         _ => "smug",
     };
 
@@ -74,7 +74,6 @@ public partial class GoblinVoice : Node
         if (mood == "") mood = MoodOf(cat);
         Say(text, mood);
         if (mood == "happy" || mood == "angry") GoblinRig.React(mood);
-        if (cat.StartsWith("feed")) Sfx.Play(SfxNames.Feed);
     }
 
     void OnPhase()

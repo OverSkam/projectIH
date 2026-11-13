@@ -30,7 +30,7 @@ public class GreyBoxCave : ICaveBuilder
         _body.AddChild(cs);
     }
 
-    public CaveInfo Build(Node3D parent, int seed, int round)
+    public CaveInfo Build(Node3D parent, int seed, int round, int miners = 2)
     {
         _parent = parent;
         _body = new StaticBody3D { Name = "CaveBody", CollisionLayer = 1, CollisionMask = 0 };

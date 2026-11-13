@@ -25,9 +25,9 @@ public static class ItemInfo
     {
         int c = item.IndexOf(':'); if (c < 0) return "";
         string kind = item.Substring(0, c), id = item.Substring(c + 1);
-        if (kind == "stein") { var d = Steins.Get(id); return d == null ? "" : d.Description + $" (Fed to the Goblin: weighs {Steins.TributeOf(id)}.)"; }
+        if (kind == "stein") { var d = Steins.Get(id); return d == null ? "" : d.Description + $" (Hold G to stuff it into your sack: it loses its power and counts {Steins.TributeOf(id)}.)"; }
         if (kind == "util") return Utilities.Get(id)?.Description ?? "";
-        var o = Ores.Get(id); return o == null ? "" : $"Weighs {o.TributeWeight} on the Scale when fed to the Goblin.";
+        var o = Ores.Get(id); return o == null ? "" : $"Worth {o.TributeWeight} tribute at the weighing, burden {o.Burden} while it is in your sack.";
     }
 
     /// <summary>Title, then the description on the next line (for prompts).</summary>

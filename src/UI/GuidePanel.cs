@@ -54,22 +54,22 @@ public partial class GuidePanel : PanelContainer
     {
         var c = MatchConfig.Default;
         Head(b, "HOW A MATCH WORKS");
-        Para(b, $"With N miners there are N-1 rounds, each in a new, deeper cave. Round 1 lasts {c.RoundSeconds(1) / 60:0.#} minutes, every later round one minute longer, up to {c.MaxRoundSeconds / 60:0.#}. Mine stones and carry up to 4 in your sack. Back in the Hall, interact with the Goblin (E) to feed him every stone in your sack: each stone adds its weight to YOUR tribute for this round. To feed a power stein, hold E for a second on the Goblin with that stein's slot selected (F): it weighs a lot, but it is gone.");
-        Para(b, "When the timer ends the lift leaves. Anyone not inside the Hall weighs nothing and loses everything they carry. Then the weighing: every pile is revealed one at a time on the Scale, heaviest first, lightest last. The lightest miner is thrown down the shaft (ties: all tied miners, unless that would leave nobody). With two miners left the heavier pile wins. The last miner wins. Holding the Infinity Stein at the end of 3 rounds in a row also wins at once.");
-        Para(b, "Nobody can see anyone else's tribute weight, sack or steins until the weighing. Tribute starts again from zero every round. Thrown miners stay in the match as ghosts. The Hall is safe: no fighting, and monsters, traps and explosions do nothing there.");
-        Para(b, $"At 0 health you are downed for {c.DownedSeconds:0} seconds: you can only crawl, anyone may rob you (E, one item at a time), and any further hit kills you. Dead miners drop everything in a bag, haunt as ghosts and return next round with only a pickaxe and a lantern. Everyone starts the match with the Pickaxe, the Lantern and one random Common stein.");
+        Para(b, $"With N miners there are N-1 rounds, each in a new, deeper cave. Round 1 lasts {c.RoundSeconds(1) / 60:0.#} minutes, every later round one minute longer, up to {c.MaxRoundSeconds / 60:0.#}. Mine stones (E takes one) into your one bottomless sack: there is no limit, but nothing ever comes out again. Every stone has a tribute (what it is worth) and a burden (how much it slows you): junk is bulky and worthless, rare stones are light and worth a lot. Speed falls with your total burden (about 55% at burden 30, never below 35%), sprinting tires you faster and your footsteps carry farther, so monsters hear a heavy miner from afar. To use a power stein as tribute, hold G for a second with its slot selected (F picks the slot): it is stuffed into your sack, loses its power for good and counts Common 6 / Rare 12 / Legendary 20, burden 1. The Infinity Stein cannot be stuffed.");
+        Para(b, "There is no feeding during the round. When the timer ends the lift leaves: your tribute is whatever is in your sack IF you are standing inside the Hall. Anyone outside weighs nothing and loses their sack. Everyone inside is placed on their glowing tribute ring and the sacks drop in front of them. Then the weighing: the Goblin lifts each sack to his palm in turn and the weight counts up above it, heaviest first, lightest last. The lightest miner is thrown down the shaft (ties: all tied miners, unless that would leave nobody). With two miners left the heavier pile wins. The last miner wins. Holding the Infinity Stein at the end of 3 rounds in a row also wins at once.");
+        Para(b, "Nobody can see anyone else's tribute, sack or steins until the weighing. After the weighing every sack is emptied: tribute starts again from zero every round. Thrown miners stay in the match as ghosts. The Hall is safe: no fighting, and monsters, traps and explosions do nothing there.");
+        Para(b, $"At 0 health you are downed for {c.DownedSeconds:0} seconds: you can only crawl, anyone may rob you (E, one stone per press, the most valuable first), and any further hit kills you. A dead miner's sack lies there as a bag: another miner interacts (E) and pours ALL of it into their own sack, burden included. The dead haunt as ghosts and return next round with only a pickaxe and a lantern. Everyone starts the match with the Pickaxe, the Lantern and one random Common stein.");
         Para(b, $"Your lantern burns oil: about {c.LanternOilSeconds / 60:0.#} minutes when full, and it starts every round full. L switches it off to save oil (or to hide). Oil drums in the cave refill it ({c.OilDrumRefills} refills each). When the oil runs low the light flickers; at zero it goes out.");
 
-        Head(b, "STONES  (weight on the Scale)");
-        Para(b, string.Join("   ", Ores.All.Values.Where(o => o.SpawnWeight > 0).OrderBy(o => o.TributeWeight).Select(o => $"{o.Name} {o.TributeWeight}")) + "   |   Gold statue 15 (from Midas kills)   |   Power steins when fed: Common 6, Rare 12, Legendary 20");
+        Head(b, "STONES  (tribute / burden)");
+        Para(b, string.Join("   ", Ores.All.Values.Where(o => o.SpawnWeight > 0).OrderBy(o => o.TributeWeight).Select(o => $"{o.Name} {o.TributeWeight}/{o.Burden}")) + "   |   Gold statue 15/5 (from Midas kills)   |   Stuffed power steins: Common 6/1, Rare 12/1, Legendary 20/1");
 
         foreach (var r in new[] { Rarity.Common, Rarity.Rare, Rarity.Legendary })
         {
-            Head(b, ItemInfo.RarityName(r).ToUpper() + " STEINS" + (r == Rarity.Common ? "  (you start with one; two stein slots, F picks which is swapped)" : r == Rarity.Rare ? "  (shrines, chests, monster drops)" : "  (very rare)"));
+            Head(b, ItemInfo.RarityName(r).ToUpper() + " STEINS" + (r == Rarity.Common ? "  (you start with one; two stein slots, F picks which is swapped or stuffed)" : r == Rarity.Rare ? "  (shrines, chests, monster drops)" : "  (very rare)"));
             foreach (var d in Steins.All.Values.Where(d => d.Rarity == r)) Item(b, d.Name, d.Description, ItemInfo.RarityColor(r));
         }
 
-        Head(b, "UTILITY ITEMS  (two slots, keys 1 / 2, G drops, right mouse uses)");
+        Head(b, "UTILITY ITEMS  (two slots, keys 1 / 2, tap G drops, right mouse uses)");
         foreach (var d in Utilities.All.Values) Item(b, d.Name, d.Description, UiTheme.Parchment);
 
         Head(b, "MONSTERS");

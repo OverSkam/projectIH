@@ -32,18 +32,17 @@ public class CaveInfo
     public Aabb HallZone;
     /// <summary>Old name of <see cref="HallZone"/> (kept so older cave code keeps compiling).</summary>
     public Aabb CampZone { get => HallZone; set => HallZone = value; }
-    /// <summary>Origin of the Goblin network object: the floor point under the centre of his feeding palm (he sits behind it, see <see cref="GoblinSeat"/>).
-    /// Bots and the feed prompt stand 2.3 m in front of this point.</summary>
+    /// <summary>Origin of the Goblin network object: the floor point under the centre of his resting palm (he sits behind it, see <see cref="GoblinSeat"/>).</summary>
     public Vector3 GoblinPos;
     /// <summary>Floor point under the seat of the seated giant Goblin (the rig is built here).</summary>
     public Vector3 GoblinSeat;
     /// <summary>Cage lift (visual only) at the Hall exit toward the cave.</summary>
     public Vector3 CagePos;
-    /// <summary>Feeding point: the Goblin's open palm. Stones/steins are fed to the Goblin when a miner interacts near it.</summary>
+    /// <summary>The Goblin's open palm at rest (his resting pose). No feeding any more; the weighing ceremony lifts each sack to his palm.</summary>
     public Vector3 PalmPos;
-    /// <summary>Centre of the weighing platform (the Scale). Weighing visuals are built here.</summary>
+    /// <summary>Centre of the arc of tribute rings: the focus point of the weighing ceremony (there is no giant Scale any more).</summary>
     public Vector3 ScalePos;
-    /// <summary>Fixed standing places for the weighing ceremony (>= 8, all inside the Hall, all facing ScalePos).</summary>
+    /// <summary>The tribute ring positions (>= 8 standing places on an arc, all inside the Hall, all facing ScalePos). With n miners the n middle ones are used, see <see cref="RingSpot"/>.</summary>
     public List<Vector3> WeighSpots = new();
     /// <summary>Where the thrown miner falls into the dark (beside the Scale, inside the Hall).</summary>
     public Vector3 ShaftPos;
@@ -71,6 +70,15 @@ public class CaveInfo
             float a = n == 1 ? 0f : -spread + 2f * spread * i / (n - 1);
             WeighSpots.Add(ScalePos + new Vector3(Mathf.Sin(a) * r, 0.3f, Mathf.Cos(a) * r));
         }
+    }
+
+    /// <summary>Ring (standing place) of the miner with rank <paramref name="rank"/> (0-based, peer order) among <paramref name="n"/> miners: the middle n spots of the arc.</summary>
+    public Vector3 RingSpot(int rank, int n)
+    {
+        int c = WeighSpots.Count;
+        if (c == 0) return ScalePos;
+        int start = n >= c ? 0 : (c - n) / 2;
+        return WeighSpots[(start + rank) % c];
     }
 
     public RoomInfo RoomAt(Vector3 p)
@@ -138,5 +146,6 @@ public class CaveInfo
 /// (every peer builds the cave locally; the server then spawns networked objects from the markers).</summary>
 public interface ICaveBuilder
 {
-    CaveInfo Build(Node3D parent, int seed, int round);
+    /// <param name="miners">Number of miners in this round: bigger groups get a bigger cave (about 2 miners = base size, 8 miners = roughly 3x the rooms).</param>
+    CaveInfo Build(Node3D parent, int seed, int round, int miners = 2);
 }

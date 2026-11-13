@@ -7,7 +7,7 @@ namespace AppStein;
 
 /// <summary>
 /// Soak-test bot (--bot=explorer | explorer_brave). Roams the generated cave along the nav graph: mines veins, picks up loot, opens chests,
-/// tries shrines, pulls levers, (brave) walks into traps, keeps its lantern oil topped up, and returns to the Hall to feed the Goblin before the timer ends.
+/// tries shrines, pulls levers, (brave) walks into traps, keeps its lantern oil topped up, and is back inside the Hall (on its tribute ring) before the timer ends.
 /// Uses only what a real client sees (replicated object kinds/positions/data, own inventory and health).
 /// </summary>
 public class ExplorerBot : IMinerController
@@ -63,9 +63,8 @@ public class ExplorerBot : IMinerController
     void Tick(Miner m, ref MinerInput inp, Game g)
     {
         var inv = g.OwnInv; var world = g.World; var cave = world.Cave;
-        var goblin = world.Objects.Values.FirstOrDefault(o => o is GoblinObj);
-        if (goblin == null) return;
-        Vector3 stand = goblin.GlobalPosition + new Vector3(0, 0, 2.3f);
+        int rank = Math.Max(0, Array.IndexOf(g.RoundPeers, Net.I.MyId));
+        Vector3 stand = cave.RingSpot(rank, Math.Max(1, g.RoundPeers.Length));   // home: this miner's tribute ring in the Hall
         var pos = m.GlobalPosition;
         if (Util.HasArg("botdebug") && (_dbgT -= 1.0 / 60) <= 0) { _dbgT = 4; Util.Log($"EXPLORER {_name} mode={_mode} hp={g.OwnHealth} sack={inv.Sack.Count} t={g.TimeLeft:0} pos={pos} target={_target?.Kind}#{_target?.Id}"); }
 
@@ -80,22 +79,18 @@ public class ExplorerBot : IMinerController
 
         // time to head back? (path length / speed + margin)
         if (_clock - _pathLenT > 3) { _pathLenT = _clock; _pathLen = PathLen(cave.FindPath(pos, stand)); }
-        bool late = g.TimeLeft < _pathLen / 3.6f + 14f;
-        bool full = inv.Sack.Count >= g.OwnSackCap;
+        // the burden slows the walk home: leave early enough (stones are only worth anything inside the Hall at timer end)
+        bool late = g.TimeLeft < _pathLen / (3.6f * Burden.SpeedMul(g.OwnBurden)) + 14f;
         bool hurt = g.OwnHealth < (_brave ? 28 : 50);
         if (hurt && !cave.InHall(pos) && _mode != "flee") { _mode = "flee"; _flee = _clock + 12; }
         LanternEconomy(m, ref inp, g, cave, inv);
         if (_mode == "flee")
         {
             if (cave.InHall(pos) && _clock > _flee) _mode = "explore";
-            else { GoFeed(m, ref inp, g, goblin, stand, inv); return; }
+            else { GoHome(m, ref inp, stand); return; }
         }
-        if (late || (full && inv.Sack.Count > 0))
-        {
-            if (inv.Sack.Count == 0 && late) { Walk(m, ref inp, new Vector3(0, 0, 4), 2.5f); return; }  // wait in camp
-            GoFeed(m, ref inp, g, goblin, stand, inv); return;
-        }
-        if (_mode == "feed" && inv.Sack.Count == 0) _mode = "explore";   // "feed" = walking to the Goblin to feed him
+        if (late) { GoHome(m, ref inp, stand); return; }
+        if (_mode == "home") _mode = "explore";
 
         // cautious bot backs off from awake monsters
         if (!_brave)
@@ -142,15 +137,11 @@ public class ExplorerBot : IMinerController
         return _roam;
     }
 
-    void GoFeed(Miner m, ref MinerInput inp, Game g, NetObject goblin, Vector3 stand, Inventory inv)
+    /// <summary>Walks to the tribute ring inside the Hall and waits there (the sack is weighed where the miner stands).</summary>
+    void GoHome(Miner m, ref MinerInput inp, Vector3 stand)
     {
-        _mode = _mode == "flee" ? "flee" : "feed";
-        if (Walk(m, ref inp, stand, 1.0f) || m.GlobalPosition.DistanceTo(goblin.GlobalPosition) < 3.2f)
-        {
-            Face(m, ref inp, goblin.GlobalPosition + Vector3.Up);
-            inp.Move = Vector2.Zero;
-            if (inv.Sack.Count > 0 && _actT <= 0) { _actT = 0.5; g.SendInteract(goblin.Id); Util.Pass("explorer_feed_try"); }
-        }
+        _mode = _mode == "flee" ? "flee" : "home";
+        if (Walk(m, ref inp, stand, 0.8f)) { inp.Move = Vector2.Zero; if (_actT <= 0) { _actT = 5; Util.Pass("explorer_home"); } }
     }
 
     NetObject TrapCandidate(Game g, CaveInfo cave, Vector3 pos)
@@ -169,7 +160,7 @@ public class ExplorerBot : IMinerController
     void PickTarget(Miner m, Game g)
     {
         var inv = g.OwnInv; var cave = g.World.Cave; var pos = m.GlobalPosition;
-        bool sackRoom = inv.Sack.Count < g.OwnSackCap;
+        bool sackRoom = true;   // bottomless sack
         NetObject best = null; float bs = float.MaxValue;
         // brave bots deliberately walk over one known damaging trap per match, so the soak test's "a trap hurt a miner" check never depends on luck
         if (_brave && _trapRuns < 1 && g.TimeLeft > 35f)

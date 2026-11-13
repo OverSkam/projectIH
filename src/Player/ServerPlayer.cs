@@ -8,8 +8,17 @@ public class ServerPlayer
 {
     public int Peer;
     public string Name;
-    /// <summary>Tribute weight fed to the Goblin this round. Private: only ever sent to its owner (until the weighing). Reset after each weighing.</summary>
-    public int TributeWeight;
+    /// <summary>Tribute of this miner right now = what is in the sack (plus a debug / Blood adjustment). Private: only ever sent to its owner (until the weighing).
+    /// Counts at the weighing only if the miner is inside the Hall; the sack is emptied after every weighing.</summary>
+    public int TributeWeight
+    {
+        get => Math.Max(0, Ores.TributeSum(Inv.Sack) + TributeAdj);
+        set => TributeAdj = value - Ores.TributeSum(Inv.Sack);
+    }
+    /// <summary>Adjustment on top of the sack's worth (Blood Stein penalty, test staging with --tribute).</summary>
+    public int TributeAdj;
+    /// <summary>Effective burden (sack contents x Packmule factor).</summary>
+    public float Burden => Ores.BurdenSum(Inv.Sack) * Stats.BurdenMul;
     public float Health = 100f;
     public const float MaxHealth = 100f;
     public bool Alive;
@@ -40,8 +49,6 @@ public class ServerPlayer
     public double NextMeddle;
     public ItemState Items = new();
     float _regenAcc;
-
-    public int SackCap => Inventory.BaseSack + Stats.SackBonus;
 
     public void RecalcStats()
     {
@@ -112,8 +119,7 @@ public class ServerPlayer
         switch (kind)
         {
             case "ore":
-                if (Inv.Sack.Count >= SackCap) return false;
-                Inv.Sack.Add(id); break;
+                Inv.Sack.Add(id); break;   // bottomless
             case "stein":
                 if (Inv.Steins.Count >= Inventory.SteinSlots) return false;
                 Inv.Steins.Add(id); RecalcStats(); break;

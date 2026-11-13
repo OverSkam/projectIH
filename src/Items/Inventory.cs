@@ -6,7 +6,8 @@ namespace AppStein;
 /// <summary>Server-side authoritative inventory; Encode() is the wire format sent only to the owner.</summary>
 public class Inventory
 {
-    public const int BaseSack = 4, SteinSlots = 2, UtilSlots = 2;
+    public const int SteinSlots = 2, UtilSlots = 2;
+    /// <summary>The one bottomless sack: ore ids (also stuffed steins and the gold statue). Nothing here can be removed by its owner.</summary>
     public List<string> Sack = new();
     public List<string> Steins = new();
     public string[] Utils = new string[UtilSlots];

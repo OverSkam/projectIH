@@ -57,16 +57,17 @@ public class ModularCave : ICaveBuilder
     public List<Aabb> Squeezes = new();
     public const int TunnelLen = Pitch - 14;
     public List<string> Errors = new();
-    public int Seed, Round, LoopCount, Salt;
+    public int Seed, Round, LoopCount, Salt, Miners = 2;
     public int[] NodeAt;            // per cell: nav node index or -1
     public Dictionary<int, int> OwnerDepth = new();
 
     // ------------------------------------------------------------------ ICaveBuilder
-    public CaveInfo Build(Node3D parent, int seed, int round)
+    public CaveInfo Build(Node3D parent, int seed, int round, int miners = 2)
     {
+        if (Util.HasArg("caveminers") && int.TryParse(Util.Arg("caveminers"), out var cm)) miners = cm;
         if (Util.HasArg("caveseed") && int.TryParse(Util.Arg("caveseed"), out var s)) seed = s;
         if (Util.HasArg("caveround") && int.TryParse(Util.Arg("caveround"), out var r)) round = r;
-        var g = Generate(seed, round);
+        var g = Generate(seed, round, miners);
         foreach (var e in g.Errors) Util.Fail("cave_layout", e);
         CaveBuilder.Emit(g, parent);
         Last = g;
@@ -90,12 +91,23 @@ public class ModularCave : ICaveBuilder
     public static Vector3 CellPos(int i, int j, float y = 0f) => new Vector3(i * CellSize, y, j * CellSize);
 
     // ------------------------------------------------------------------ generation
-    public static ModularCave Generate(int seed, int round)
+    /// <summary>0 for 2 miners (or fewer), 1 for 8 or more: how much bigger the group makes the cave.</summary>
+    public static float Crowd(int miners) => Math.Clamp((miners - 2) / 6f, 0f, 1f);
+
+    /// <summary>Rooms in the cave (Hall included). 2 miners: about 30% more than the old base (8 + 2.5 per round); 8 miners: roughly 3x the old base; linear in between. Capped at 60.</summary>
+    public static int RoomTarget(int round, int miners)
+    {
+        float baseRooms = 8 + (round - 1) * 2.5f;
+        float mult = 1.3f + (3.0f - 1.3f) * Crowd(miners);
+        return Math.Min(60, (int)(baseRooms * mult + 0.5f));
+    }
+
+    public static ModularCave Generate(int seed, int round, int miners = 2)
     {
         ModularCave g = null;
         for (int salt = 0; salt < 20; salt++)
         {
-            g = new ModularCave { Seed = seed, Round = round, Salt = salt };
+            g = new ModularCave { Seed = seed, Round = round, Salt = salt, Miners = miners };
             g.Topology();
             if (g.LoopCount > 0 || g.Slots.Count < 6) break;
         }
@@ -108,7 +120,8 @@ public class ModularCave : ICaveBuilder
     void Topology()
     {
         var rnd = new Rnd(Seed * 7919L + Round * 104729L + Salt * 1299709L + 17);
-        int target = (int)(8 + (Round - 1) * 2.5f + 0.5f);
+        int target = RoomTarget(Round, Miners);
+        float branchy = 0.6f * Crowd(Miners);   // bigger groups: longer branches (a new room is more often hung on the newest rooms than on a random one)
         var at = new Dictionary<(int, int), Slot>();
         Slot Add(int gx, int gy) { var s = new Slot { Id = Slots.Count, Gx = gx, Gy = gy }; Slots.Add(s); at[(gx, gy)] = s; return s; }
         void Connect(Slot a, Slot b, int d) { a.R[d] = true; b.R[(d + 2) % 4] = true; a.Adj.Add(b.Id); b.Adj.Add(a.Id); }
@@ -116,7 +129,7 @@ public class ModularCave : ICaveBuilder
         int guard = 0;
         while (Slots.Count < target && guard++ < 5000)
         {
-            Slot from = Slots.Count < 3 ? camp : Slots[rnd.I(Slots.Count)];
+            Slot from = Slots.Count < 3 ? camp : (branchy > 0f && rnd.Chance(branchy) ? Slots[Slots.Count - 1 - rnd.I(Math.Min(4, Slots.Count))] : Slots[rnd.I(Slots.Count)]);
             int d = rnd.I(4);
             var (dx, dy) = Dirs[d];
             if (at.ContainsKey((from.Gx + dx, from.Gy + dy))) continue;
@@ -181,16 +194,20 @@ public class ModularCave : ICaveBuilder
         if (leaves.Count > 0) Set(leaves[0], CaveModule.Get("shrine"));
         if (leaves.Count > 1) Set(leaves[1], CaveModule.Get("nook"));
         if (leaves.Count > 2 && Round >= 3 && rnd.Chance(0.5f)) Set(leaves[2], CaveModule.Get("shrine"));
+        // bigger caves have more dead ends: more shrines and nooks (one more of each per 2 extra miners)
+        int extraSpecials = (Miners - 2) / 2;
+        for (int e = 0, li = 3; e < extraSpecials * 2 && li < leaves.Count; e++, li++) if (leaves[li].Mod == null) Set(leaves[li], CaveModule.Get(e % 2 == 0 ? "shrine" : "nook"));
         var used = new Dictionary<string, int>();
         foreach (var s in Slots) if (s.Mod != null) used[s.Mod.Name] = used.GetValueOrDefault(s.Mod.Name) + 1;
         var order = Slots.Where(s => s.Mod == null).ToList();
         rnd.Shuffle(order);
+        int maxScale = Math.Max(1, Slots.Count / 10);   // "at most 2 pits" etc. scale with the cave
         foreach (var s in order)
         {
             for (int pass = 0; pass < 3; pass++)
             {
                 var pool = CaveModule.All.Where(m => m.Role == "" && m.Weight > 0 && m.MinRound <= Round && Fits(m, s, out _)).ToList();
-                if (pass < 2) pool = pool.Where(m => used.GetValueOrDefault(m.Name) < m.Max).ToList();
+                if (pass < 2) pool = pool.Where(m => used.GetValueOrDefault(m.Name) < m.Max * maxScale).ToList();
                 if (pass < 1) pool = pool.Where(m => !s.Adj.Any(a => Slots[a].Mod?.Name == m.Name)).ToList();
                 if (pool.Count == 0) continue;
                 float tot = pool.Sum(m => m.Weight - 0.4f * used.GetValueOrDefault(m.Name)).Clamp(0.01f);
@@ -344,6 +361,44 @@ public class ModularCave : ICaveBuilder
             }
     }
 
+    /// <summary>Bigger groups get more to find in each room: extra loose ore, oil drums, loot and (in rooms tall enough for a golem) monster markers on plain floor cells.
+    /// Deterministic per (seed, round, miners); only cells that are in the nav graph, flat, not a crawl and not already a marker.</summary>
+    void AddExtraMarkers()
+    {
+        float k = Crowd(Miners);
+        if (k <= 0f) return;
+        var r = new Rnd(Seed * 31L + Round * 977L + 5);
+        foreach (var s in Slots)
+        {
+            if (s.Id == 0 || s.Mod.Role is "nook" or "shrine" or "lair") continue;
+            var ri = Info.Rooms[s.Id];
+            Vector3? Pick(bool interior)
+            {
+                for (int tries = 0; tries < 24; tries++)
+                {
+                    int rr = 3 + r.I(8), cc = 3 + r.I(8);
+                    if (s.Map[rr][cc] != '.') continue;
+                    int i = s.OX + cc, j = s.OY + rr;
+                    if (!OpenAt(i, j) || NodeAt[Idx(i, j)] < 0 || At(i, j).Crawl || At(i, j).Thin) continue;
+                    var pos = CellPos(i, j, 0f);
+                    if (ri.Markers.Any(m => Math.Abs(m.Pos.X - pos.X) < 1f && Math.Abs(m.Pos.Z - pos.Z) < 1f)) continue;
+                    if (interior)
+                    {
+                        bool all = true;
+                        for (int dj = -1; dj <= 1 && all; dj++) for (int di = -1; di <= 1; di++) if (!OpenAt(i + di, j + dj) || At(i + di, j + dj).Crawl) { all = false; break; }
+                        if (!all) continue;
+                    }
+                    return pos;
+                }
+                return null;
+            }
+            if (r.Chance(0.6f * k)) { var p = Pick(false); if (p.HasValue) ri.Markers.Add(new SpawnMarker("ore", p.Value)); }
+            if (r.Chance(0.16f * k)) { var p = Pick(false); if (p.HasValue) ri.Markers.Add(new SpawnMarker("oil", p.Value)); }
+            if (r.Chance(0.2f * k)) { var p = Pick(false); if (p.HasValue) ri.Markers.Add(new SpawnMarker("loot", p.Value)); }
+            if (s.Mod.Ceil >= 4.4f && r.Chance(0.3f * k)) { var p = Pick(true); if (p.HasValue) ri.Markers.Add(new SpawnMarker("monster", p.Value)); }
+        }
+    }
+
     /// <summary>Hall furniture (the giant Goblin's body and palm, the Scale, the shaft, the cage lift) is solid: no nav nodes inside or hugging it.</summary>
     static bool HallBlocked(CaveInfo info, Vector3 p)
     {
@@ -351,7 +406,6 @@ public class ModularCave : ICaveBuilder
         var h0 = info.GoblinSeat + new Vector3(0, 0, 9.2f);
         float x = p.X - h0.X, z = p.Z - h0.Z;
         if (z < -3.5f) return true;                                 // Goblin, throne, legs, palm
-        if (new Vector2(Math.Abs(x) - 5.9f, z + 1.8f).Length() < 1.3f) return true;       // Scale gantry posts
         if (new Vector2(x - 9.4f, z + 2.0f).Length() < 2.8f) return true;                  // shaft
         if (Math.Abs(x + 9.5f) < 2.4f && Math.Abs(z - 10f) < 2.4f) return true;           // cage lift
         return false;
@@ -398,10 +452,10 @@ public class ModularCave : ICaveBuilder
         info.GoblinSeat = h0 + new Vector3(0, 0, -9.2f);
         info.GoblinPos = h0 + new Vector3(-4.2f, 0, -4.8f);          // floor under the centre of the feeding palm
         info.PalmPos = info.GoblinPos + new Vector3(0, 1.4f, 0);
-        info.ScalePos = h0 + new Vector3(0, 0, -1.8f);
+        info.ScalePos = h0 + new Vector3(0, 0, -3.0f);          // centre of the arc of tribute rings (the ceremony focus point)
         info.ShaftPos = h0 + new Vector3(9.4f, 0, -2.0f);
         info.CagePos = h0 + new Vector3(-9.5f, 0, 10.0f);
-        info.MakeWeighSpots(8, 3.2f, 1.05f);
+        info.MakeWeighSpots(8, 5.0f, 1.1f);
         info.SqueezeZones.AddRange(Squeezes);
         for (int c = 3; c <= 10; c++) info.MinerSpawns.Add(CellPos(camp.OX + c, camp.OY + 9, 0.3f));
         for (int c = 4; c <= 9; c++) info.MinerSpawns.Add(CellPos(camp.OX + c, camp.OY + 10, 0.3f));
@@ -426,6 +480,7 @@ public class ModularCave : ICaveBuilder
                 NodeAt[k] = info.NavNodes.Count;
                 info.NavNodes.Add(CellPos(x + OX, y + OY, c.Mean));
             }
+        AddExtraMarkers();
         bool L(int i, int j, int di, int dj) => NodeAt[Idx(i, j)] >= 0 && OpenAt(i + di, j + dj) && NodeAt[Idx(i + di, j + dj)] >= 0 && Linked(i, j, di, dj);
         for (int j = OY; j < OY + H; j++)
             for (int i = OX; i < OX + W; i++)

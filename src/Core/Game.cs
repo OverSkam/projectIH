@@ -19,7 +19,7 @@ public class MatchEndData
 /// <summary>
 /// Autoload: match + round state machine (server-authoritative) and all in-round RPCs.
 /// Conventions: Request*/Report* = client -> server (AnyPeer, validated). Client* = server -> clients (Authority).
-/// Private per-miner data (tribute weight, inventory, oil) only ever leaves the server via RpcId(owner, ClientOwnState).
+/// Private per-miner data (tribute, sack, burden, inventory, oil) only ever leaves the server via RpcId(owner, ClientOwnState).
 /// </summary>
 public partial class Game : Node
 {
@@ -40,13 +40,17 @@ public partial class Game : Node
     public int Remaining { get { int n = 0; foreach (var id in Net.I.Names.Keys) if (Status.GetValueOrDefault(id) != MinerStatus.Eliminated) n++; return n; } }
 
     // private (own) state, only filled from ClientOwnState
-    public int OwnTribute, OwnSackCap = 4;
+    public int OwnTribute;
+    /// <summary>Own burden (effective, Packmule applied): drives the movement speed multiplier, sprint drain and the HUD sack readout.</summary>
+    public float OwnBurden;
     public float OwnOil, OwnOilMax = 240f;
     /// <summary>Public lantern state of the local miner mirrored for the HUD (the oil level itself is private).</summary>
     public bool OwnDowned; public double OwnDownedUntil;
     public float OwnHealth = 100f;
     public Inventory OwnInv = new();
     public Miner LocalMiner;
+    /// <summary>Public: the miners of this round in peer order (one tribute ring each; the cave is sized by their number).</summary>
+    public int[] RoundPeers = Array.Empty<int>();
     public Ghost LocalGhost;
     public bool LocalWasKilled;
 
@@ -56,6 +60,7 @@ public partial class Game : Node
 
     // test counters
     int _ownStates, _foreignStates;
+    bool _burdenSeen;
 
     // ------------------------------------------------------------ server-only state
     public readonly Dictionary<int, ServerPlayer> Players = new();
@@ -64,6 +69,8 @@ public partial class Game : Node
     int _seed;
     bool _autoQuitScheduled;
     int _elimSeq;
+    /// <summary>The miners of this round in peer order (tribute rings, cave size). Set at round start, sent to late joiners with the snapshot.</summary>
+    int[] _roundPeers = Array.Empty<int>();
 
     static double Now => Time.GetTicksMsec() / 1000.0;
     int MyId => Net.I.MyId;
@@ -96,7 +103,7 @@ public partial class Game : Node
         return c;
     }
 
-    /// <summary>Test only: --tribute=Alice=40,Host=6 sets tribute weight at every round start (the miners' own feeding adds to it).</summary>
+    /// <summary>Test only: --tribute=Alice=40,Host=6 sets the tribute at every round start (what the miner then collects adds to it).</summary>
     void ApplyDebugTribute(ServerPlayer p)
     {
         foreach (var tok in Util.Arg("tribute", "").Split(',', StringSplitOptions.RemoveEmptyEntries))
@@ -119,7 +126,7 @@ public partial class Game : Node
         foreach (var id in Net.I.Names.Keys)
         {
             var p = GetPlayer(id);
-            p.TributeWeight = 0; p.Eliminated = false; p.Initialized = false; p.EliminatedRound = 0;
+            p.Inv.Sack.Clear(); p.TributeAdj = 0; p.Eliminated = false; p.Initialized = false; p.EliminatedRound = 0;
         }
         Round = 0; ForcedWinner = null; _elimSeq = 0; InfinityTracker.NewMatch();
         TotalRounds = MatchConfig.RoundsFor(Net.I.Names.Count);
@@ -155,12 +162,14 @@ public partial class Game : Node
             p.NeedsKit = false;
             p.Health = ServerPlayer.MaxHealth;
             p.Oil = Config.LanternOilSeconds; p.LanternOn = true;
-            p.TributeWeight = 0; p.KillsThisRound = 0;
+            p.Inv.Sack.Clear(); p.TributeAdj = 0; p.KillsThisRound = 0;
             ApplyDebugTribute(p);
             p.RecalcStats();
         }
         var elim = Players.Values.Where(p => p.Eliminated).Select(p => p.Peer).ToArray();
-        Rpc(nameof(ClientBeginRound), Round, _seed, (float)_roundLeft, elim, TotalRounds);
+        _roundPeers = parts.Select(p => p.Peer).ToArray();
+        _hallTime.Clear();
+        Rpc(nameof(ClientBeginRound), Round, _seed, (float)_roundLeft, elim, TotalRounds, _roundPeers);
         PopulateWorld();
         int i = 0;
         foreach (var p in parts)
@@ -236,6 +245,7 @@ public partial class Game : Node
                     p.Tick(dt);
                     if (p.Dirty && Now - p.LastOwnSend > 0.1) SendOwnState(p);
                 }
+                TickLoiter(dt);
                 if (_roundLeft <= 0) ServerBeginWeighing();
                 break;
             case GamePhase.Weighing:
@@ -246,6 +256,28 @@ public partial class Game : Node
                 _phaseTimer -= dt;
                 if (_phaseTimer <= 0) ServerReturnToLobby();
                 break;
+        }
+    }
+
+    // The Goblin barks at miners who hang around in the Hall while the round runs (public cue, every peer picks the same line).
+    readonly Dictionary<int, float> _hallTime = new();
+    double _loiterCool; int _loiterSeq;
+    public const float LoiterSeconds = 28f;
+    void TickLoiter(float dt)
+    {
+        if (World?.Cave == null || _roundLeft < 75) return;
+        foreach (var p in Players.Values)
+        {
+            if (!p.Participant || !p.Alive || p.Downed) { _hallTime.Remove(p.Peer); continue; }
+            float t = _hallTime.GetValueOrDefault(p.Peer);
+            t = World.Cave.InHall(p.Pos) ? t + dt : 0f;
+            if (t >= LoiterSeconds && Now > _loiterCool)
+            {
+                _loiterCool = Now + 14; t = -20f;
+                ServerCue("loiter", $"{Round}:{p.Peer}:{++_loiterSeq}", p.Name);
+                Util.Pass("goblin_loiter_bark", $"name={p.Name} round={Round}");
+            }
+            _hallTime[p.Peer] = t;
         }
     }
 
@@ -276,7 +308,7 @@ public partial class Game : Node
     void ServerSendSnapshot(int peer)
     {
         var elim = Players.Values.Where(p => p.Eliminated).Select(p => p.Peer).ToArray();
-        RpcId(peer, nameof(ClientBeginRound), Round, _seed, (float)_roundLeft, elim, TotalRounds);
+        RpcId(peer, nameof(ClientBeginRound), Round, _seed, (float)_roundLeft, elim, TotalRounds, _roundPeers);
         foreach (var o in World.Objects.Values) RpcId(peer, nameof(ClientSpawnObject), o.Id, o.Kind, o.Position, o.Data);
         foreach (var p in Players.Values)
             if (p.Participant && p.Alive && p.Peer != peer)
@@ -357,40 +389,26 @@ public partial class Game : Node
         CheckAllDead();
     }
 
-    /// <summary>Feeding: every stone in the sack goes into the Goblin's palm at once. Fed stones are gone.</summary>
-    public void ServerFeed(ServerPlayer p)
+    /// <summary>A power stein is stuffed into the sack (hold G on the selected stein slot): the power is gone for good, it counts as tribute (Common 6, Rare 12, Legendary 20, burden 1).
+    /// The Infinity Stein cannot be stuffed.</summary>
+    public bool ServerStuffStein(ServerPlayer p, int slot)
     {
-        if (p.Inv.Sack.Count == 0) return;
-        int total = 0; foreach (var o in p.Inv.Sack) total += Ores.WeightOf(o);
-        int n = p.Inv.Sack.Count;
-        p.Inv.Sack.Clear();
-        p.TributeWeight += total;
-        p.Dirty = true;
-        p.Fire(new SteinEvent { Kind = SteinEventKind.Fed, Amount = total });
-        Util.Pass("feed_server", $"peer={p.Peer} name={p.Name} stones={n} weight={total} tribute={p.TributeWeight}");
-        ServerCue(total >= LargeFeedWeight ? "feed_large" : "feed_small", $"{Round}:{++_feedSeq}");
-        SendOwnState(p);
-        RpcId(p.Peer, nameof(ClientFeedAck), p.Peer, total);
-    }
-    public const int LargeFeedWeight = 12;
-    int _feedSeq;
-
-    /// <summary>Deliberate separate action: feed the stein in slot <paramref name="slot"/> (hold interact at the Goblin).</summary>
-    public void ServerFeedStein(ServerPlayer p, int slot)
-    {
-        if (slot < 0 || slot >= p.Inv.Steins.Count) return;
+        if (slot < 0 || slot >= p.Inv.Steins.Count) return false;
         string id = p.Inv.Steins[slot];
-        int w = Steins.TributeOf(id);
+        var def = Steins.Get(id);
+        if (def == null) return false;
+        if (id == "infinity") { ServerNotice(p, "The Infinity Stein cannot be stuffed into a sack."); return false; }
         p.Inv.Steins.RemoveAt(slot);
         if (p.Inv.SteinSel >= p.Inv.Steins.Count) p.Inv.SteinSel = 0;
         ItemsServer.OnSteinLeft(p, id);
-        p.TributeWeight += w;
+        string stuffed = Ores.StuffedId(def.Rarity);
+        p.Inv.Sack.Add(stuffed);
         p.RecalcStats();
-        p.Fire(new SteinEvent { Kind = SteinEventKind.Fed, Amount = w });
-        Util.Pass("feed_stein_server", $"peer={p.Peer} name={p.Name} stein={id} weight={w} tribute={p.TributeWeight}");
-        ServerCue("feed_stein", $"{Round}:{++_feedSeq}", Steins.Get(id)?.Name ?? id);
+        p.Fire(new SteinEvent { Kind = SteinEventKind.Fed, Amount = Ores.WeightOf(stuffed) });
+        Util.Pass("stein_stuffed", $"peer={p.Peer} name={p.Name} stein={id} tribute_added={Ores.WeightOf(stuffed)} tribute={p.TributeWeight} burden={p.Burden:0.#}");
+        ServerNotice(p, $"You stuff the {def.Name} into your sack. Its power is gone; it counts {Ores.WeightOf(stuffed)}.");
         SendOwnState(p);
-        RpcId(p.Peer, nameof(ClientFeedAck), p.Peer, w);
+        return true;
     }
 
     void SendOwnState(ServerPlayer p)
@@ -398,7 +416,7 @@ public partial class Game : Node
         p.Dirty = false; p.LastOwnSend = Now;
         if (!Net.I.Names.ContainsKey(p.Peer)) return;
         // HIDDEN INFORMATION: only the owner ever receives tribute weight / inventory / oil.
-        RpcId(p.Peer, nameof(ClientOwnState), p.Peer, p.TributeWeight, p.Inv.Encode(), (int)Math.Ceiling(p.Health), p.Stats.SpeedMul, p.Stats.JumpMul, p.Stats.NoFallDamage, p.SackCap, p.Oil, Config.LanternOilSeconds);
+        RpcId(p.Peer, nameof(ClientOwnState), p.Peer, p.TributeWeight, p.Inv.Encode(), (int)Math.Ceiling(p.Health), p.Stats.SpeedMul, p.Stats.JumpMul, p.Stats.NoFallDamage, p.Burden, p.Oil, Config.LanternOilSeconds);
     }
 
     /// <summary>Server: the Goblin says something. Every peer picks the same line from (category, seed).</summary>
@@ -423,7 +441,7 @@ public partial class Game : Node
     public void SendAttack(Vector3 origin, Vector3 dir) => RpcId(1, nameof(RequestAttack), origin, dir);
     public void SendInteract(int id) => RpcId(1, nameof(RequestInteract), id);
     public void SendSelectUtil(int slot) => RpcId(1, nameof(RequestSelectUtil), slot);
-    public void SendDrop(string kind, int idx) => RpcId(1, nameof(RequestDrop), kind, idx);
+    public void SendDrop(int utilSlot) => RpcId(1, nameof(RequestDrop), utilSlot);
     public void ReportFall(float speed) => RpcId(1, nameof(ReportFallRpc), speed);
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
@@ -499,16 +517,14 @@ public partial class Game : Node
         SyncHeld(p);
     }
 
+    /// <summary>Drops a utility from a slot. Stones can NEVER be dropped: the sack is bottomless and nothing comes out of it.</summary>
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void RequestDrop(string kind, int idx)
+    void RequestDrop(int utilSlot)
     {
         if (!Net.I.IsServer) return;
         var p = Sender();
-        if (!CanAct(p) || idx < 0) return;
-        string item = null;
-        if (kind == "util" && idx < Inventory.UtilSlots && !string.IsNullOrEmpty(p.Inv.Utils[idx])) { item = "util:" + p.Inv.Utils[idx]; p.Inv.Utils[idx] = null; }
-        else if (kind == "ore" && idx < p.Inv.Sack.Count) { item = "ore:" + p.Inv.Sack[idx]; p.Inv.Sack.RemoveAt(idx); }
-        if (item == null) return;
+        if (!CanAct(p) || utilSlot < 0 || utilSlot >= Inventory.UtilSlots || string.IsNullOrEmpty(p.Inv.Utils[utilSlot])) return;
+        string item = "util:" + p.Inv.Utils[utilSlot]; p.Inv.Utils[utilSlot] = null;
         p.Dirty = true;
         var fwd = new Vector3(-Mathf.Sin(p.Yaw), 0, -Mathf.Cos(p.Yaw));
         ServerSpawnObject("pickup", p.Pos + fwd * 1.2f + new Vector3(0, 0.4f, 0), item);
@@ -536,9 +552,10 @@ public partial class Game : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void ClientBeginRound(int round, int seed, float time, int[] eliminated, int totalRounds)
+    void ClientBeginRound(int round, int seed, float time, int[] eliminated, int totalRounds, int[] minerPeers)
     {
         FreeWorld();
+        RoundPeers = minerPeers;
         Round = round; TimeLeft = time; TotalRounds = totalRounds; Weigh = null; OwnDowned = false;
         Alive.Clear(); Status.Clear();
         foreach (var id in Net.I.Names.Keys)
@@ -549,7 +566,7 @@ public partial class Game : Node
         }
         World = new World { Name = "World" };
         AddChild(World);
-        World.BuildCave(seed, round);
+        World.BuildCave(seed, round, minerPeers.Length);
         Phase = GamePhase.Round;
         if (Array.IndexOf(eliminated, MyId) >= 0) EliminatedRole.ClientEnter(this, World.Cave.MinerSpawns[0] + new Vector3(0, 1.5f, 0));
         PhaseChanged?.Invoke();
@@ -659,7 +676,7 @@ public partial class Game : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void ClientOwnState(int owner, int tribute, string inv, int hp, float speedMul, float jumpMul, bool noFall, int sackCap, float oil, float oilMax)
+    void ClientOwnState(int owner, int tribute, string inv, int hp, float speedMul, float jumpMul, bool noFall, float burden, float oil, float oilMax)
     {
         if (owner != MyId)
         {
@@ -668,19 +685,12 @@ public partial class Game : Node
             return;
         }
         _ownStates++;
+        if (burden >= 2f && !_burdenSeen) { _burdenSeen = true; Util.Pass("burden_slows", $"burden={burden:0.#} speed={Burden.SpeedMul(burden):0.00}"); }
         int prev = OwnTribute;
-        OwnTribute = tribute; OwnInv = Inventory.Decode(inv); OwnHealth = hp; OwnSackCap = sackCap; OwnOil = oil; OwnOilMax = oilMax;
-        if (LocalMiner != null) { LocalMiner.SpeedMul = speedMul; LocalMiner.JumpMul = jumpMul; LocalMiner.NoFall = noFall; }
-        Util.Log($"OWNSTATE tribute={tribute} hp={hp} oil={oil:0} inv={inv}");
+        OwnTribute = tribute; OwnInv = Inventory.Decode(inv); OwnHealth = hp; OwnBurden = burden; OwnOil = oil; OwnOilMax = oilMax;
+        if (LocalMiner != null) { LocalMiner.SpeedMul = speedMul; LocalMiner.JumpMul = jumpMul; LocalMiner.NoFall = noFall; LocalMiner.Burden = burden; }
+        Util.Log($"OWNSTATE tribute={tribute} burden={burden:0.#} hp={hp} oil={oil:0} inv={inv}");
         OwnChanged?.Invoke();
-    }
-
-    /// <summary>Owner only: what you just fed (the Goblin's reaction is public, the number is not).</summary>
-    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void ClientFeedAck(int owner, int weight)
-    {
-        if (owner != MyId) { _foreignStates++; Util.Fail("foreign_feed_ack", $"owner={owner} me={MyId}"); return; }
-        Util.Pass("tribute_credited", $"fed={weight}");
     }
 
     /// <summary>Public status change of a miner (downed, dead, eliminated).</summary>

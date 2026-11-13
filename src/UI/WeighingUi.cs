@@ -5,9 +5,9 @@ using Godot;
 namespace AppStein;
 
 /// <summary>
-/// Overlay of the weighing ceremony (phase Weighing). Reads Game.Weigh (replicated, public by then): the pile on the Scale with a count-up,
-/// the list of piles revealed so far, the verdict, the throw and the "N miners remain" card. The Goblin's lines show at the bottom.
-/// The 3D side (platform, number over the Scale, pan) is HallScale in the world.
+/// Overlay of the weighing ceremony (phase Weighing). Reads Game.Weigh (replicated, public by then): the sack in the Goblin's palm with a count-up,
+/// the list of sacks weighed so far, the verdict, the throw and the "N miners remain" card. The Goblin's lines show at the bottom.
+/// The 3D side (rings, sacks, the number above the palm) is HallCeremony in the world.
 /// </summary>
 public partial class WeighingUi : CanvasLayer
 {
@@ -41,7 +41,7 @@ public partial class WeighingUi : CanvasLayer
         _sub = UiKit.MakeLabel("", 20, UiTheme.Parchment, HorizontalAlignment.Center, 6);
         top.AddChild(_title); top.AddChild(_sub);
 
-        // reveal card (upper centre: the Scale itself stays visible in the middle of the screen)
+        // reveal card (upper centre: the Goblin's palm with the sack stays visible in the middle of the screen)
         _card = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         _card.AddThemeStyleboxOverride("panel", UiTheme.Box(new Color(0.05f, 0.04f, 0.03f, 0.8f), UiTheme.Brass, 10, 2, 28, 10));
         _card.SetAnchorsPreset(Control.LayoutPreset.CenterTop); _card.GrowHorizontal = Control.GrowDirection.Both; _card.OffsetTop = 100;
@@ -60,7 +60,7 @@ public partial class WeighingUi : CanvasLayer
         _listPanel.CustomMinimumSize = new Vector2(240, 0);
         _root.AddChild(_listPanel);
         var lv = UiKit.VBox(4); _listPanel.AddChild(lv);
-        lv.AddChild(UiKit.MakeLabel("ON THE SCALE", 14, UiTheme.Brass, HorizontalAlignment.Center, 3));
+        lv.AddChild(UiKit.MakeLabel("WEIGHED SO FAR", 14, UiTheme.Brass, HorizontalAlignment.Center, 3));
         _listRows = UiKit.VBox(3); lv.AddChild(_listRows);
 
         // miners remain card (centre)
@@ -116,14 +116,14 @@ public partial class WeighingUi : CanvasLayer
         _title.Text = $"THE WEIGHING  -  ROUND {w.Round}";
         _sub.Text = w.Stage switch
         {
-            "intro" => "The lift has left. Everyone in the Hall faces the Scale.",
-            "reveal" => "Piles are revealed heaviest first. The lightest comes last.",
-            "verdict" => w.FinalTwo ? "The final weighing." : "The Scale has spoken.",
+            "intro" => "The lift has left. Everyone stands on their ring; the sacks drop.",
+            "reveal" => "Sacks are weighed heaviest first. The lightest comes last.",
+            "verdict" => w.FinalTwo ? "The final weighing." : "The Goblin has spoken.",
             "throw" => "Down the shaft.",
             _ => "",
         };
 
-        // the pile on the Scale
+        // the sack in the palm
         bool revealing = w.Stage == "reveal" && w.CurPeer >= 0;
         _card.Visible = revealing || w.Stage == "verdict" || w.Stage == "throw";
         if (revealing)

@@ -11,7 +11,7 @@ public class MatchConfig
     public float MaxRoundSeconds = 600f;      // ... up to 10 min
     // weighing ceremony timings (seconds)
     public float WeighIntroSeconds = 5f;      // lift leaves, miners are placed on the Hall floor
-    public float RevealSeconds = 4f;          // per pile (the count-up takes RevealCountSeconds of it)
+    public float RevealSeconds = 5f;          // per sack: reach (25%), lift (to 45%), then the count-up (RevealCountSeconds), then a beat
     public float RevealCountSeconds = 1.8f;
     public float VerdictSeconds = 4.5f;
     public float ThrowSeconds = 6f;           // lift + fall of the thrown miner(s)
@@ -34,7 +34,7 @@ public class MatchConfig
         Name = "debug",
         BaseRoundSeconds = 60f,
         RoundSecondsGrowth = 0f,
-        WeighIntroSeconds = 2f, RevealSeconds = 1.6f, RevealCountSeconds = 0.8f, VerdictSeconds = 2f, ThrowSeconds = 3.6f, RemainSeconds = 2f,
+        WeighIntroSeconds = 2.5f, RevealSeconds = 2.2f, RevealCountSeconds = 0.8f, VerdictSeconds = 2f, ThrowSeconds = 3.6f, RemainSeconds = 2f,
         MatchEndSeconds = 6f,
         DownedSeconds = 10f,
         AllowSolo = true,
@@ -46,7 +46,7 @@ public class MatchConfig
         Name = "soak",
         BaseRoundSeconds = 105f,
         RoundSecondsGrowth = 0f,
-        WeighIntroSeconds = 2.5f, RevealSeconds = 2f, RevealCountSeconds = 1f, VerdictSeconds = 2.5f, ThrowSeconds = 4f, RemainSeconds = 2.5f,
+        WeighIntroSeconds = 3f, RevealSeconds = 3f, RevealCountSeconds = 1f, VerdictSeconds = 2.5f, ThrowSeconds = 4f, RemainSeconds = 2.5f,
         MatchEndSeconds = 6f,
         AllowSolo = true,
     };

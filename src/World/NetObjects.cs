@@ -151,7 +151,13 @@ public partial class PickupObj : NetObject
         if (kind != "util") AddChild(new OmniLight3D { LightColor = m.MaterialOverride is StandardMaterial3D sm ? sm.AlbedoColor : Colors.White, OmniRange = 2.5f, LightEnergy = 0.6f });
     }
 
-    public override string Prompt(Inventory inv) => Data.StartsWith("ore:") ? "E  Pick up " + NameOf(Data) : "E  Pick up " + ItemInfo.Full(Data);
+    public override string Prompt(Inventory inv)
+    {
+        if (!Data.StartsWith("ore:")) return "E  Pick up " + ItemInfo.Full(Data);
+        var d = Ores.Get(Data.Substring(4));
+        // the sack is bottomless and nothing ever leaves it: taking a stone is a choice, so the prompt shows what it is worth and what it costs
+        return d == null ? "E  Pick up " + NameOf(Data) : $"E  Take {d.Name}   +{d.TributeWeight} tribute  /  +{d.Burden} burden";
+    }
 
     public override void ServerInteract(ServerPlayer p)
     {
@@ -179,12 +185,19 @@ public partial class BagObj : NetObject
         AddChild(Util.BoxShape(new Vector3(0.9f, 0.9f, 0.9f), new Vector3(0, 0.4f, 0)));
     }
 
-    public override string Prompt(Inventory inv) => "E  Loot bag";
+    public override string Prompt(Inventory inv) => "E  Pour this bag into your sack (all of it)";
 
+    /// <summary>All or nothing: every stone in the bag is poured into the interacting miner's sack (with its burden). Steins and utilities go to free slots, the rest stays.</summary>
     public override void ServerInteract(ServerPlayer p)
     {
+        int stones = 0, w = 0, bu = 0;
         foreach (var it in Items.ToArray())
-            if (p.TryAdd(it)) { Items.Remove(it); if (!it.StartsWith("ore:")) Game.I.ServerNotice(p, "You take: " + ItemInfo.Line(it)); }
+        {
+            if (it.StartsWith("ore:")) { string id = it.Substring(4); p.Inv.Sack.Add(id); w += Ores.WeightOf(id); bu += Ores.BurdenOf(id); stones++; Items.Remove(it); p.Dirty = true; }
+            else if (p.TryAdd(it)) { Items.Remove(it); Game.I.ServerNotice(p, "You take: " + ItemInfo.Line(it)); }
+        }
+        if (stones > 0) Game.I.ServerNotice(p, $"You pour {stones} stone{(stones == 1 ? "" : "s")} into your sack: +{w} tribute, +{bu} burden.");
+        Util.Pass("bag_poured", $"by={p.Name} stones={stones} tribute={w} left={Items.Count}");
         if (Items.Count == 0) Game.I.ServerDespawnObject(Id);
     }
 }
@@ -197,21 +210,6 @@ public partial class GoblinObj : NetObject
     /// <summary>Visuals, collision and animation live in src/Goblin/GoblinRig.cs.</summary>
     public override void Build() => GoblinRig.Attach(this);
 
-    /// <summary>Tap E: feed every stone in the sack. Hold E for a second: feed the selected power stein (shown as a second line).</summary>
-    public override string Prompt(Inventory inv)
-    {
-        int v = 0; foreach (var o in inv.Sack) v += Ores.WeightOf(o);
-        string stones = inv.Sack.Count == 0 ? null : $"Feed {inv.Sack.Count} stone{(inv.Sack.Count == 1 ? "" : "s")}  (weight {v})";
-        string stein = null;
-        if (inv.Steins.Count > 0)
-        {
-            string id = inv.Steins[Math.Clamp(inv.SteinSel, 0, inv.Steins.Count - 1)];
-            stein = $"Hold: feed {Steins.Get(id)?.Name ?? id}  (weight {Steins.TributeOf(id)})";
-        }
-        if (stones != null) return "E  " + stones + (stein != null ? "\n" + stein : "");
-        if (stein != null) return "E  " + stein;
-        return "The Goblin wants stones";
-    }
-
-    public override void ServerInteract(ServerPlayer p) => Game.I.ServerFeed(p);
+    /// <summary>No feeding any more: the Goblin is only scenery (and a collision body) during the round. The prompt is deliberately empty.</summary>
+    public override string Prompt(Inventory inv) => null;
 }

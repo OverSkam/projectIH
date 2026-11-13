@@ -14,15 +14,15 @@ public partial class Hud : CanvasLayer
     Label _roundLabel, _timer, _remaining;
     PanelContainer _topPanel;
     // bottom-left
-    FillBar _hpBar, _oilBar, _holdBar;
-    Label _tribute, _tributePop;
+    FillBar _hpBar, _oilBar, _holdBar, _staminaBar;
+    Label _tribute, _tributePop, _sackCount, _burdenLine;
     Control _downedOverlay; Label _downedLabel;
     Label _deathTitle, _deathSub;
     Control _bl;
     // slots
     HBoxContainer _slotRow;
-    readonly List<SlotView> _sack = new(), _steins = new(), _utils = new();
-    HBoxContainer _sackBox, _steinBox, _utilBox;
+    readonly List<SlotView> _steins = new(), _utils = new();
+    HBoxContainer _steinBox, _utilBox;
     // centre
     Control _cross;
     PanelContainer _promptPanel; Label _promptKey, _promptText;
@@ -40,7 +40,7 @@ public partial class Hud : CanvasLayer
     MapView _map;
     OmniLight3D _owl;
 
-    float _prevHp = 100f, _flash; int _prevTribute, _lastSackCap = -1;
+    float _prevHp = 100f, _flash; int _prevTribute;
     double _timeNow;
     Vector3 _lastKnock; double _lastKnockT = -10;
     public bool ForceScoreboard;
@@ -156,7 +156,7 @@ void fragment(){
     {
         _bl = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
         _bl.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
-        _bl.OffsetLeft = 20; _bl.OffsetTop = -150; _bl.OffsetRight = 290; _bl.OffsetBottom = -18;
+        _bl.OffsetLeft = 20; _bl.OffsetTop = -222; _bl.OffsetRight = 300; _bl.OffsetBottom = -18;
         _root.AddChild(_bl);
         var v = UiKit.VBox(6); UiKit.FullRect(v); _bl.AddChild(v);
 
@@ -173,17 +173,27 @@ void fragment(){
         _oilBar = new FillBar { CustomMinimumSize = new Vector2(185, 20), Fill = new Color(1f, 0.66f, 0.18f), FontSize = 14, Max = 100, ShowTrail = false };
         oh.AddChild(_oilBar);
 
+        // the one bottomless sack: stone count, YOUR tribute (private), burden and what it does to your speed, sprint stamina
         var mh = UiKit.HBox(8);
         v.AddChild(mh);
         mh.AddChild(new StoneIcon());
         var tv = UiKit.VBox(0);
         mh.AddChild(tv);
-        tv.AddChild(UiKit.MakeLabel("YOUR TRIBUTE THIS ROUND", 12, UiTheme.Brass, HorizontalAlignment.Left, 3));
+        _sackCount = UiKit.MakeLabel("SACK  0 STONES  -  nothing comes out", 12, UiTheme.Brass, HorizontalAlignment.Left, 3);
+        tv.AddChild(_sackCount);
         _tribute = UiKit.MakeLabel("0", 30, UiTheme.Gold, HorizontalAlignment.Left, 8);
         _tribute.AddThemeFontOverride("font", UiTheme.Chunky);
         tv.AddChild(_tribute);
+        tv.AddChild(UiKit.MakeLabel("YOUR TRIBUTE THIS ROUND", 11, UiTheme.Dim, HorizontalAlignment.Left, 2));
+        _burdenLine = UiKit.MakeLabel("BURDEN 0   SPEED 100%", 16, UiTheme.Parchment, HorizontalAlignment.Left, 4);
+        v.AddChild(_burdenLine);
+        var sh = UiKit.HBox(8);
+        v.AddChild(sh);
+        sh.AddChild(UiKit.MakeLabel("RUN", 12, UiTheme.Brass, HorizontalAlignment.Left, 3));
+        _staminaBar = new FillBar { CustomMinimumSize = new Vector2(185, 12), Fill = new Color(0.55f, 0.8f, 0.45f), FontSize = 1, Max = 1, ShowTrail = false };
+        sh.AddChild(_staminaBar);
         _tributePop = UiKit.MakeLabel("", 24, UiTheme.Good, HorizontalAlignment.Left, 6);
-        _tributePop.Position = new Vector2(190, 70);
+        _tributePop.Position = new Vector2(190, 100);
         _bl.AddChild(_tributePop);
     }
 
@@ -227,7 +237,6 @@ void fragment(){
         _slotRow.GrowHorizontal = Control.GrowDirection.Both; _slotRow.GrowVertical = Control.GrowDirection.Begin;
         anchor.AddChild(_slotRow);
 
-        _sackBox = Group("SACK", out _);
         _steinBox = Group("STEINS", out _);
         _utilBox = Group("UTILITY", out _);
         for (int i = 0; i < Inventory.SteinSlots; i++) _steins.Add(MakeSlot(_steinBox, ""));
@@ -311,7 +320,7 @@ void fragment(){
         _deathSub = UiKit.MakeLabel("You will return next round.", 28, new Color(0.8f, 0.86f, 1f), HorizontalAlignment.Center, 6);
         box.AddChild(_deathSub);
         box.AddChild(UiKit.Spacer(6));
-        box.AddChild(UiKit.MakeLabel("Ghost: fly with WASD / Space / Ctrl.  Right mouse: snuff a lantern.  E: knock a pebble.  Tribute already fed still counts.", 17, UiTheme.Dim, HorizontalAlignment.Center));
+        box.AddChild(UiKit.MakeLabel("Ghost: fly with WASD / Space / Ctrl.  Right mouse: snuff a lantern.  E: knock a pebble.  Your sack lies where you died: anyone may pour it into theirs.", 17, UiTheme.Dim, HorizontalAlignment.Center));
     }
 
     void BuildDowned()
@@ -346,7 +355,7 @@ void fragment(){
         _scoreRows = UiKit.VBox(6);
         v.AddChild(_scoreRows);
         v.AddChild(UiKit.Rule());
-        v.AddChild(UiKit.MakeLabel("Nobody's tribute weight is public. Until the Scale.", 14, UiTheme.Dim, HorizontalAlignment.Center));
+        v.AddChild(UiKit.MakeLabel("Nobody's sack or tribute is public. Until the weighing.", 14, UiTheme.Dim, HorizontalAlignment.Center));
     }
 
     // ------------------------------------------------------------------ events
@@ -436,6 +445,13 @@ void fragment(){
             _prevTribute = tribute;
         }
         _tribute.Text = tribute.ToString();
+        int stones = g.OwnInv.Sack.Count;
+        _sackCount.Text = stones == 0 ? "SACK  EMPTY  -  nothing comes out" : $"SACK  {stones} STONE{(stones == 1 ? "" : "S")}  -  nothing comes out";
+        float burden = g.OwnBurden;
+        float spd = Burden.SpeedMul(burden);
+        _burdenLine.Text = $"BURDEN {Mathf.RoundToInt(burden)}   SPEED {Mathf.RoundToInt(spd * 100f)}%";
+        _burdenLine.AddThemeColorOverride("font_color", spd > 0.85f ? UiTheme.Parchment : spd > 0.6f ? new Color(1f, 0.75f, 0.3f) : UiTheme.Danger);
+        if (g.LocalMiner != null) { _staminaBar.Target = g.LocalMiner.Stamina; _staminaBar.Fill = g.LocalMiner.Stamina < 0.2f ? UiTheme.Danger : new Color(0.55f, 0.8f, 0.45f); }
 
         // lantern oil gauge: private level, low-oil warning
         float oilMax = Mathf.Max(1f, g.OwnOilMax);
@@ -523,10 +539,10 @@ void fragment(){
         if (_tributePop == null) return;
         _tributePop.Text = (d > 0 ? "+" : "-") + Mathf.Abs(d);
         _tributePop.AddThemeColorOverride("font_color", d > 0 ? UiTheme.Good : UiTheme.Danger);
-        _tributePop.Position = new Vector2(190, 70); _tributePop.Modulate = Colors.White;
+        _tributePop.Position = new Vector2(190, 100); _tributePop.Modulate = Colors.White;
         var tw = CreateTween();
         tw.SetParallel(true);
-        tw.TweenProperty(_tributePop, "position:y", 30f, 1.1f).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+        tw.TweenProperty(_tributePop, "position:y", 60f, 1.1f).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
         tw.TweenProperty(_tributePop, "modulate:a", 0f, 0.5f).SetDelay(0.9f);
     }
 
@@ -536,19 +552,6 @@ void fragment(){
         _slotRow.GetParent<Control>().Visible = alive;
         if (!alive) return;
         var inv = g.OwnInv;
-        if (g.OwnSackCap != _lastSackCap)
-        {
-            _lastSackCap = g.OwnSackCap;
-            foreach (var c in _sackBox.GetChildren()) c.QueueFree();
-            _sack.Clear();
-            for (int i = 0; i < g.OwnSackCap; i++) _sack.Add(MakeSlot(_sackBox));
-        }
-        for (int i = 0; i < _sack.Count; i++)
-        {
-            string id = i < inv.Sack.Count ? inv.Sack[i] : "";
-            var d = id == "" ? null : Ores.Get(id);
-            Fill(_sack[i], "ore", id, d?.Color ?? UiTheme.BrassDark, id == "" ? "" : (d?.TributeWeight ?? 0).ToString(), false);
-        }
         for (int i = 0; i < _steins.Count; i++)
         {
             string id = i < inv.Steins.Count ? inv.Steins[i] : "";
@@ -610,7 +613,7 @@ void fragment(){
             else if (held != null && held.Id != "lantern") parts.Add("RMB use " + held.Name.ToLower());
             if (inv.Steins.Count > 1) parts.Add("F stein slot");
             if (g.OwnAbility != "") parts.Add("Q " + char.ToUpper(g.OwnAbility[0]) + g.OwnAbility.Substring(1));
-            if (inv.Sack.Count > 0) parts.Add("T drop stone");
+            parts.Add(inv.Steins.Count > 0 ? "G tap drop item / hold stuff stein in sack" : "G drop item");
         }
         _hint.Text = string.Join("   |   ", parts);
         _hint.Visible = alive && !PauseMenu.I.IsOpen;

@@ -85,12 +85,15 @@ public static class ItemsServer
         string sig = $"{p.Stats.DarkVision}|{AbilityOf(p)}";
         if (sig != it.StateSig) { it.StateSig = sig; g.ServerSendItemState(p); }
 
-        // sprinting makes (modest) noise so monsters can react
+        // footsteps make noise so monsters can react: sprinting always, walking once the sack is heavy (burden): the radius grows with the load
         it.NoiseAcc += dt;
         if (it.NoiseAcc >= 0.5)
         {
             var flat = p.Pos - it.LastPos; flat.Y = 0;
-            if (it.HasLastPos && it.Sprinting && flat.Length() / it.NoiseAcc > 4f) Game.ServerNoise(p.Pos, 9f, p);
+            float speed = flat.Length() / (float)it.NoiseAcc;
+            float b = p.Burden;
+            if (it.HasLastPos && it.Sprinting && speed > 4f) Game.ServerNoise(p.Pos, Burden.SprintNoise(b), p);
+            else if (it.HasLastPos && speed > 1.5f && Burden.WalkNoise(b) > 0f) Game.ServerNoise(p.Pos, Burden.WalkNoise(b), p);
             it.LastPos = p.Pos; it.HasLastPos = true; it.NoiseAcc = 0;
         }
     }

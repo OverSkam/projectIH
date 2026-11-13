@@ -6,7 +6,7 @@ using Godot;
 namespace AppStein;
 
 /// <summary>
-/// Downed state, looting, feeding a stein, lantern switch. A miner at 0 health is downed for Config.DownedSeconds: crawls very slowly, cannot act,
+/// Downed state, robbing, stuffing a stein into the sack, lantern switch. A miner at 0 health is downed for Config.DownedSeconds: crawls very slowly, cannot act,
 /// can be looted by a living miner, dies when the time runs out or on any further damage (then the usual death: bag, ghost, back next round).
 /// Seam for later steps (drag / revive): ServerPlayer.Downed + <see cref="ServerRevive"/>, and the client side Miner.IsDowned / Miner.LootTargetPeer.
 /// </summary>
@@ -32,11 +32,23 @@ public partial class Game
         Util.Pass("miner_revived", $"name={p.Name}");
     }
 
-    /// <summary>Takes one item (sack first, then steins, then utilities) from a downed miner and gives it to the looter if it fits.</summary>
+    /// <summary>Takes ONE item from a downed miner per press: the most valuable stone of the sack first (highest tribute), then steins, then utilities.
+    /// Stones go straight into the looter's bottomless sack (with their burden).</summary>
     bool ServerLootOne(ServerPlayer looter, ServerPlayer victim)
     {
+        if (victim.Inv.Sack.Count > 0)
+        {
+            int best = 0;
+            for (int i = 1; i < victim.Inv.Sack.Count; i++) if (Ores.WeightOf(victim.Inv.Sack[i]) > Ores.WeightOf(victim.Inv.Sack[best])) best = i;
+            string ore = victim.Inv.Sack[best];
+            victim.Inv.Sack.RemoveAt(best);
+            looter.Inv.Sack.Add(ore);
+            victim.Dirty = true; looter.Dirty = true;
+            SendOwnState(victim);
+            Util.Pass("looted_downed", $"looter={looter.Name} victim={victim.Name} item=ore:{ore}");
+            return true;
+        }
         var order = new List<(string item, Action remove)>();
-        for (int i = victim.Inv.Sack.Count - 1; i >= 0; i--) { int k = i; order.Add(("ore:" + victim.Inv.Sack[k], () => victim.Inv.Sack.RemoveAt(k))); }
         for (int i = 0; i < victim.Inv.Steins.Count; i++)
         {
             int k = i; string id = victim.Inv.Steins[k];
@@ -56,7 +68,7 @@ public partial class Game
             victim.Dirty = true; looter.Dirty = true;
             SendOwnState(victim);
             Util.Pass("looted_downed", $"looter={looter.Name} victim={victim.Name} item={item}");
-            if (!item.StartsWith("ore:")) ServerNotice(looter, "You take: " + ItemInfo.Line(item));
+            ServerNotice(looter, "You take: " + ItemInfo.Line(item));
             return true;
         }
         ServerNotice(looter, "Your hands are full.");
@@ -65,7 +77,7 @@ public partial class Game
 
     // ============================================================ client -> server
     public void SendLoot(int targetPeer) => RpcId(1, nameof(RequestLoot), targetPeer);
-    public void SendFeedStein(int slot) => RpcId(1, nameof(RequestFeedStein), slot);
+    public void SendStuffStein(int slot) => RpcId(1, nameof(RequestStuffStein), slot);
     public void SendToggleLantern() => RpcId(1, nameof(RequestToggleLantern));
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -80,15 +92,14 @@ public partial class Game
         ServerLootOne(p, v);
     }
 
+    /// <summary>Hold G for a second on the selected stein slot (anywhere): the stein is stuffed into the sack and loses its power.</summary>
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void RequestFeedStein(int slot)
+    void RequestStuffStein(int slot)
     {
         if (!Net.I.IsServer) return;
         var p = Sender();
         if (!CanAct(p) || slot < 0 || slot >= p.Inv.Steins.Count) return;
-        var palm = World.Cave.PalmPos;
-        if (new Vector2(p.Pos.X - palm.X, p.Pos.Z - palm.Z).Length() > 5.5f) return;
-        ServerFeedStein(p, slot);
+        ServerStuffStein(p, slot);
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

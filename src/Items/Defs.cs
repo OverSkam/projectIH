@@ -8,8 +8,10 @@ namespace AppStein;
 public class OreDef
 {
     public string Id, Name;
-    /// <summary>Tribute weight on the Scale (fed to the Goblin).</summary>
+    /// <summary>Tribute weight: what the stone is worth when the Goblin weighs your sack.</summary>
     public int TributeWeight;
+    /// <summary>Burden: how much the stone slows you while it is in your (bottomless, never-emptied) sack.</summary>
+    public int Burden = 1;
     public Color Color;
     public float Glow;
     /// <summary>Minimum room depth at which veins of this ore spawn (richer deeper).</summary>
@@ -24,17 +26,25 @@ public static class Ores
     static void Add(OreDef d) => All[d.Id] = d;
     static Ores()
     {
-        Add(new OreDef { Id = "coal", Name = "Coal", TributeWeight = 1, Color = new Color(0.12f, 0.12f, 0.14f), MinDepth = 1, SpawnWeight = 5 });
-        Add(new OreDef { Id = "iron", Name = "Iron", TributeWeight = 2, Color = new Color(0.6f, 0.45f, 0.4f), MinDepth = 1, SpawnWeight = 4 });
-        Add(new OreDef { Id = "silver", Name = "Silver", TributeWeight = 4, Color = new Color(0.8f, 0.85f, 0.9f), Glow = 0.3f, MinDepth = 1, SpawnWeight = 3 });
-        Add(new OreDef { Id = "gold", Name = "Gold", TributeWeight = 7, Color = new Color(1f, 0.8f, 0.1f), Glow = 0.6f, MinDepth = 2, SpawnWeight = 2 });
-        Add(new OreDef { Id = "ruby", Name = "Ruby", TributeWeight = 10, Color = new Color(0.9f, 0.05f, 0.2f), Glow = 1.0f, MinDepth = 2, SpawnWeight = 1 });
-        Add(new OreDef { Id = "diamond", Name = "Diamond", TributeWeight = 14, Color = new Color(0.6f, 0.95f, 1f), Glow = 1.5f, MinDepth = 3, SpawnWeight = 0.6f });
+        Add(new OreDef { Id = "coal", Name = "Coal", TributeWeight = 1, Burden = 3, Color = new Color(0.12f, 0.12f, 0.14f), MinDepth = 1, SpawnWeight = 5 });
+        Add(new OreDef { Id = "iron", Name = "Iron", TributeWeight = 2, Burden = 3, Color = new Color(0.6f, 0.45f, 0.4f), MinDepth = 1, SpawnWeight = 4 });
+        Add(new OreDef { Id = "silver", Name = "Silver", TributeWeight = 4, Burden = 2, Color = new Color(0.8f, 0.85f, 0.9f), Glow = 0.3f, MinDepth = 1, SpawnWeight = 3 });
+        Add(new OreDef { Id = "gold", Name = "Gold", TributeWeight = 7, Burden = 2, Color = new Color(1f, 0.8f, 0.1f), Glow = 0.6f, MinDepth = 2, SpawnWeight = 2 });
+        Add(new OreDef { Id = "ruby", Name = "Ruby", TributeWeight = 10, Burden = 1, Color = new Color(0.9f, 0.05f, 0.2f), Glow = 1.0f, MinDepth = 2, SpawnWeight = 1 });
+        Add(new OreDef { Id = "diamond", Name = "Diamond", TributeWeight = 14, Burden = 1, Color = new Color(0.6f, 0.95f, 1f), Glow = 1.5f, MinDepth = 3, SpawnWeight = 0.6f });
         // special objects: never spawn from veins (Midas leaves the statue, see ItemsServer.OnKilled)
-        Add(new OreDef { Id = "statue", Name = "Gold statue", TributeWeight = 15, Color = new Color(1f, 0.82f, 0.2f), Glow = 0.8f, MinDepth = 99, SpawnWeight = 0 });
+        Add(new OreDef { Id = "statue", Name = "Gold statue", TributeWeight = 15, Burden = 5, Color = new Color(1f, 0.82f, 0.2f), Glow = 0.8f, MinDepth = 99, SpawnWeight = 0 });
+        // a power stein stuffed into the sack: the power is gone for good, it only counts as tribute (Common 6, Rare 12, Legendary 20), burden 1
+        Add(new OreDef { Id = StuffedId(Rarity.Common), Name = "Stuffed Common stein", TributeWeight = 6, Burden = 1, Color = new Color(0.75f, 0.7f, 0.6f), MinDepth = 99, SpawnWeight = 0 });
+        Add(new OreDef { Id = StuffedId(Rarity.Rare), Name = "Stuffed Rare stein", TributeWeight = 12, Burden = 1, Color = new Color(0.35f, 0.65f, 1f), MinDepth = 99, SpawnWeight = 0 });
+        Add(new OreDef { Id = StuffedId(Rarity.Legendary), Name = "Stuffed Legendary stein", TributeWeight = 20, Burden = 1, Color = new Color(1f, 0.55f, 0.15f), MinDepth = 99, SpawnWeight = 0 });
     }
+    public static string StuffedId(Rarity r) => r switch { Rarity.Rare => "stein_r", Rarity.Legendary => "stein_l", _ => "stein_c" };
     public static OreDef Get(string id) => All.TryGetValue(id, out var d) ? d : null;
     public static int WeightOf(string id) => Get(id)?.TributeWeight ?? 0;
+    public static int BurdenOf(string id) => Get(id)?.Burden ?? 1;
+    public static int TributeSum(System.Collections.Generic.IEnumerable<string> sack) { int t = 0; foreach (var o in sack) t += WeightOf(o); return t; }
+    public static int BurdenSum(System.Collections.Generic.IEnumerable<string> sack) { int t = 0; foreach (var o in sack) t += BurdenOf(o); return t; }
 
     /// <summary>Weighted pick; deeper rooms and later rounds unlock richer ore.</summary>
     public static string Pick(RandomNumberGenerator rng, int depth, int round)
@@ -60,7 +70,8 @@ public enum Rarity { Common, Rare, Legendary }
 public sealed class StatBlock
 {
     public float SpeedMul = 1f, JumpMul = 1f, DamageTakenMul = 1f, MeleeDamageMul = 1f, MiningSpeedMul = 1f, RegenPerSec = 0f;
-    public int SackBonus = 0;
+    /// <summary>Multiplier on the burden of everything in the sack (Packmule: 0.5).</summary>
+    public float BurdenMul = 1f;
     public bool NoFallDamage = false;
     /// <summary>Immune to damage with cause "gas".</summary>
     public bool GasImmune = false;
@@ -121,8 +132,8 @@ public static class Steins
         });
         Add(new SteinDef
         {
-            Id = "packmule", Name = "Packmule Stein", Description = "Your sack holds 6 stones instead of 4.", Color = new Color(0.8f, 0.55f, 0.2f),
-            Modify = s => s.SackBonus += 2,
+            Id = "packmule", Name = "Packmule Stein", Description = "Everything in your sack is half as heavy to carry: you slow down half as much.", Color = new Color(0.8f, 0.55f, 0.2f),
+            Modify = s => s.BurdenMul *= 0.5f,
         });
         // ---- Common
         Add(new SteinDef { Id = "strongarm", Name = "Strongarm Stein", Description = "You mine 50% faster and your melee hits do 25% more damage.", Color = new Color(0.85f, 0.3f, 0.2f),
@@ -139,7 +150,7 @@ public static class Steins
         Add(new SteinDef { Id = "ethereal", Name = "Ethereal Stein", Rarity = Rarity.Rare, Description = "Press Q to walk through cracked thin walls for 5 seconds (normal rock still blocks you). 25 second cooldown.", Color = new Color(0.5f, 0.95f, 1f),
             Ability = "ethereal", AbilityCooldown = 25f, AbilityDuration = 5f });
         // ---- Legendary
-        Add(new SteinDef { Id = "midas", Name = "Midas Stein", Rarity = Rarity.Legendary, Description = "A miner you kill turns into a gold statue (weighs 15, takes one sack slot) instead of dropping a bag.", Color = new Color(1f, 0.78f, 0.1f) });
+        Add(new SteinDef { Id = "midas", Name = "Midas Stein", Rarity = Rarity.Legendary, Description = "A miner you kill turns into a gold statue (worth 15, burden 5) instead of dropping a bag. The killer (or whoever finds it) carries it in the sack.", Color = new Color(1f, 0.78f, 0.1f) });
         Add(new SteinDef { Id = "blood", Name = "Blood Stein", Rarity = Rarity.Legendary, Description = "Damage taken -50%, speed +30%, melee damage +80%, regen 1 health/s. You must kill a miner each round: if you have not by the weighing the stein turns to dust and you lose half of this round's tribute.", Color = new Color(0.75f, 0.02f, 0.05f),
             Modify = s => { s.DamageTakenMul *= 0.5f; s.SpeedMul *= 1.3f; s.MeleeDamageMul *= 1.8f; s.RegenPerSec += 1f; },
             OnEvent = ItemsServer.BloodEvent });
@@ -147,7 +158,7 @@ public static class Steins
             OnEvent = ItemsServer.InfinityEvent });
     }
     public static SteinDef Get(string id) => All.TryGetValue(id, out var d) ? d : null;
-    /// <summary>Tribute weight of a power stein when fed to the Goblin: Common 6, Rare 12, Legendary 20.</summary>
+    /// <summary>Tribute weight of a power stein stuffed into the sack: Common 6, Rare 12, Legendary 20.</summary>
     public static int TributeOf(string id) => Get(id)?.Rarity switch { Rarity.Rare => 12, Rarity.Legendary => 20, Rarity.Common => 6, _ => 0 };
     public static string RandomCommon(RandomNumberGenerator rng)
     {

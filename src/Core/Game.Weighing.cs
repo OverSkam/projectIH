@@ -15,6 +15,8 @@ public class WeighView
     public readonly List<(int peer, int weight)> Revealed = new();
     public int CurPeer = -1, CurWeight;       // the pile on the Scale right now
     public float CountSeconds = 1.5f;
+    /// <summary>Seconds after the reveal starts until the Goblin's hand has the sack (reach + lift) and the number starts to count; GrabDelay is when the sack leaves the floor.</summary>
+    public float CountDelay = 1.5f, GrabDelay = 0.8f, RevealSeconds = 4f;
     public double CurAt;
     public int[] Thrown = Array.Empty<int>();
     public bool FinalTwo, RandomTie;
@@ -22,14 +24,14 @@ public class WeighView
     public int Remaining;
     public float ThrowSeconds = 4f;
     /// <summary>Count-up value of the current pile at this moment.</summary>
-    public int ShownWeight(double now) => CountSeconds <= 0.01f ? CurWeight : (int)Math.Round(CurWeight * Math.Clamp((now - CurAt) / CountSeconds, 0.0, 1.0));
+    public int ShownWeight(double now) => CountSeconds <= 0.01f ? CurWeight : (int)Math.Round(CurWeight * Math.Clamp((now - CurAt - CountDelay) / CountSeconds, 0.0, 1.0));
 }
 
 enum WeighStage { Intro, Reveal, Verdict, Throw, Remain }
 
 /// <summary>
 /// The weighing ceremony: server-driven, replicated sequence between two rounds (phase Weighing).
-/// Intro (placement) -> Reveal x N (heaviest first, lightest last) -> Verdict -> Throw -> Remain card -> next round (or match end).
+/// Intro (miners on their tribute rings, sacks drop) -> Reveal x N (the Goblin lifts each sack to his palm and the number counts up; heaviest first, lightest last) -> Verdict -> Throw -> Remain card -> next round (or match end).
 /// Extension points: <see cref="Weighing.Prepare"/>, <see cref="Weighing.BeforeReveal"/>, <see cref="WeighingContext"/> (pile API), <see cref="EliminatedRole"/>.
 /// </summary>
 public partial class Game
@@ -60,16 +62,17 @@ public partial class Game
         if (Phase != GamePhase.Round) return;
         Phase = GamePhase.Weighing;
         var contenders = Contenders();
-        // lock-out: a miner who is not inside the Hall when the lift leaves weighs zero and loses everything they carry
+        // the tribute of a miner is the content of their sack at timer end IF they are inside the Hall. Outside: zero, and the sack is emptied (lost).
         foreach (var p in contenders)
         {
             if (!p.Alive || World.Cave.InHall(p.Pos)) continue;
-            int lostWeight = p.TributeWeight, lostItems = p.Inv.ToItemList().Count;
-            if (p.Inv.Steins.Contains("infinity")) { InfinityTracker.Reset(); InfinityTracker.Spawned = false; }
-            p.TributeWeight = 0; p.Inv.Clear(); p.NeedsKit = true; p.RecalcStats(); p.Dirty = true;
-            Util.Pass("locked_out", $"name={p.Name} lost_weight={lostWeight} lost_items={lostItems}");
-            ServerNotice(p, "The lift left without you. Everything you carried is lost and you weigh nothing.");
+            int lostWeight = p.TributeWeight, lostStones = p.Inv.Sack.Count;
+            p.Inv.Sack.Clear(); p.TributeAdj = 0; p.Dirty = true;
+            Util.Pass("locked_out", $"name={p.Name} lost_weight={lostWeight} lost_stones={lostStones}");
+            ServerNotice(p, "The lift left without you. Your sack is lost and you weigh nothing.");
         }
+        foreach (var p in contenders)
+            Util.Pass("tribute_counted", $"name={p.Name} weight={p.TributeWeight} stones={p.Inv.Sack.Count} burden={p.Burden:0.#} in_hall={p.Alive && World.Cave.InHall(p.Pos)} alive={p.Alive}");
         foreach (var p in contenders) p.Fire(new SteinEvent { Kind = SteinEventKind.RoundEnd });
         Util.Log($"ROUND: {Round} end");
         if (ForcedWinner != null) { ServerEndMatch(); return; }
@@ -78,21 +81,27 @@ public partial class Game
         foreach (var p in contenders) ctx.Piles.Add(new WeighPile { Peer = p.Peer, Name = p.Name, Weight = p.TributeWeight });
         Weighing.RaisePrepare(ctx);
 
-        // everyone who is still in the match stands in the Hall, facing the Scale
+        // everyone who is still in the match stands on their tribute ring in the Hall; the sack drops in front of it
         var spots = new Vector3[contenders.Count];
+        var sizes = new int[contenders.Count];
         for (int i = 0; i < contenders.Count; i++)
         {
             var p = contenders[i];
-            spots[i] = World.Cave.WeighSpots[i % World.Cave.WeighSpots.Count];
+            int rank = Array.IndexOf(_roundPeers, p.Peer); if (rank < 0) rank = i;
+            spots[i] = World.Cave.RingSpot(rank, Math.Max(1, _roundPeers.Length));
+            sizes[i] = SizeClass(ctx.Pile(p.Peer)?.Weight ?? 0);
             p.Pos = spots[i]; p.Alive = true; p.Downed = false; p.Health = ServerPlayer.MaxHealth; p.Dirty = true;
         }
         _weigh = new WeighRun { Stage = WeighStage.Intro, Ctx = ctx };
         _phaseTimer = Config.WeighIntroSeconds;
-        Rpc(nameof(ClientWeighBegin), Round, contenders.Select(p => p.Peer).ToArray(), spots);
+        Rpc(nameof(ClientWeighBegin), Round, contenders.Select(p => p.Peer).ToArray(), spots, sizes);
         ServerCue("weigh_start", "r" + Round, Round.ToString());
         foreach (var p in Players.Values) SendOwnState(p);
         Util.Log($"WEIGH: begin round={Round} piles={string.Join(",", ctx.Piles.Select(x => x.Name + "=" + x.Weight))}");
     }
+
+    /// <summary>The only thing about a sack that is visible before its reveal: a vague size class 0..4 (the model scales "a bit" with the tribute).</summary>
+    static int SizeClass(int weight) => weight <= 0 ? 0 : weight <= 8 ? 1 : weight <= 20 ? 2 : weight <= 40 ? 3 : 4;
 
     void ServerWeighTick(float dt)
     {
@@ -120,7 +129,7 @@ public partial class Game
                     w.Stage = WeighStage.Reveal;
                     int left = w.Ctx.Piles.Count(p => !p.Revealed);
                     Util.Log($"WEIGH: reveal #{w.Index} {next.Name} weight={next.Weight} notes={string.Join("|", next.Notes)}");
-                    Rpc(nameof(ClientWeighReveal), w.Index++, next.Peer, next.Weight, Config.RevealCountSeconds, left);
+                    Rpc(nameof(ClientWeighReveal), w.Index++, next.Peer, next.Weight, Config.RevealCountSeconds, left, Config.RevealSeconds);
                     _phaseTimer = Config.RevealSeconds;
                     break;
                 }
@@ -142,7 +151,7 @@ public partial class Game
                     p.Eliminated = true; p.EliminatedRound = Round; p.EliminationSeq = ++_elimSeq;
                     p.Participant = false; p.Alive = false; p.Downed = false;
                     if (p.Inv.Steins.Contains("infinity")) { InfinityTracker.Reset(); InfinityTracker.Spawned = false; }
-                    p.Inv.Clear(); p.RecalcStats(); p.Dirty = true;
+                    p.Inv.Clear(); p.TributeAdj = 0; p.RecalcStats(); p.Dirty = true;
                     Util.Pass("miner_eliminated", $"name={p.Name} round={Round}");
                     EliminatedRole.OnEliminated(this, p);
                 }
@@ -152,7 +161,8 @@ public partial class Game
             }
             case WeighStage.Throw:
             {
-                foreach (var p in Players.Values) { p.TributeWeight = 0; p.Dirty = true; }   // tribute is per round: reset after each weighing
+                // every sack is emptied after the weighing (tribute is per round)
+                foreach (var p in Players.Values) { p.Inv.Sack.Clear(); p.TributeAdj = 0; p.Dirty = true; }
                 int remaining = Contenders().Count;
                 if (remaining <= 1) { Util.Pass("final_weighing", $"round={Round}"); ServerEndMatch(); break; }
                 w.Stage = WeighStage.Remain;
@@ -171,31 +181,34 @@ public partial class Game
 
     // ============================================================ CLIENT handlers (all peers, including the host)
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void ClientWeighBegin(int round, int[] peers, Vector3[] spots)
+    void ClientWeighBegin(int round, int[] peers, Vector3[] spots, int[] sizes)
     {
         if (World == null) return;
         Phase = GamePhase.Weighing;
         Weigh = new WeighView { Round = round, Peers = peers, StageAt = ClientNow };
-        var scale = World.Cave.ScalePos;
+        var facing = World.Cave.GoblinSeat + new Vector3(0, 0, 4f);   // everyone on a ring looks up at the Goblin
         for (int i = 0; i < peers.Length; i++)
         {
-            var d = scale - spots[i];
+            var d = facing - spots[i];
             var m = SpawnMinerNode(peers[i], spots[i], Net.I.NameOf(peers[i]), "");
             m?.FaceYaw(Mathf.Atan2(-d.X, -d.Z));
             Status[peers[i]] = MinerStatus.Alive; Alive[peers[i]] = true;
         }
         OwnDowned = false;
+        HallCeremony.I?.BeginSacks(peers, spots, sizes);
         PhaseChanged?.Invoke(); WeighChanged?.Invoke();
-        Util.Pass("weigh_begin", $"round={round} miners={peers.Length}");
+        Util.Pass("weigh_begin", $"round={round} miners={peers.Length} sacks={peers.Length}");
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void ClientWeighReveal(int index, int peer, int weight, float countSeconds, int left)
+    void ClientWeighReveal(int index, int peer, int weight, float countSeconds, int left, float revealSeconds)
     {
         if (Weigh == null) return;
         Weigh.Stage = "reveal"; Weigh.StageAt = ClientNow;
         Weigh.Revealed.Add((peer, weight));
         Weigh.CurPeer = peer; Weigh.CurWeight = weight; Weigh.CountSeconds = countSeconds; Weigh.CurAt = ClientNow;
+        // the hand reaches for the sack (first quarter), lifts it to the palm (up to 45%), then the number counts up
+        Weigh.RevealSeconds = revealSeconds; Weigh.GrabDelay = revealSeconds * 0.25f; Weigh.CountDelay = revealSeconds * 0.45f;
         string name = Net.I.NameOf(peer);
         string cat = weight == 0 ? "reveal_zero" : left == 0 ? "reveal_last" : index == 0 ? "reveal_first" : "reveal_mid";
         Cue(cat, $"{Weigh.Round}:{index}", name, weight.ToString());
