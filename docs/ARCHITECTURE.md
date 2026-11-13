@@ -1,5 +1,7 @@
 # App Stein — Architecture (v2.1 rules)
 
+> Where older sections below mention feeding the Goblin, sack slots, `HallScale` or `FilmGrain`, the section **v2.1** at the end overrides them.
+
 Godot 4.7.2 .NET, C# only. Everything (scenes, meshes, UI) is built in code; `scenes/Main.tscn` is a single node with `src/Core/Main.cs`.
 Game data lives in static C# registries (`src/Items/Defs.cs`), not `.tres`.
 
