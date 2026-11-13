@@ -35,5 +35,6 @@ void fragment(){
         Apply();
     }
 
+    public override void _ExitTree() { I = null; }
     public void Apply() { if (_rect != null) _rect.Visible = UserSettings.FilmGrain; }
 }

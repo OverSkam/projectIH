@@ -28,6 +28,7 @@ public class ExplorerBot : IMinerController
     string _mode = "explore";
     double _pathLenT; float _pathLen = 30f;
     bool _trapPassed, _deliberateTrap; Vector3 _trapBeyond;
+    int _leverRound = -1, _monRound = -1, _trapDuds; float _hpAtTrap;
     static int _trapRuns;   // deliberate trap visits completed in this process (= this match)
     bool _crossing; double _etherealUntil;
 
@@ -169,6 +170,25 @@ public class ExplorerBot : IMinerController
             }
             if (tb != null) { _target = tb; _targetSince = _clock; _targetTries = 0; _trapPassed = false; _stuckCount = 0; _crossing = false; _deliberateTrap = true; return; }
         }
+        if (_brave && g.TimeLeft > 40f && _leverRound != g.Round)
+        {
+            foreach (var o in g.World.Objects.Values)
+                if (o is LeverObj lv && Kv(lv, "s") == "ready" && !_skip.Contains(o.Id) && !cave.InHall(o.GlobalPosition) && Reachable(cave, o.GlobalPosition, 3.2f))
+                { _leverRound = g.Round; _target = lv; _targetSince = _clock; _targetTries = 0; _trapPassed = false; _stuckCount = 0; _crossing = false; return; }
+        }
+        // ... and walk up to a golem once per round (they hit hard; golems cannot be killed), so "a monster hurt a miner" is not left to chance either
+        if (_brave && (_trapRuns >= 1 || g.TimeLeft < 85f) && g.TimeLeft > 40f && _monRound != g.Round)
+        {
+            MonsterObj gb = null; float gbs = float.MaxValue;
+            foreach (var o in g.World.Objects.Values)
+            {
+                if (o is not MonsterObj mo || mo.Kind != "golem" || mo.State == MonsterState.Stunned || _skip.Contains(o.Id) || cave.InHall(o.GlobalPosition)) continue;
+                if (!Reachable(cave, o.GlobalPosition, 4.5f)) continue;
+                float d = Flat(o.GlobalPosition).DistanceTo(Flat(pos));
+                if (d < gbs) { gbs = d; gb = mo; }
+            }
+            if (gb != null) { Util.Log("EXPLORER golem run id=" + gb.Id + " dist=" + gbs); _monRound = g.Round; _target = gb; _targetSince = _clock; _targetTries = 0; _trapPassed = false; _stuckCount = 0; _crossing = false; return; }
+        }
         bool chestFirst = !_brave && g.TimeLeft > 55f;   // the thin-wall chest is far away: go for it early
         foreach (var o in g.World.Objects.Values)
         {
@@ -274,7 +294,7 @@ public class ExplorerBot : IMinerController
                     {
                         if (Walk(m, ref inp, op, 0.35f))
                         {
-                            if (_holdUntil == 0) { _holdUntil = _clock + 2.5; _trapBeyond = op + Flat(op - pos).Normalized() * 5f; }
+                            if (_holdUntil == 0) { _holdUntil = _clock + (_deliberateTrap ? 6.0 : 2.5); _hpAtTrap = g.OwnHealth; _trapBeyond = op + Flat(op - pos).Normalized() * 5f; }
                             inp.Move = Vector2.Zero;
                             if (_clock > _holdUntil) { _trapPassed = true; _holdUntil = _clock + 4; }
                         }
@@ -282,7 +302,7 @@ public class ExplorerBot : IMinerController
                     else
                     {
                         Walk(m, ref inp, _trapBeyond, 1.2f);
-                        if (_clock > _holdUntil) { _holdUntil = 0; if (_deliberateTrap) { _trapRuns++; _deliberateTrap = false; Util.Log("EXPLORER deliberate trap run done"); } Drop(); }
+                        if (_clock > _holdUntil) { _holdUntil = 0; if (_deliberateTrap) { if (g.OwnHealth < _hpAtTrap - 0.5f || ++_trapDuds >= 3) { _trapRuns++; Util.Log("EXPLORER deliberate trap run done hp " + _hpAtTrap + " -> " + g.OwnHealth); } _deliberateTrap = false; } Drop(); }
                     }
                     break;
                 }
