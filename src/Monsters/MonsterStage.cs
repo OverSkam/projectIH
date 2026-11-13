@@ -41,10 +41,10 @@ public static class MonsterStage
         if (cam == null) { Util.Log("STAGE: needs --camroom=0 (debug camera)"); _done = true; return; }
         _done = true;
         float dist = float.TryParse(Util.Arg("camdist", _mode == "lampcompare" ? "12" : "4"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var dd) ? dd : 4f;
-        string kind = _mode == "lampcompare" ? "lamplighter" : _mode;
+        string kind = _mode == "lampcompare" ? "lamplighter" : _mode == "golemtunnel" ? "golem" : _mode;
         var space = d.GetViewport().World3D.DirectSpaceState;
         Vector3 monPos, camPos, dir;
-        if (kind == "plug" && ModularCave.Last is { } mc0 && mc0.Tunnels.Count > 0)
+        if ((_mode == "plug" || _mode == "golemtunnel") && ModularCave.Last is { } mc0 && mc0.Tunnels.Count > 0)
         {
             var t = mc0.Tunnels.FirstOrDefault(x => x.Kind == 0) ?? mc0.Tunnels[0];
             dir = t.AlongX ? Vector3.Right : Vector3.Back;

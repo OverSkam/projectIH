@@ -211,7 +211,8 @@ public abstract partial class MonsterObj : NetObject
             case MonsterState.Investigate:
                 if (!Arrived)
                 {
-                    if (MoveTo(Goal, InvestigateSpeed, dt, false, 1.5f) || StuckT > 3f) { Arrived = true; Timer = MonsterTuning.SearchSeconds; }
+                    if (StuckT > 3f) StartPatrol();   // cannot get there (a crawl, a vein, rubble): give up at once
+                    else if (MoveTo(Goal, InvestigateSpeed, dt, false, 1.5f)) { Arrived = true; Timer = MonsterTuning.SearchSeconds; }
                 }
                 else
                 {
