@@ -47,8 +47,8 @@ public static class LootTuning
 
     // ------------------------------------------------------------------ chests
     public const float HoldSeconds = 2.5f, HoldReach = 3.6f;
-    public static readonly float[] ChestLight = { 1.2f, 2.2f, 3.6f };
-    public static readonly float[] ChestRange = { 5f, 6.5f, 8.5f };
+    public static readonly float[] ChestLight = { 2.2f, 3.8f, 6.5f };
+    public static readonly float[] ChestRange = { 6f, 8f, 10.5f };
     public static readonly int[] ChestMinStones = { 3, 4, 5 };
     public static readonly int[] ChestMaxStones = { 4, 5, 6 };
     public static readonly float[] ChestSteinChance = { 0.08f, 0.18f, 0.40f };

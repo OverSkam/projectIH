@@ -42,10 +42,11 @@ public partial class GlowChestObj : NetObject, IRootable, IExplodable
     // ---- client visuals
     Node3D _lid, _model;
     OmniLight3D _light;
-    MeshInstance3D _halo, _rim, _inside, _tongue;
+    MeshInstance3D _halo, _column, _rim, _inside, _tongue;
     readonly List<MeshInstance3D> _glowParts = new();
     readonly List<Node3D> _legs = new();
     CpuParticles3D _motes;
+    string _shown = "closed";
     double _t, _stillT, _nextBreath, _nextScuttle;
     float _lidAngle, _baseLight, _baseHalo, _yawTarget;
     float _scale = 1f;
@@ -75,10 +76,10 @@ public partial class GlowChestObj : NetObject, IRootable, IExplodable
         _scale = Tier switch { 0 => 1.0f, 1 => 1.1f, _ => 1.22f };
         _model = new Node3D { Scale = Vector3.One * _scale, Rotation = new Vector3(0, ((Id * 37) % 4) * Mathf.Pi / 2f + ((Id * 13) % 7 - 3) * 0.05f, 0) };
         AddChild(_model);
-        Color wood = Tier switch { 0 => new Color(0.30f, 0.17f, 0.07f), 1 => new Color(0.17f, 0.18f, 0.21f), _ => new Color(0.62f, 0.46f, 0.1f) };
+        Color wood = Tier switch { 0 => new Color(0.34f, 0.19f, 0.08f), 1 => new Color(0.26f, 0.28f, 0.33f), _ => new Color(0.7f, 0.52f, 0.12f) };
         Color band = Tier switch { 0 => new Color(0.18f, 0.17f, 0.16f), 1 => new Color(0.38f, 0.4f, 0.45f), _ => new Color(0.95f, 0.78f, 0.2f) };
         Color gold = new Color(1f, 0.78f, 0.22f);
-        float seamE = Tier switch { 0 => 2.4f, 1 => 3.6f, _ => 5.5f };
+        float seamE = Tier switch { 0 => 3.2f, 1 => 4.6f, _ => 6.5f };
         Color lightCol = Tier == 2 ? new Color(1f, 0.82f, 0.45f) : new Color(1f, 0.74f, 0.36f);
 
         var body = Util.BoxMesh(new Vector3(1.1f, 0.55f, 0.7f), wood, Tier == 2 ? 0.35f : 0f); body.Position = new Vector3(0, 0.275f, 0); _model.AddChild(body);
@@ -108,15 +109,21 @@ public partial class GlowChestObj : NetObject, IRootable, IExplodable
             var c = Util.BoxMesh(new Vector3(0.1f, 0.12f, 0.1f), band, Tier == 0 ? 0f : 1f); c.Position = new Vector3(x, 0.06f, z); _model.AddChild(c);
         }
         // inside: a pool of light, seen when the lid is up
-        _inside = Util.BoxMesh(new Vector3(1.0f, 0.04f, 0.6f), new Color(1f, 0.85f, 0.4f), 6f); _inside.Position = new Vector3(0, 0.52f, 0); _inside.Visible = false; _model.AddChild(_inside);
+        _inside = Util.BoxMesh(new Vector3(1.0f, 0.06f, 0.6f), new Color(1f, 0.85f, 0.4f), 6f); _inside.Position = new Vector3(0, 0.52f, 0); _inside.Visible = false; _model.AddChild(_inside);
 
         AddChild(Util.BoxShape(new Vector3(1.15f * _scale, 0.8f * _scale, 0.75f * _scale), new Vector3(0, 0.4f * _scale, 0)));
         _baseLight = LootTuning.ChestLight[Tier];
         _light = new OmniLight3D { LightColor = lightCol, LightEnergy = _baseLight, OmniRange = LootTuning.ChestRange[Tier], Position = new Vector3(0, 0.95f * _scale, 0), ShadowEnabled = false };
         AddChild(_light);
-        _baseHalo = Tier switch { 0 => 0.20f, 1 => 0.32f, _ => 0.5f };
-        _halo = LootVis.Halo(lightCol, (Tier switch { 0 => 2.4f, 1 => 3.2f, _ => 4.4f }), _baseHalo, new Vector3(0, 0.55f * _scale, 0));
+        _baseHalo = Tier switch { 0 => 0.32f, 1 => 0.5f, _ => 0.72f };
+        _halo = LootVis.Halo(lightCol, (Tier switch { 0 => 3.6f, 1 => 5.4f, _ => 7.5f }), _baseHalo, new Vector3(0, 0.55f * _scale, 0));
         AddChild(_halo);
+        // a tall soft column of glow: the beacon that shows over a pillar or down a tunnel (always upright, faces the viewer)
+        float colH = Tier switch { 0 => 3.6f, 1 => 4.8f, _ => 6.5f };
+        _column = LootVis.Halo(lightCol, 1f, _baseHalo * 0.8f, new Vector3(0, colH * 0.45f, 0));
+        ((QuadMesh)_column.Mesh).Size = new Vector2(colH * 0.32f, colH);
+        ((StandardMaterial3D)_column.MaterialOverride).BillboardMode = BaseMaterial3D.BillboardModeEnum.FixedY;
+        AddChild(_column);
         if (Tier > 0 && DisplayServer.GetName() != "headless")
         {
             _motes = new CpuParticles3D
@@ -128,6 +135,7 @@ public partial class GlowChestObj : NetObject, IRootable, IExplodable
             AddChild(_motes);
         }
         BuildMimicParts(wood);
+        _shown = State;
         ApplyState(State, true);
     }
 
@@ -138,8 +146,8 @@ public partial class GlowChestObj : NetObject, IRootable, IExplodable
         for (int i = 0; i < 7; i++)
         {
             float x = -0.46f + i * 0.153f;
-            var up = Util.BoxMesh(new Vector3(0.07f, 0.16f, 0.07f), tooth); up.Position = new Vector3(x, -0.02f, -0.7f); up.Rotation = new Vector3(0, 0, 0.0f); _lid.AddChild(up);
-            var dn = Util.BoxMesh(new Vector3(0.07f, 0.16f, 0.07f), tooth); dn.Position = new Vector3(x + 0.07f, 0.62f, -0.36f); _model.AddChild(dn);
+            var up = Util.BoxMesh(new Vector3(0.1f, 0.24f, 0.1f), tooth, 0.4f); up.Position = new Vector3(x, -0.02f, -0.7f); up.Rotation = new Vector3(0, 0, 0.0f); _lid.AddChild(up);
+            var dn = Util.BoxMesh(new Vector3(0.1f, 0.22f, 0.1f), tooth, 0.4f); dn.Position = new Vector3(x + 0.07f, 0.62f, -0.36f); _model.AddChild(dn);
             up.Visible = dn.Visible = false; up.Name = "Tooth"; dn.Name = "Tooth";
         }
         _tongue = Util.BoxMesh(new Vector3(0.5f, 0.05f, 0.5f), new Color(0.75f, 0.1f, 0.14f), 1.5f); _tongue.Position = new Vector3(0, 0.5f, -0.05f); _tongue.Visible = false; _model.AddChild(_tongue);
@@ -164,10 +172,11 @@ public partial class GlowChestObj : NetObject, IRootable, IExplodable
 
     public override void ApplyData(string data)
     {
-        string old = State;
         base.ApplyData(data);
         Parse();
         if (_model == null) return;
+        string old = _shown;   // (the server sets State before it replicates, so compare with what this peer last showed)
+        _shown = State;
         ApplyState(State, false, old);
     }
 
@@ -197,7 +206,7 @@ public partial class GlowChestObj : NetObject, IRootable, IExplodable
         }
         SetMimicParts(st == "bite", st is "run" or "stun");
         _inside.Visible = st == "open";
-        if (st == "bite") _inside.MaterialOverride = Util.Mat(new Color(0.9f, 0.1f, 0.1f), 4f);
+        if (st == "bite") _inside.MaterialOverride = Util.Mat(new Color(1f, 0.08f, 0.06f), 7f);
         else if (st == "open") _inside.MaterialOverride = Util.Mat(new Color(1f, 0.85f, 0.4f), 6f);
     }
 
@@ -228,8 +237,8 @@ public partial class GlowChestObj : NetObject, IRootable, IExplodable
                 break;
             case "open": lidTarget = -1.95f; lightMul = 0.32f; _model.Position = Vector3.Zero; break;
             case "bite":
-                lidTarget = -(0.55f + 0.55f * Mathf.Abs(Mathf.Sin((float)_t * 7.5f)));
-                lightMul = 1.4f + 0.7f * Mathf.Sin((float)_t * 20f);
+                lidTarget = -(0.55f + 0.95f * Mathf.Abs(Mathf.Sin((float)_t * 7.5f)));
+                lightMul = 2.4f + 1.2f * Mathf.Sin((float)_t * 20f);
                 _model.Position = new Vector3(0.02f * Mathf.Sin((float)_t * 45f), 0.04f * Mathf.Abs(Mathf.Sin((float)_t * 7.5f)), 0.02f * Mathf.Cos((float)_t * 38f));
                 break;
             case "run":
@@ -250,6 +259,7 @@ public partial class GlowChestObj : NetObject, IRootable, IExplodable
         _light.LightEnergy = e;
         if (State == "bite") _light.LightColor = new Color(1f, 0.15f, 0.1f); else if (State != "open") _light.LightColor = Tier == 2 ? new Color(1f, 0.82f, 0.45f) : new Color(1f, 0.74f, 0.36f);
         LootVis.SetAlpha(_halo, _baseHalo * haloPulse * (State == "open" ? 0.4f : 1f) * (State == "bite" ? 1.2f : 1f));
+        LootVis.SetAlpha(_column, _baseHalo * 0.8f * haloPulse * (State == "open" ? 0.25f : 1f));
         if (State == "run" && _renderPos != Vector3.Zero)
         {
             var d = _renderPos - GlobalPosition;
@@ -420,6 +430,9 @@ public partial class GlowChestObj : NetObject, IRootable, IExplodable
         SetState("stun");
         Util.Pass("mimic_stunned", $"id={Id} secs={seconds:0.#} back={_stunBack}");
     }
+
+    /// <summary>Staging only (--l2stage=openchest:tier@...): opens the chest as if p held E for 2.5 s.</summary>
+    public void ServerDebugOpen(ServerPlayer p) => Open(p);
 
     void Open(ServerPlayer p)
     {

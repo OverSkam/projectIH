@@ -51,7 +51,6 @@ public static class Loot2Debug
         if (!Net.I.IsServer) return;
         int room = int.TryParse(Util.Arg("l2room", Util.Arg("camroom", "1")), out var rn) ? rn : 1;
         var anchor = g.World.Cave.Rooms[Mathf.Clamp(room, 0, g.World.Cave.Rooms.Count - 1)].Center with { Y = 0 };
-        anchor.Y = g.World.Cave.Rooms[Mathf.Clamp(room, 0, g.World.Cave.Rooms.Count - 1)].Bounds.Position.Y;
         foreach (var tok in Util.Arg("l2stage").Split(';', StringSplitOptions.RemoveEmptyEntries))
         {
             int at = tok.IndexOf('@');
@@ -65,6 +64,14 @@ public static class Loot2Debug
                         string st = spec[0] switch { "chestopen" => "open", "bite" => "bite", "stun" => "stun", _ => "closed" };
                         int id = g.ServerSpawnObject("bchest", pos, GlowChestObj.MakeData(int.Parse(spec[1]), st, spec[0] is "mimic" or "bite" or "stun", 0));
                         if (g.World.Objects.TryGetValue(id, out var o) && o is GlowChestObj c) { c.Mimic = spec[0] is "mimic" or "bite" or "stun"; c.Frozen = true; }
+                        break;
+                    }
+                case "openchest":
+                    {
+                        int id = g.ServerSpawnObject("bchest", pos, GlowChestObj.MakeData(int.Parse(spec[1]), "closed", false));
+                        var chest = (GlowChestObj)g.World.Objects[id];
+                        float when = float.TryParse(Util.Arg("l2burst", "2"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var w2) ? w2 : 2f;
+                        g.GetTree().CreateTimer(when).Timeout += () => { if (g.World != null && g.World.Objects.ContainsKey(id)) chest.ServerDebugOpen(g.Players.Values.First()); };
                         break;
                     }
                 case "burst":

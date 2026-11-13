@@ -97,25 +97,25 @@ public partial class GeodeObj : NetObject
         }
         // seams: two sets, visible after hit 1 and hit 2 (the second set is longer and wider). Colour is neutral warm white: it must not hint at the result.
         _seamRoot = new Node3D(); _shell.AddChild(_seamRoot);
-        var seamCol = new Color(1f, 0.93f, 0.72f);
+        var seamCol = new Color(1f, 0.66f, 0.24f);
         for (int set = 0; set < 2; set++)
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 5; i++)
             {
                 var dir = new Vector3(rng.RandfRange(-1, 1), rng.RandfRange(-0.35f, 1f), rng.RandfRange(-1, 1)).Normalized();
                 var pivot = new Node3D { Basis = Basis.LookingAt(dir, Vector3.Up) * new Basis(Vector3.Back, rng.Randf() * Mathf.Tau) };
-                float len = r * (set == 0 ? rng.RandfRange(0.5f, 0.8f) : rng.RandfRange(0.9f, 1.4f));
-                float wid = 0.012f + set * 0.016f + r * 0.02f;
-                var seam = Util.BoxMesh(new Vector3(len, wid, 0.03f), seamCol, 4f + set * 3f);
-                seam.Position = new Vector3(0, 0, -r * 0.93f);
+                float len = r * (set == 0 ? rng.RandfRange(0.6f, 0.9f) : rng.RandfRange(1.0f, 1.5f));
+                float wid = 0.03f + set * 0.03f + r * 0.05f;
+                var seam = Util.BoxMesh(new Vector3(len, wid, 0.06f), seamCol, 1.5f + set * 1.0f);
+                seam.Position = new Vector3(0, 0, -r * 0.86f);
                 pivot.AddChild(seam);
                 _seamRoot.AddChild(pivot);
                 _seams[set].Add(seam);
                 seam.Visible = false;
             }
         AddChild(Util.BoxShape(new Vector3(r * 2f, r * 1.8f, r * 2f), new Vector3(0, r * 0.9f, 0)));
-        _glow = new OmniLight3D { Position = new Vector3(0, r * 1.1f, 0), LightColor = new Color(1f, 0.9f, 0.7f), LightEnergy = 0f, OmniRange = 2.5f, ShadowEnabled = false, Visible = false };
+        _glow = new OmniLight3D { Position = new Vector3(0, r * 1.1f, 0), LightColor = new Color(1f, 0.82f, 0.5f), LightEnergy = 0f, OmniRange = 2.5f, ShadowEnabled = false, Visible = false };
         AddChild(_glow);
-        _halo = LootVis.Halo(new Color(1f, 0.9f, 0.7f), r * 3f, 0.0f, new Vector3(0, r * 0.9f, 0));
+        _halo = LootVis.Halo(new Color(1f, 0.82f, 0.5f), r * 5f, 0.0f, new Vector3(0, r * 0.9f, 0));
         _halo.Visible = false;
         AddChild(_halo);
         Show(Hits, false);
@@ -126,10 +126,10 @@ public partial class GeodeObj : NetObject
         float r = RadiusOf(Size);
         for (int s = 0; s < 2; s++) foreach (var m in _seams[s]) m.Visible = hits > s;
         _glow.Visible = hits > 0;
-        _glow.LightEnergy = hits switch { 0 => 0f, 1 => 0.8f + Size * 0.3f, _ => 2.2f + Size * 0.7f };
-        _glow.OmniRange = hits switch { 0 => 2f, 1 => 3.2f, _ => 5.2f } + Size * 0.5f;
+        _glow.LightEnergy = hits switch { 0 => 0f, 1 => 1.2f + Size * 0.4f, _ => 3.4f + Size * 1.0f };
+        _glow.OmniRange = hits switch { 0 => 2f, 1 => 3.6f, _ => 6f } + Size * 0.6f;
         _halo.Visible = hits > 0;
-        LootVis.SetAlpha(_halo, hits switch { 0 => 0f, 1 => 0.16f, _ => 0.38f });
+        LootVis.SetAlpha(_halo, hits switch { 0 => 0f, 1 => 0.3f, _ => 0.62f });
         if (!flash || hits <= 0) return;
         // the hit: a jolt, a spike of light, dust chips
         var tw = CreateTween();

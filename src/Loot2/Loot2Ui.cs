@@ -17,6 +17,8 @@ public static class Loot2Client
     public static int HoldMessages;
 
     public static void Reset() { Holding = false; HoldId = 0; }
+    /// <summary>Screenshot staging (--l2ui=toast): shows the hold bar at this progress.</summary>
+    public static void DebugHold(float p) { Holding = true; HoldId = -1; _start = Now - p * LootTuning.HoldSeconds; }
 
     /// <summary>A hold the server never answered (lost message, chest gone) must not stay on screen: give up shortly after the 2.5 s are over.</summary>
     public static void Watchdog() { if (Holding && Now - _start > LootTuning.HoldSeconds + 2.5) { Holding = false; Util.Pass("chest_hold_timeout"); } }
@@ -70,6 +72,7 @@ public partial class Loot2Ui : CanvasLayer
     Camera3D _shakeCam; Vector3 _baseRot; float _baseH, _baseV;
     List<string> _prevSack = new(), _prevSteins = new();
     bool _baseline;
+    float _quietUntil;   // round timer value: no toasts while more than that is left (the start kit arrives with the first own states)
     readonly RandomNumberGenerator _rng = new();
     public static int ToastsShown;
 
@@ -98,11 +101,20 @@ public partial class Loot2Ui : CanvasLayer
         _toasts = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         _toasts.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         _toasts.GrowHorizontal = Control.GrowDirection.Both;
-        _toasts.OffsetTop = 96; _toasts.OffsetBottom = 300;
+        _toasts.OffsetTop = 140; _toasts.OffsetBottom = 340;
         _toasts.AddThemeConstantOverride("separation", 2);
         AddChild(_toasts);
         Game.I.OwnChanged += OnOwn;
-        Game.I.PhaseChanged += () => { _baseline = false; Loot2Client.Reset(); };
+        if (Util.HasArg("l2ui"))
+            GetTree().CreateTimer(Util.Arg("l2uit", "3").ToFloat()).Timeout += () =>
+            {
+                Loot2Client.DebugHold(0.55f);
+                Toast("+10 RUBY", LootTuning.ColorOfItem("ore:ruby"), "tribute +10   burden +1", 2);
+                Toast("+4 SILVER", LootTuning.ColorOfItem("ore:silver"), "tribute +4   burden +2", 1);
+                Toast("LUCK STEIN", LootTuning.ColorOfItem("stein:luck"), "RARE POWER STEIN", 3);
+            };
+        _quietUntil = Game.I.TimeLeft - 3.5f;
+        Game.I.PhaseChanged += () => { _baseline = false; _quietUntil = Game.I.TimeLeft - 3.5f; Loot2Client.Reset(); };
     }
 
     public void Flash(Color c, float alpha, float secs)
@@ -173,7 +185,7 @@ public partial class Loot2Ui : CanvasLayer
     {
         var g = Game.I; var inv = g.OwnInv;
         if (inv == null || g.Phase != GamePhase.Round) return;
-        if (!_baseline || inv.Sack.Count < _prevSack.Count) { _baseline = true; _prevSack = new List<string>(inv.Sack); _prevSteins = new List<string>(inv.Steins); return; }
+        if (g.TimeLeft > _quietUntil || !_baseline || inv.Sack.Count < _prevSack.Count) { _baseline = true; _prevSack = new List<string>(inv.Sack); _prevSteins = new List<string>(inv.Steins); return; }
         var added = inv.Sack.Skip(_prevSack.Count).ToList();
         var steinsNew = new List<string>(inv.Steins);
         foreach (var s in _prevSteins) steinsNew.Remove(s);
