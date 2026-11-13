@@ -7,8 +7,9 @@ cd "$(dirname "$0")/.."
 PORT="${PORT:-7777}"
 TIMEOUT="${TIMEOUT:-120}"
 LOGDIR="${LOGDIR:-$(mktemp -d)}"
-mkdir -p "$LOGDIR"; rm -f "$LOGDIR"/*.log
+mkdir -p "$LOGDIR"; rm -f "${LOGDIR:?}"/*.log
 RC=0
+CAVE="--cave=greybox"
 fail() { echo "MONSTERS FAIL: $*"; RC=1; }
 
 echo "== build"
@@ -19,16 +20,17 @@ godot --headless --path . --import > "$LOGDIR/import.log" 2>&1
 # run_scenario <name> <autostart> <host-pass-list> <alice-pass-list> <bob? 0|1> <alice extra args>
 run_scenario() {
   local name="$1" autostart="$2" hostpass="$3" alicepass="$4" bob="$5"; shift 5
+  if [ -n "${ONLY:-}" ] && [ "$ONLY" != "$name" ]; then return; fi
   local L="$LOGDIR/$name"; mkdir -p "$L"
   echo "== scenario $name"
   local PIDS=()
-  godot --headless --path . -- --cave=greybox --host --name=Host --port="$PORT" --autostart="$autostart" --preset=debug --bot=idle --nomonsters --montest="$name" --timeout="$TIMEOUT" > "$L/host.log" 2>&1 &
+  godot --headless --path . -- $CAVE --host --name=Host --port="$PORT" --autostart="$autostart" --preset=debug --bot=idle --nomonsters --montest="$name" ${HOSTEXTRA:-} --timeout="$TIMEOUT" > "$L/host.log" 2>&1 &
   PIDS+=($!)
   sleep 4
-  godot --headless --path . -- --cave=greybox --join=127.0.0.1 --port="$PORT" --name=Alice --bot=mon "$@" --timeout="$TIMEOUT" > "$L/alice.log" 2>&1 &
+  godot --headless --path . -- $CAVE --join=127.0.0.1 --port="$PORT" --name=Alice --bot=mon "$@" --timeout="$TIMEOUT" > "$L/alice.log" 2>&1 &
   PIDS+=($!)
   if [ "$bob" = "1" ]; then
-    godot --headless --path . -- --cave=greybox --join=127.0.0.1 --port="$PORT" --name=Bob --bot=mon --monpos=40:-2 --monface=38:-2 --timeout="$TIMEOUT" > "$L/bob.log" 2>&1 &
+    godot --headless --path . -- $CAVE --join=127.0.0.1 --port="$PORT" --name=Bob --bot=mon ${BOBARGS:---monpos=40:-2 --monface=38:-2} --timeout="$TIMEOUT" > "$L/bob.log" 2>&1 &
     PIDS+=($!)
   fi
   local start=$(date +%s)
@@ -45,7 +47,8 @@ run_scenario() {
     if grep -q "^PASS: $w" "$L/host.log"; then echo "PASS: $name/$w"; else fail "$name: missing PASS $w (host)"; fi
   done
   for w in $alicepass; do
-    if grep -q "^PASS: $w" "$L/alice.log"; then echo "PASS: $name/$w (client)"; else fail "$name: missing PASS $w (Alice client)"; fi
+    pat="$w"; case "$w" in *:*) pat="${w%%:*} kind=${w#*:}";; esac
+    if grep -q "^PASS: $pat" "$L/alice.log"; then echo "PASS: $name/$w (client)"; else fail "$name: missing PASS $w (Alice client)"; fi
   done
   grep -h "^FAIL:" "$L"/*.log && fail "$name: FAIL lines present"
   grep -hE "ERROR|SCRIPT ERROR|Unhandled exception|Exception:" "$L"/*.log && fail "$name: runtime errors in logs"
@@ -70,6 +73,26 @@ run_scenario wisp 3 \
 run_scenario dragon 2 \
   "alice_in_lair dragon_hoard_spawned dragon_sleeps_when_quiet dragon_stage dragon_woke dragon_wakes_from_noise dragon_breath_damages_miner dragon_stays_in_lair dragon_unaffected_by_hits_blasts_traps montest_done" \
   "monster_replicated miner_hurt_seen" 0 --monpos=36:36
+
+# ---- v2.1: roaming, hunting, new monsters (generated cave; --nomonsters keeps random spawns off, scenarios place their own)
+CAVE=""
+HOSTEXTRA="--roundsecs=600 --seedbase=${SEEDBASE:-5}"
+TIMEOUT=240
+run_scenario roam 2 "alice_in_position roam_hears_noise_far_away roam_golem_reaches_noisy_lit_miner roam_patrols_whole_cave montest_done" "monster_replicated" 0 --monpos=deep:70
+run_scenario dark 2 "alice_dark_and_still dark_still_miner_ignored_at_4m dark_still_miner_seen_at_1_5m montest_done" "" 0 --monpos=deep:60 --monlantern=off
+run_scenario hall 2 "alice_in_hall hall_never_entered monster_stops_at_hall_edge montest_done" "" 0
+run_scenario lamp 2 "alice_in_position lamplighter_ignores_miner_beyond_3m lamplighter_snuffs_when_attacked lamplighter_grabs_attacker lamplighter_deals_40_damage lamplighter_lets_go_and_walks_away lamplighter_walks_away_far lamplighter_relights_and_stands lamplighter_triggers_within_3m lamplighter_second_grab montest_done" "miner_hurt_seen" 0 --monpos=deep:60
+HOSTEXTRA="--roundsecs=600 --seedbase=${SEEDBASE:-5} --give=Alice=ore:diamond,Alice=ore:coal,Bob=ore:gold"
+BOBARGS="--monpos=deep:60:1"
+run_scenario assessor 3 "bots_in_position assessor_stalks_highest_tribute assessor_catches_target assessor_still_holding_during_pin assessor_pin_ends assessor_takes_the_single_highest_stone assessor_credits_nobody assessor_retreats assessor_never_runs montest_done" "" 1 --monpos=deep:60
+BOBARGS=""
+HOSTEXTRA="--roundsecs=600 --seedbase=${SEEDBASE:-5}"
+run_scenario plug 2 "alice_in_position nav_profiles_fit plug_spawns_in_a_tunnel plug_creeps_about_1_mps plug_creeps_toward_the_noise plug_body_blocks_the_tunnel plug_stun_applied plug_stun_is_short plug_pushed_back_by_dynamite plug_crushes_20_dps montest_done" "monster_replicated miner_hurt_seen" 0 --monpos=deep:60
+run_scenario wicks 2 "alice_in_position wicks_drawn_to_lit_lantern wicks_drain_oil_fast wicks_bite wicks_lose_interest_when_lantern_off montest_done" "monster_replicated" 0 --monpos=deep:60
+HOSTEXTRA="--roundsecs=600 --seedbase=${SEEDBASE:-5} --mondirector --dirquiet=14 --dircheck=5"
+run_scenario director 2 "alice_in_position director_sent_a_monster_after_quiet director_waited_for_the_quiet_period director_monster_heads_to_the_miner director_monster_closes_in montest_done" "" 0 --monpos=deep:60
+HOSTEXTRA="--roundsecs=600 --seedbase=${SEEDBASE:-5}"
+run_scenario replicate 2 "alice_in_position all_monster_kinds_moved_on_host lamplighter_grab_for_replication montest_done" "monster_replicated:golem monster_replicated:wicks monster_replicated:plug monster_replicated:lamplighter monster_replicated:assessor monster_moved_on_client:golem monster_moved_on_client:wicks monster_moved_on_client:plug monster_moved_on_client:lamplighter monster_moved_on_client:assessor monster_state_seen:lamplighter monster_state_seen:golem" 0 --monpos=deep:60
 
 if [ $RC -eq 0 ]; then echo "MONSTERS PASS"; else echo "MONSTERS FAILED (see $LOGDIR)"; fi
 exit $RC
