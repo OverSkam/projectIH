@@ -6,7 +6,8 @@ namespace AppStein;
 public partial class PauseMenu : CanvasLayer
 {
     public static PauseMenu I;
-    Control _root, _menuBox, _settingsBox, _guideBox;
+    Control _root, _menuBox, _settingsBox, _guideBox, _roomRule;
+    RoomInfoPanel _roomInfo;
     public bool IsOpen => _root.Visible;
 
     public override void _Ready()
@@ -31,6 +32,10 @@ public partial class PauseMenu : CanvasLayer
         _menuBox.AddChild(UiKit.MakeTitle("PAUSED", 38));
         _menuBox.AddChild(UiKit.MakeLabel("The cave does not wait for you.", 15, UiTheme.Dim, HorizontalAlignment.Center));
         _menuBox.AddChild(UiKit.Rule());
+        _roomInfo = new RoomInfoPanel(380, 24) { ShowLock = true, Visible = false };
+        _menuBox.AddChild(_roomInfo);
+        _roomRule = UiKit.Rule(); _roomRule.Visible = false;
+        _menuBox.AddChild(_roomRule);
         _menuBox.AddChild(UiKit.MakeButton("Resume", () => Open(false), 280, true));
         _menuBox.AddChild(UiKit.MakeButton("Guide", () => ShowGuide(true), 280));
         _menuBox.AddChild(UiKit.MakeButton("Settings", () => ShowSettings(true), 280));
@@ -70,6 +75,9 @@ public partial class PauseMenu : CanvasLayer
         _root.Visible = on;
         ShowSettings(false); ShowGuide(false);
         Sfx.Play(on ? SfxNames.UiOpen : SfxNames.UiClose);
+        bool host = Net.I.IsServer && Net.I.Online;   // the host sees the room codes here, to hand them to friends during a match
+        _roomInfo.Visible = host; _roomRule.Visible = host;
+        _menuBox.CustomMinimumSize = new Vector2(host ? 380 : 340, 0);
         if (on) Input.MouseMode = Input.MouseModeEnum.Visible;
         else if (DisplayServer.GetName() != "headless" && Game.I.Phase == GamePhase.Round && (Game.I.LocalMiner != null || Game.I.LocalGhost != null))
             Input.MouseMode = Input.MouseModeEnum.Captured;

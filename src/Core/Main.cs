@@ -25,13 +25,14 @@ public partial class Main : Node
 
         if (Util.HasArg("host"))
         {
-            if (Net.I.Host(port) != Error.Ok) { Util.Fail("host_start"); GetTree().Quit(1); }
+            if (Net.I.Host(port, Util.Arg("password", "")) != Error.Ok) { Util.Fail("host_start"); GetTree().Quit(1); }
         }
         else if (Util.HasArg("join"))
         {
-            string ip = Util.Arg("join", "127.0.0.1"); if (ip == "") ip = "127.0.0.1";
-            Net.I.ConnectionFailed += () => { Util.Fail("connected", "connection failed"); GetTree().Quit(1); };
-            Net.I.Join(ip, port);
+            string target = Util.Arg("join", "127.0.0.1"); if (target == "") target = "127.0.0.1";
+            if (!RoomCode.Resolve(target, port, out var ip, out var rport, out var rerr)) { Util.Fail("connected", rerr); GetTree().Quit(1); return; }
+            Net.I.ConnectionFailed += () => { Util.Log("JOIN_REJECTED: " + Net.I.FailReason); Util.Fail("connected", Net.I.FailReason); GetTree().Quit(1); };
+            Net.I.Join(ip, rport, Util.Arg("password", ""));
         }
         if (Util.HasArg("timeout") && double.TryParse(Util.Arg("timeout"), out var secs))
             GetTree().CreateTimer(secs).Timeout += () => { Util.Fail("timeout", "process hit --timeout"); GetTree().Quit(2); };

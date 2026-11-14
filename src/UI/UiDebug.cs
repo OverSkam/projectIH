@@ -3,7 +3,7 @@ using Godot;
 namespace AppStein;
 
 /// <summary>Screenshot helper: `--screen=<name>` stages a state so tools/screenshot.sh can capture it. Does nothing without the arg.
-/// goblin | goblin_happy | goblin_angry | miner | hands_pick | hands_lantern | hud | hud_idle | hud_pick | hud_full | dial | fuse | fuse10 | wicksdrain | downed | lootprompt | stuffprompt | lowoil | score | pause | matchend | settings | guide | ghost
+/// goblin | goblin_happy | goblin_angry | miner | hands_pick | hands_lantern | hud | hud_idle | hud_pick | hud_full | dial | fuse | fuse10 | wicksdrain | downed | lootprompt | stuffprompt | lowoil | score | pause | matchend | settings | guide | ghost | join (join form with an example code; the host lobby is `--host --fakeupnp=ready|checking|failed --password=x`)
 /// (the minimal-HUD screens: hud_idle = nothing happened for a while, hud_pick = a ruby was just picked up, hud_full = heavy sack, dial = 55% of the round left (use --roundsecs=360), fuse = 34 s left, fuse10 = 6.5 s left, wicksdrain = Wicks drinking the oil)</summary>
 public partial class UiDebug : Node
 {
@@ -70,6 +70,9 @@ public partial class UiDebug : Node
                     (me.Controller as HumanController)?.SetLook(me.Rotation.Y, -0.62f);
                 }
                 _done = true; break;
+            case "join":   // the join form filled in, with a refusal showing
+                if (_t > 0.5) { MenuUI.I?.DebugFillJoin("K7QM-4T2P-9XDA", "hunter2", "Wrong password."); _done = true; }
+                break;
             case "guide":
                 if (_t > 0.5) { MenuUI.I?.ShowGuide(true); _done = true; }
                 break;

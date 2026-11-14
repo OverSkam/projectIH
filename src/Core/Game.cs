@@ -433,6 +433,7 @@ public partial class Game : Node
     {
         int s = Multiplayer.GetRemoteSenderId();
         if (s == 0) s = MyId;
+        else if (!Net.I.IsVerified(s)) return null;   // central guard: only peers that passed the room handshake may act (the engine already drops RPCs of pending peers)
         return Players.TryGetValue(s, out var p) ? p : null;
     }
 

@@ -20,19 +20,19 @@ If Godot complains about C# or ".NET", check that you downloaded the .NET build 
 
 One player is the **host**; the others **join** the host. A match needs at least 2 players.
 
-**Host:** type your miner name, click **Host game**. The lobby shows "Friends join with:" followed by your local IP address(es) and the port (UDP 7777). When everybody is in, click **Start match**.
+**Host:** type your miner name, optionally a **password** (leave it empty for an open room), click **Host game**. The game tries to open the port on your router by itself (UPnP). After a few seconds the lobby shows an **Internet code** and a **Same Wi-Fi code** (each with a Copy button) and a status line: "Checking your router...", "Ready: friends anywhere can join with this code", or a warning that the router did not open the port. Send the code to your friends. When everybody is in, click **Start match**. The codes stay available in the pause menu (Esc) during a match.
 
-**Join:** type your name, type the host's IP address in the "host address" box, click **Join game**, then wait in the lobby for the host to start.
+**Join:** type your name, paste the host's code into **Room code** (the **Paste** button helps; upper/lower case, spaces and dashes do not matter), type the password if the room has one (a small lock beside LOBBY), click **Join game**, then wait in the lobby for the host to start. You can still type an IP address (`192.168.1.20`) or `IP:port` into the Room code field instead of a code.
 
-**Same network (same Wi-Fi or LAN):** the joiners type the local IP address shown in the host's lobby (it usually looks like `192.168.x.x`). If it does not connect, allow Godot through the Windows firewall (a popup appears the first time you host).
+**Friends in the same home (same Wi-Fi or LAN)** use the **Same Wi-Fi code**. If it does not connect, allow the game through the Windows firewall (a popup appears the first time you host).
 
-**Over the internet, either:**
-- the host forwards **UDP port 7777** in the router to the host PC (and allows it in the firewall), and the others join using the host's public IP address (search "what is my IP"), or
-- everybody installs a virtual-LAN tool (for example Radmin VPN, ZeroTier or Hamachi), joins the same virtual network, and the others join using the host's address inside that virtual network.
+**If friends in other homes cannot connect** (the status line shows the warning): switch UPnP on in the router, or forward **UDP port 7777** to the host PC, and host again. Some internet providers share one public address between many customers (CGNAT); then hosting from that home does not work directly. In that case everybody installs a virtual-LAN tool (Radmin VPN, ZeroTier, Tailscale or Hamachi), joins the same virtual network, and the others type the host's address inside that network into **Room code**. The same text is in the in-game Guide under "Playing online".
+
+Command line (tests): `--password=...` for host and join, `--join=<code or ip[:port]>`, `--noupnp` (no router / internet lookups; automated `--host`/`--join`/`--bot` runs and headless runs never do them anyway).
 
 **Trying multiplayer alone with two instances:**
 1. In Godot open the **Debug** menu and choose **Customize Run Instances...**, tick **Enable Multiple Instances**, set the number to 2, and press **Play**. Two game windows open.
-2. In the first window click **Host game**. In the second window type `127.0.0.1` as the host address and click **Join game**.
+2. In the first window click **Host game**. In the second window type `127.0.0.1` into Room code and click **Join game**.
 3. In the first window click **Start match**.
 
 Without the editor you can also start two copies of the Godot program with `--path` pointing to this folder, for example from a Command Prompt: `Godot_v4.7.2-stable_mono_win64.exe --path "C:\path\to\app-stein"`, twice.

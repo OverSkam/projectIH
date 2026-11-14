@@ -90,7 +90,7 @@ public partial class MenuUI : CanvasLayer
 {
     public static MenuUI I;
     Control _root;
-    LineEdit _name, _ip;
+    LineEdit _name, _code, _joinPw, _hostPw;
     Label _status;
     Button _start;
     VBoxContainer _menuBox, _lobbyBox, _playerList, _connectingBox;
@@ -99,6 +99,8 @@ public partial class MenuUI : CanvasLayer
     GuidePanel _guide;
     VBoxContainer _titleBox;
     Label _startHint, _roundsLabel, _ipLabel;
+    RoomInfoPanel _roomInfo;
+    LockIcon _lobbyLock;
 
     public override void _Ready()
     {
@@ -124,7 +126,7 @@ public partial class MenuUI : CanvasLayer
         col.AddChild(_titleBox);
         col.AddChild(UiKit.Spacer(8));
 
-        _mainPanel = new PanelContainer { CustomMinimumSize = new Vector2(440, 0), SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter };
+        _mainPanel = new PanelContainer { CustomMinimumSize = new Vector2(480, 0), SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter };
         col.AddChild(_mainPanel);
 
         // ---- menu
@@ -134,13 +136,28 @@ public partial class MenuUI : CanvasLayer
         _name = new LineEdit { Text = Net.I.LocalName, PlaceholderText = "Your name", MaxLength = 16 };
         _name.TextChanged += t => { UserSettings.PlayerName = t; UserSettings.Save(); };
         _menuBox.AddChild(_name);
-        _menuBox.AddChild(UiKit.MakeButton("Host game", OnHost, 160, true));
         _menuBox.AddChild(UiKit.Rule());
-        _menuBox.AddChild(UiKit.MakeLabel("HOST ADDRESS", 14, UiTheme.Brass));
-        _ip = new LineEdit { Text = UserSettings.LastIp, PlaceholderText = "Host IP address" };
-        _ip.TextSubmitted += _ => OnJoin();
-        _menuBox.AddChild(_ip);
-        _menuBox.AddChild(UiKit.MakeButton("Join game", OnJoin));
+        _menuBox.AddChild(UiKit.MakeLabel("HOST A ROOM", 14, UiTheme.Brass));
+        var hostRow = UiKit.HBox(10);
+        _hostPw = new LineEdit { PlaceholderText = "Password (optional)", Secret = true, MaxLength = 32, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        _hostPw.TextSubmitted += _ => OnHost();
+        hostRow.AddChild(_hostPw);
+        hostRow.AddChild(UiKit.MakeButton("Host game", OnHost, 150, true));
+        _menuBox.AddChild(hostRow);
+        _menuBox.AddChild(UiKit.Rule());
+        _menuBox.AddChild(UiKit.MakeLabel("JOIN A ROOM", 14, UiTheme.Brass));
+        var codeRow = UiKit.HBox(10);
+        _code = new LineEdit { Text = UserSettings.LastIp == "127.0.0.1" ? "" : UserSettings.LastIp, PlaceholderText = "Room code", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        _code.TextSubmitted += _ => OnJoin();
+        codeRow.AddChild(_code);
+        codeRow.AddChild(UiKit.MakeButton("Paste", () => { _code.Text = DisplayServer.ClipboardGet().Trim(); _code.CaretColumn = _code.Text.Length; }, 90));
+        _menuBox.AddChild(codeRow);
+        var joinRow = UiKit.HBox(10);
+        _joinPw = new LineEdit { PlaceholderText = "Password (if the room has one)", Secret = true, MaxLength = 32, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        _joinPw.TextSubmitted += _ => OnJoin();
+        joinRow.AddChild(_joinPw);
+        joinRow.AddChild(UiKit.MakeButton("Join game", OnJoin, 150));
+        _menuBox.AddChild(joinRow);
         _menuBox.AddChild(UiKit.Rule());
         var hb = UiKit.HBox(10);
         var sb = UiKit.MakeButton("Settings", () => ShowSettings(true), 100); sb.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -158,7 +175,11 @@ public partial class MenuUI : CanvasLayer
         // ---- lobby
         _lobbyBox = UiKit.VBox(10);
         _mainPanel.AddChild(_lobbyBox);
-        _lobbyBox.AddChild(UiKit.MakeTitle("LOBBY", 34));
+        var lobbyHead = UiKit.HBox(10); lobbyHead.Alignment = BoxContainer.AlignmentMode.Center;
+        lobbyHead.AddChild(UiKit.MakeTitle("LOBBY", 34));
+        _lobbyLock = new LockIcon(26) { SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+        lobbyHead.AddChild(_lobbyLock);
+        _lobbyBox.AddChild(lobbyHead);
         _roundsLabel = UiKit.MakeLabel("", 17, UiTheme.Dim, HorizontalAlignment.Center);
         _lobbyBox.AddChild(_roundsLabel);
         _lobbyBox.AddChild(UiKit.Rule());
@@ -168,11 +189,16 @@ public partial class MenuUI : CanvasLayer
         _ipLabel = UiKit.MakeLabel("", 16, UiTheme.Parchment, HorizontalAlignment.Center);
         _ipLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         _lobbyBox.AddChild(_ipLabel);
+        _roomInfo = new RoomInfoPanel(440, 26) { Visible = false };
+        _lobbyBox.AddChild(_roomInfo);
         _start = UiKit.MakeButton("Start match", () => Game.I.ServerStartMatch(), 200, true);
         _lobbyBox.AddChild(_start);
         _startHint = UiKit.MakeLabel("", 15, UiTheme.Dim, HorizontalAlignment.Center);
         _lobbyBox.AddChild(_startHint);
-        _lobbyBox.AddChild(UiKit.MakeButton("Leave", () => { _status.Text = ""; Game.I.LeaveToMenu(); }, 200));
+        var leaveRow = UiKit.HBox(10); leaveRow.Alignment = BoxContainer.AlignmentMode.Center;
+        leaveRow.AddChild(UiKit.MakeButton("Guide", () => ShowGuide(true), 120));
+        leaveRow.AddChild(UiKit.MakeButton("Leave", () => { _status.Text = ""; Game.I.LeaveToMenu(); }, 200));
+        _lobbyBox.AddChild(leaveRow);
 
         _status = UiKit.MakeLabel("", 18, new Color(1f, 0.55f, 0.4f), HorizontalAlignment.Center);
         _status.AutowrapMode = TextServer.AutowrapMode.WordSmart; _status.CustomMinimumSize = new Vector2(480, 0);
@@ -185,7 +211,7 @@ public partial class MenuUI : CanvasLayer
         sc.AddChild(_guide);
 
         Net.I.LobbyChanged += Refresh;
-        Net.I.ConnectionFailed += () => { _status.Text = $"Could not reach the host at {_ip.Text.Trim()}. Check the address and that the host is running (UDP port {Net.DefaultPort})."; Refresh(); };
+        Net.I.ConnectionFailed += () => { _status.Text = Net.I.FailReason != "" ? Net.I.FailReason : "Could not connect to the host."; Refresh(); };
         Net.I.ServerLost += () => { _status.Text = "Lost connection to the host. The match is over."; Refresh(); };
         Game.I.PhaseChanged += Refresh;
         Game.I.ReturnedToMenu += Refresh;
@@ -209,17 +235,23 @@ public partial class MenuUI : CanvasLayer
     {
         Net.I.LocalName = _name.Text; UserSettings.PlayerName = _name.Text; UserSettings.Save();
         _status.Text = "";
-        if (Net.I.Host() != Error.Ok) _status.Text = $"Could not host: UDP port {Net.DefaultPort} is busy (another game running?).";
+        if (Net.I.Host(Net.DefaultPort, _hostPw.Text) != Error.Ok) _status.Text = $"Could not host: UDP port {Net.DefaultPort} is busy (another game running?).";
         Refresh();
     }
 
     void OnJoin()
     {
-        Net.I.LocalName = _name.Text; UserSettings.PlayerName = _name.Text; UserSettings.LastIp = _ip.Text.Trim(); UserSettings.Save();
+        Net.I.LocalName = _name.Text; UserSettings.PlayerName = _name.Text; UserSettings.LastIp = _code.Text.Trim(); UserSettings.Save();
         _status.Text = "";
-        if (_ip.Text.Trim() == "") { _status.Text = "Type the host's IP address first."; return; }
-        if (Net.I.Join(_ip.Text.Trim()) != Error.Ok) _status.Text = "That address does not look right.";
+        if (!RoomCode.Resolve(_code.Text, Net.DefaultPort, out var host, out var port, out var err)) { _status.Text = err; return; }
+        if (Net.I.Join(host, port, _joinPw.Text) != Error.Ok) _status.Text = "That address does not look right.";
         Refresh();
+    }
+
+    /// <summary>Screenshot staging (--screen=join): types an example into the join form.</summary>
+    public void DebugFillJoin(string code, string password, string status)
+    {
+        _code.Text = code; _joinPw.Text = password; _status.Text = status;
     }
 
     public override void _Process(double delta)
@@ -229,14 +261,6 @@ public partial class MenuUI : CanvasLayer
             _start.Disabled = !Game.I.CanStart;
             _startHint.Text = Net.I.IsServer ? (Game.I.CanStart ? "" : "At least 2 miners are needed.") : "";
         }
-    }
-
-    static IEnumerable<string> LocalIps()
-    {
-        var l = new List<string>();
-        foreach (var a in IP.GetLocalAddresses())
-            if (System.Text.RegularExpressions.Regex.IsMatch(a, @"^\d+\.\d+\.\d+\.\d+$") && !a.StartsWith("127.") && !a.StartsWith("169.254.")) l.Add(a);
-        return l.OrderBy(a => a.StartsWith("192.168.") ? 0 : a.StartsWith("10.") ? 1 : 2).Take(4);
     }
 
     void Refresh()
@@ -269,12 +293,9 @@ public partial class MenuUI : CanvasLayer
                 _playerList.AddChild(row);
             }
             _start.Visible = Net.I.IsServer;
-            if (Net.I.IsServer)
-            {
-                var ips = LocalIps().ToList();
-                _ipLabel.Text = ips.Count > 0 ? "Friends join with:  " + string.Join("   /   ", ips) + $"   (UDP {Net.DefaultPort})" : $"No network address found. Friends on this PC can use 127.0.0.1 (UDP {Net.DefaultPort}).";
-                _ipLabel.Visible = true;
-            }
+            _lobbyLock.Visible = Net.I.HasPassword;
+            _roomInfo.Visible = Net.I.IsServer;
+            if (Net.I.IsServer) _ipLabel.Visible = false;
             else { _ipLabel.Text = "Waiting for the host to start..."; _ipLabel.Visible = true; _startHint.Text = ""; }
         }
     }
