@@ -14,7 +14,7 @@ public static class UserSettings
     public static float Volume = 0.8f;
     public static bool Fullscreen;
     /// <summary>One-time hints already shown (the Wicks oil hint).</summary>
-    public static bool SeenWicksHint;
+    public static bool SeenWicksHint, SeenPickHint, SeenSpillHint, SeenDownedHint;
 
     public static float SensitivityRad => 0.0025f * MouseSens;
 
@@ -32,6 +32,9 @@ public static class UserSettings
         Volume = Mathf.Clamp((float)(double)cf.GetValue("audio", "volume", 0.8), 0f, 1f);
         Fullscreen = (bool)cf.GetValue("video", "fullscreen", false);
         SeenWicksHint = (bool)cf.GetValue("hints", "wicks", false);
+        SeenPickHint = (bool)cf.GetValue("hints", "pick", false);
+        SeenSpillHint = (bool)cf.GetValue("hints", "spill", false);
+        SeenDownedHint = (bool)cf.GetValue("hints", "downed", false);
     }
 
     public static void Save()
@@ -42,6 +45,9 @@ public static class UserSettings
         cf.SetValue("input", "sens", (double)MouseSens);
         cf.SetValue("video", "fov", (double)Fov);
         cf.SetValue("hints", "wicks", SeenWicksHint);
+        cf.SetValue("hints", "pick", SeenPickHint);
+        cf.SetValue("hints", "spill", SeenSpillHint);
+        cf.SetValue("hints", "downed", SeenDownedHint);
         cf.SetValue("audio", "volume", (double)Volume);
         cf.SetValue("video", "fullscreen", Fullscreen);
         cf.Save(Path);

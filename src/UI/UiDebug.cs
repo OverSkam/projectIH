@@ -10,7 +10,7 @@ public partial class UiDebug : Node
     string _screen;
     double _t, _rt = -1;
     bool _done;
-    Camera3D _cam;
+    Camera3D _cam; Miner _shoveA; double _stealAt = -1;
 
     public static void Ensure(Node parent)
     {
@@ -56,6 +56,45 @@ public partial class UiDebug : Node
                 other.SetHeld("pickaxe");
                 other.ApplyNetState(other.GlobalPosition, other.Rotation.Y, 0, 0);
                 _done = true; break;
+            case "sacks": case "sacks_far": case "pickprompt": case "shove":
+                if (!inRound || g.LocalMiner == null || _t < 1.0) return;
+                {
+                    var me = g.LocalMiner;
+                    var f = -me.GlobalTransform.Basis.Z; var r = me.GlobalTransform.Basis.X; float yaw = me.Rotation.Y;
+                    Miner Dummy(int id, string name, Vector3 at, float yw, int step)
+                    {
+                        var d = new Miner { Name = id.ToString(), PeerId = id, PlayerName = name, IsLocal = false };
+                        g.World.MinersRoot.AddChild(d);
+                        d.GlobalPosition = at; d.Rotation = new Vector3(0, yw, 0); d.SetHeld(id % 2 == 0 ? "pickaxe" : "lantern");
+                        d.ApplyNetState(at, yw, 0, 0); d.SetSackStep(step);
+                        return d;
+                    }
+                    if (_screen == "sacks")   // three miners seen from behind at 3 m: sack steps 0, 2, 4
+                    { Dummy(9001, "Ann", me.GlobalPosition + f * 3f - r * 2.5f, yaw, 0); Dummy(9002, "Ben", me.GlobalPosition + f * 3f - r * 1.2f, yaw, 2); Dummy(9003, "Cy", me.GlobalPosition + f * 3f + r * 0.1f, yaw, 4); }
+                    else if (_screen == "sacks_far")   // the five steps at 7 m
+                    { for (int i = 0; i < 5; i++) Dummy(9001 + i, "M" + i, me.GlobalPosition + f * 7f + r * ((i - 2) * 1.5f - 2.2f), yaw, i); }
+                    else if (_screen == "pickprompt")
+                    {
+                        Dummy(9001, "Ann", me.GlobalPosition + f * 1.35f, yaw, 3);
+                        me.DebugHoldProgress(0.55f);
+                    }
+                    else   // shove: Ann lunges at Ben (her palms land on his back); the camera sees it from the side
+                    {
+                        float ry = Mathf.Atan2(-r.X, -r.Z);   // both face the camera's right
+                        var basePos = me.GlobalPosition + f * 3.6f - r * 1.0f;
+                        var ann = Dummy(9001, "Ann", basePos, ry, 1); var ben = Dummy(9002, "Ben", basePos + r * 1.15f, ry, 3);
+                        _shoveA = ann;
+                    }
+                }
+                _done = _screen != "shove" && _screen != "pickprompt"; if (_screen == "shove") _screen = "shove_hold"; else if (_screen == "pickprompt") _screen = "pick_hold";
+                break;
+            case "loot_hold":   // the downed-miner prompt rows (a bot controller never runs UpdateTarget)
+                if (g.LocalMiner != null) g.LocalMiner.PromptRows = new[] { "Hold E\tHelp Gus up", "C\tRob Gus", "Hold RMB\tDrag" };
+                break;
+            case "pick_hold":   // staged rows every frame (a bot controller never runs UpdateTarget)
+                if (g.LocalMiner != null) g.LocalMiner.PromptRows = new[] { "Hold E\t— pick the sack" };
+                break;
+            case "shove_hold": if (_shoveA != null && IsInstanceValid(_shoveA)) _shoveA.DebugShovePose(0.22f); break;
             case "lootprompt":
                 if (!inRound || g.LocalMiner == null || _t < 1.0) return;
                 {
@@ -69,7 +108,7 @@ public partial class UiDebug : Node
                     dn.SetDowned(true);
                     (me.Controller as HumanController)?.SetLook(me.Rotation.Y, -0.62f);
                 }
-                _done = true; break;
+                _screen = "loot_hold"; break;
             case "join":   // the join form filled in, with a refusal showing
                 if (_t > 0.5) { MenuUI.I?.DebugFillJoin("K7QM-4T2P-9XDA", "hunter2", "Wrong password."); _done = true; }
                 break;
@@ -106,13 +145,22 @@ public partial class UiDebug : Node
                 g.OwnInv.Sack.Clear(); g.OwnInv.Sack.AddRange(new[] { "coal", "coal", "coal", "iron", "iron", "silver", "gold", "coal", "iron", "silver" });
                 g.OwnTribute = Ores.TributeSum(g.OwnInv.Sack); g.OwnBurden = Ores.BurdenSum(g.OwnInv.Sack); g.OwnOil = _screen == "lowoil" ? 38 : 150;
                 if (g.LocalMiner != null) g.LocalMiner.Burden = g.OwnBurden;
-                if (_screen == "downed") { g.OwnDowned = true; g.OwnDownedUntil = Time.GetTicksMsec() / 1000.0 + 22; g.OwnHealth = 0; }
+                if (_screen == "downed") { Net.I.Names[7001] = "Anna"; Net.I.Names[7002] = "Ben"; g.DownedActors[7001] = (1, 1e12); g.DownedActors[7002] = (2, 1e12); g.OwnDowned = true; g.OwnDownedUntil = Time.GetTicksMsec() / 1000.0 + 22; g.OwnHealth = 0; }
                 break;
             case "hud_idle": break;   // nothing staged: the HUD fades away by itself
             case "hud_pick":   // applied every frame (the server's own-state updates would overwrite it): coal + iron, then a ruby arrives at 3.2 s
                 if (!inRound || _rt < 2.5 || g.LocalMiner == null) return;
                 g.OwnInv.Sack.Clear(); g.OwnInv.Sack.AddRange(_rt < 3.2 ? new[] { "coal", "iron" } : new[] { "coal", "iron", "ruby" });
                 g.OwnTribute = Ores.TributeSum(g.OwnInv.Sack); g.OwnBurden = Ores.BurdenSum(g.OwnInv.Sack); g.LocalMiner.Burden = g.OwnBurden;
+                break;
+            case "steal":   // a ruby is lifted out of the sack at 3.2 s: red "-10 RUBY" toast and the sack twitches
+                if (!inRound || _rt < 2.5 || g.LocalMiner == null) return;
+                {
+                    bool gone = _rt >= 3.2;
+                    g.OwnInv.Sack.Clear(); g.OwnInv.Sack.AddRange(gone ? new[] { "coal", "iron" } : new[] { "coal", "iron", "ruby" });
+                    if (gone && _stealAt < 0) { _stealAt = _rt; g.StolenOre = "ruby"; g.StolenAt = Time.GetTicksMsec() / 1000.0; }
+                    g.OwnTribute = Ores.TributeSum(g.OwnInv.Sack); g.OwnBurden = Ores.BurdenSum(g.OwnInv.Sack); g.LocalMiner.Burden = g.OwnBurden;
+                }
                 break;
             case "hud_full":
                 if (!inRound || _rt < 2.5 || g.LocalMiner == null) return;

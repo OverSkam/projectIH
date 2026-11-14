@@ -3,6 +3,9 @@ using Godot;
 
 namespace AppStein;
 
+/// <summary>A hold-to-act in progress on the server: pickpocket, revive or drag (see Game.Social.cs).</summary>
+public class HoldAct { public int Kind, Target; public double Start; }
+
 /// <summary>Server-only record of one player. Never replicated as a whole: owner gets private state via ClientOwnState.</summary>
 public class ServerPlayer
 {
@@ -50,6 +53,22 @@ public class ServerPlayer
     public double LastOwnSend;
     public double NextMeddle;
     public ItemState Items = new();
+    // ---- v2.3 other miners (src/Social)
+    /// <summary>Last state flags the owner reported (1 crouch, 2 sprint, 4 on floor).</summary>
+    public int Flags;
+    /// <summary>Shoved: cannot act until this time (seconds, Game.Now).</summary>
+    public double StaggerUntil, NextShove, PickCooldownUntil;
+    /// <summary>The own-state of this miner is held back until this time (a pickpocketed victim hears about it 1.5 s late).</summary>
+    public double HoldOwnUntil;
+    /// <summary>Ore id lifted from this miner's sack that the victim has not been told about yet.</summary>
+    public string StolenOre; public double StolenAt;
+    public HoldAct Hold;
+    /// <summary>Peer id of the miner who drags this (downed) miner, and of the downed miner this one drags (-1 = none).</summary>
+    public int DraggedBy = -1, Dragging = -1;
+    /// <summary>The coarse sack size (0..4) that was last announced to everyone.</summary>
+    public int SackStep;
+    public double LastShovedAt = -100;
+    public string LastShovedBy = "";
     float _regenAcc;
 
     public void RecalcStats()

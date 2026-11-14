@@ -21,10 +21,10 @@ public static class ItemsDebug
     public static void Register()
     {
         if (Util.HasArg("itest") && Util.HasArg("host"))
-            Game.I.CallDeferred(Node.MethodName.AddChild, new ItemsDirector { Name = "ItemsDirector" });
+            Game.I.CallDeferred(Node.MethodName.AddChild, Util.Arg("itest") == "interact" ? new InteractDirector { Name = "InteractDirector" } : new ItemsDirector { Name = "ItemsDirector" });
     }
 
-    public static BotBrain MakeBot(string routine) => routine.StartsWith("t_") ? new ItemTestBot(routine) : routine.StartsWith("l2_") ? new Loot2Bot(routine) : new BotBrain(routine);
+    public static BotBrain MakeBot(string routine) => routine.StartsWith("i_") ? new InteractBot() : routine.StartsWith("t_") ? new ItemTestBot(routine) : routine.StartsWith("l2_") ? new Loot2Bot(routine) : new BotBrain(routine);
 
     static ServerPlayer ByName(Game g, string n) => g.Players.Values.FirstOrDefault(p => p.Name == n);
 
@@ -87,6 +87,7 @@ public static class ItemsDebug
     {
         Step = step; StepArg = arg; StepAt = Time.GetTicksMsec() / 1000.0; StepSerial++;
         string bot = Util.Arg("bot");
+        if (bot.StartsWith("i_")) { InteractDebug.OnStep(step, arg); return; }
         if (!bot.StartsWith("t_")) return;
         var g = Game.I; string me = Net.I.LocalName;
         int PeerOf(string n) => Net.I.Names.FirstOrDefault(kv => kv.Value == n).Key;

@@ -89,6 +89,7 @@ public partial class Game
         if (!Players.TryGetValue(targetPeer, out var v) || v == p || !v.Alive || !v.Downed) return;
         if (p.Pos.DistanceTo(v.Pos) > 3.4f) return;
         p.NextLoot = Now + 0.5;
+        RpcId(v.Peer, nameof(ClientDownedAction), p.Peer, 2, true);   // "<Name> is robbing you" in the downed overlay
         ServerLootOne(p, v);
     }
 
@@ -119,6 +120,7 @@ public partial class Game
     {
         Status[peer] = downed ? MinerStatus.Downed : MinerStatus.Alive;
         World?.GetMiner(peer)?.SetDowned(downed);
+        if (peer == MyId) DownedActors.Clear();
         if (peer == MyId)
         {
             OwnDowned = downed; OwnDownedUntil = ClientNow + seconds;

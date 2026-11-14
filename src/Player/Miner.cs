@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 
 namespace AppStein;
@@ -7,6 +8,8 @@ public struct MinerInput
 {
     public Vector2 Move;      // x = right, y = forward
     public bool Jump, Sprint, Crouch, Attack, Interact, InteractHeld, Drop, DropHeld, UseUtility, Ability, SteinCycle, ToggleLantern;
+    /// <summary>v2.3: R (shove, just pressed), C (rob a downed miner, just pressed), RMB held (drag a downed miner).</summary>
+    public bool Shove, Rob, DragHeld;
     public int UtilSlot;      // -1 none
     public float Yaw, Pitch;  // absolute look angles (radians)
 }
@@ -51,6 +54,9 @@ public class HumanController : IMinerController
         i.Drop = Input.IsActionJustPressed("drop");
         i.DropHeld = Input.IsActionPressed("drop");
         i.UseUtility = Input.IsActionJustPressed("use_utility");
+        i.Shove = Input.IsActionJustPressed("shove");
+        i.Rob = Input.IsActionJustPressed("rob");
+        i.DragHeld = Input.IsActionPressed("use_utility");
         i.Ability = Input.IsActionJustPressed("stein_ability");
         i.SteinCycle = Input.IsActionJustPressed("stein_cycle");
         if (Input.IsActionJustPressed("utility_1")) i.UtilSlot = 0;
@@ -101,6 +107,51 @@ public partial class Miner : CharacterBody3D
     Node3D _mask;
 
     public string PromptText = "";
+    /// <summary>Multi-option prompt (downed miner under the crosshair): lines of "KEY\ttext". Empty = use PromptText.</summary>
+    public string[] PromptRows = System.Array.Empty<string>();
+    /// <summary>Client: another miner in reach to pickpocket (crouched, behind them), the same geometry ignoring the crouch (for the one-time hint), and the downed miner in reach.</summary>
+    public Miner PickTarget, DownedTarget; public bool PickReachable;
+    /// <summary>Public coarse sack size of this (remote) miner, 0..4.</summary>
+    public int SackStep => _rig?.SackStep ?? 0;
+    /// <summary>Peer id of the miner dragging this (downed, local) miner, -1 none.</summary>
+    public int DraggedBy = -1;
+    float _stagger, _shoveFpT = 1f; double _shoveCd;
+    int _holdKind, _holdTarget; double _holdStart; bool _holdBlocked;
+    public bool IsStaggered => _stagger > 0f;
+    public bool IsCrouching => _crouching;
+    public bool IsDragging => _holdKind == Game.HoldDrag;
+    public void SetSackStep(int step) => _rig?.SetSackStep(step);
+    public void SetDragging(bool on) => _rig?.SetDragging(on);
+    public void SetDraggedBy(int by) { DraggedBy = by; }
+    /// <summary>Bots: mark that a drag is in progress (halves the walking speed like the human hold does).</summary>
+    /// <summary>Screenshot staging: pose the shove animation of this (remote) miner / force the prompt rows.</summary>
+    public void DebugShovePose(float u) => _rig?.DebugShove(u);
+    public string[] DebugRows;
+    public void SetBotHold(int kind) { _holdKind = kind; }
+
+    /// <summary>Another miner's shove animation (and sound) on this peer.</summary>
+    public void PlayShove()
+    {
+        if (!IsLocal) _rig?.Shove();
+        else _shoveFpT = 0f;
+        Sfx.Play(SfxNames.Shove, GlobalPosition + new Vector3(0, 1.2f, 0), IsLocal ? -2f : 0f);
+        Sfx.Play(SfxNames.Grunt, GlobalPosition + new Vector3(0, 1.5f, 0), IsLocal ? -6f : -3f);
+    }
+
+    /// <summary>The server shoved this (local) miner: an impulse the owner applies at once (movement is owner-simulated, so there is no rubber band), a short stagger, a camera jolt.</summary>
+    public void GetShoved(Vector3 vel, float stagger)
+    {
+        _stagger = stagger;
+        Velocity = new Vector3(vel.X, Mathf.Max(Velocity.Y, 0f), vel.Z);
+        AddShake(1.0f);
+        if (_cam != null)
+        {
+            float side = vel.X * vel.Z > 0 ? 1f : -1f;
+            _cam.Rotation = new Vector3(0.14f, 0, 0.07f * side);
+            var tw = CreateTween();
+            tw.TweenProperty(_cam, "rotation", Vector3.Zero, 0.4f).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        }
+    }
     public NetObject Target;
 
     Node3D _head, _body, _tool, _leftHand;
@@ -418,9 +469,11 @@ public partial class Miner : CharacterBody3D
         _yaw = c.Yaw; _pitch = c.Pitch;
         // weighing: input is locked except looking; downed: crawl only
         bool weighing = Game.I.Phase == GamePhase.Weighing;
-        if (weighing || IsDowned)
+        bool staggered = _stagger > 0f;
+        _stagger -= dt;
+        if (weighing || IsDowned || staggered)
         {
-            if (weighing) c.Move = Vector2.Zero;
+            if (weighing || staggered) c.Move = Vector2.Zero;
             c.Jump = c.Sprint = c.Crouch = c.Attack = c.Interact = c.InteractHeld = c.Drop = c.DropHeld = c.UseUtility = c.Ability = c.SteinCycle = c.ToggleLantern = false;
             c.UtilSlot = -1;
         }
@@ -453,6 +506,7 @@ public partial class Miner : CharacterBody3D
         }
         c.Sprint = sprint;
         float speed = (_crouching ? CrouchSpeed : (sprint ? SprintSpeed : WalkSpeed)) * SpeedMul * AppStein.Burden.SpeedMul(Burden) * (IsDowned ? DownedSpeedMul : 1f);
+        if (_holdKind == Game.HoldDrag) speed *= SocialTuning.DragSpeedMul;
         if (Game.I.World?.Cave != null && Game.I.World.Cave.InSqueeze(GlobalPosition)) speed *= 0.55f;   // sideways squeeze: slow going
         var wish = Transform.Basis * new Vector3(c.Move.X, 0, -c.Move.Y);
         wish = wish.LengthSquared() > 1f ? wish.Normalized() : wish;
@@ -461,10 +515,21 @@ public partial class Miner : CharacterBody3D
         bool onFloor = IsOnFloor();
         _rootLeft -= dt; _ropeDetach -= dt;
         var rope = _ropeDetach > 0 ? null : FindRope();
-        float accel = onFloor ? 40f : 8f;
+        float accel = staggered ? SocialTuning.StaggerDecel : (onFloor ? 40f : 8f);
         var hv = new Vector3(v.X, 0, v.Z).MoveToward(wish * speed, accel * dt);
         v.X = hv.X; v.Z = hv.Z;
         if (_rootLeft > 0) { v.X = 0; v.Z = 0; }
+        if (IsDowned && DraggedBy >= 0 && Game.I.World?.GetMiner(DraggedBy) is Miner drg)
+        {
+            // dragged: tethered to the dragger, pulled along behind them (collision still applies, so a pit edge or a monster is where the dragger takes you)
+            var to = new Vector3(drg.GlobalPosition.X - GlobalPosition.X, 0, drg.GlobalPosition.Z - GlobalPosition.Z);
+            float dist = to.Length();
+            if (dist > SocialTuning.DragTether)
+            {
+                var pull = to / dist * Mathf.Min(3.2f, 0.8f + (dist - SocialTuning.DragTether) * 6f);
+                v.X = pull.X; v.Z = pull.Z;
+            }
+        }
         if (rope != null)
         {
             if (c.Jump) { _ropeDetach = 0.5f; v.Y = JumpVel * JumpMul; }
@@ -507,8 +572,17 @@ public partial class Miner : CharacterBody3D
             PlaySwing();
             Game.I.SendAttack(EyePos, LookDir);
         }
+        _shoveCd -= dt;
+        if (c.Shove && _shoveCd <= 0 && Stamina > 0.03f && !_thrown)
+        {
+            _shoveCd = SocialTuning.ShoveCooldown;
+            Stamina = Mathf.Max(0f, Stamina - SocialTuning.ShoveStamina);
+            _noRegenUntil = Time.GetTicksMsec() / 1000.0 + 0.6;
+            PlayShove();                       // predicted: the shover never waits for the server to see their own push
+            Game.I.SendShove();
+        }
         if (c.UtilSlot >= 0) Game.I.SendSelectUtil(c.UtilSlot);
-        if (c.UseUtility) Game.I.SendUseUtility();
+        if (c.UseUtility && !(Controller is HumanController && (DownedTarget != null || _holdKind != 0))) Game.I.SendUseUtility();   // RMB on a downed miner drags instead
         if (c.ToggleLantern) Game.I.SendToggleLantern();
         if (c.Ability) Game.I.SendAbility();
         if (c.SteinCycle) Game.I.SendSteinSel((Game.I.OwnInv.SteinSel + 1) % Inventory.SteinSlots);
@@ -562,7 +636,9 @@ public partial class Miner : CharacterBody3D
         _handT += dt;
         float move = new Vector2(Velocity.X, Velocity.Z).Length();
         float bob = IsOnFloor() ? Mathf.Sin((float)_handT * 9f) * 0.012f * Mathf.Min(1f, move / 4f) : 0f;
-        if (_leftHand != null) _leftHand.Position = new Vector3(-0.3f, -0.38f + bob, -0.5f + _retract);
+        float sk = 0f;
+        if (_shoveFpT < 1f) { _shoveFpT = Mathf.Min(1f, _shoveFpT + dt / 0.45f); sk = Mathf.Sin(Mathf.Pi * Mathf.Min(1f, _shoveFpT * 1.25f)) * (_shoveFpT < 0.8f ? 1f : (1f - _shoveFpT) / 0.2f); }
+        if (_leftHand != null) _leftHand.Position = new Vector3(-0.3f + 0.2f * sk, -0.38f + bob + 0.12f * sk, -0.5f + _retract - 0.4f * sk);
         // pull the viewmodel back towards the camera when a wall is close, so it never pokes through
         float want = 0f;
         if (_cam != null)
@@ -577,20 +653,39 @@ public partial class Miner : CharacterBody3D
         if (_tool != null && (_swing == null || !_swing.IsRunning()))
         {
             bool lantern = Utilities.Get(_held)?.IsLight == true;
-            _tool.Position = _toolBase + new Vector3(0.05f * _retract, -0.22f * _retract + bob, _retract);
+            _tool.Position = _toolBase + new Vector3(0.05f * _retract - 0.2f * sk, -0.22f * _retract + bob + 0.12f * sk, _retract - 0.4f * sk);
             _tool.Rotation = _toolRest + (lantern ? new Vector3(Mathf.Sin((float)_handT * 1.7f) * 0.05f + move * 0.006f, 0, Mathf.Sin((float)_handT * 1.3f) * 0.04f) : Vector3.Zero);
         }
     }
 
-    /// <summary>E interacts at once with whatever is under the crosshair (taking a stone is a deliberate press; a bag is poured into the sack; a downed miner is robbed one item per press).</summary>
+    /// <summary>E interacts at once with whatever is under the crosshair (taking a stone is a deliberate press; a bag is poured into the sack).
+    /// Other miners: hold E on a downed miner to help them up (3 s), C robs one stone, hold RMB drags them; crouched behind a standing miner, hold E picks their sack (1.6 s).</summary>
     void HandleInteract(MinerInput c)
     {
         var g = Game.I;
         if (!(Controller is BotBrain) && Loot2Client.Update(Target, c)) return;   // bright chests: hold E for 2.5 s (src/Loot2)
-        if (!c.Interact) return;
+        double now = Time.GetTicksMsec() / 1000.0;
+        if (!(Controller is BotBrain))
+        {
+            int want = 0, tgt = 0;
+            if (DownedTarget != null && IsInstanceValid(DownedTarget)) { tgt = DownedTarget.PeerId; if (c.DragHeld) want = Game.HoldDrag; else if (c.InteractHeld) want = Game.HoldRevive; }
+            else if (PickTarget != null && IsInstanceValid(PickTarget) && c.InteractHeld) { want = Game.HoldPick; tgt = PickTarget.PeerId; }
+            if (g.HoldEndedAt > _holdStart && _holdKind != 0) { _holdBlocked = true; _holdKind = 0; }   // the server ended it: release the key before trying again
+            if (!c.InteractHeld && !c.DragHeld) _holdBlocked = false;
+            if (_holdBlocked) want = 0;
+            if (want != _holdKind || (want != 0 && tgt != _holdTarget))
+            {
+                if (_holdKind != 0) g.SendHold(_holdKind, _holdTarget, false);
+                _holdKind = want; _holdTarget = tgt; _holdStart = now;
+                if (want != 0) g.SendHold(want, tgt, true);
+            }
+            float dur = _holdKind == Game.HoldPick ? SocialTuning.PickSeconds : _holdKind == Game.HoldRevive ? SocialTuning.ReviveSeconds : 0f;
+            if (dur > 0f) HoldProgress = Mathf.Clamp((float)((now - _holdStart) / dur), 0f, 1f);
+            if (c.Rob && DownedTarget != null && IsInstanceValid(DownedTarget)) g.SendLoot(DownedTarget.PeerId);
+        }
+        if (!c.Interact || _holdKind != 0) return;
         if (Target is GlowChestObj) return;
         if (Target != null) g.SendInteract(Target.Id);
-        else if (LootTarget != null && IsInstanceValid(LootTarget)) g.SendLoot(LootTarget.PeerId);
     }
 
     /// <summary>G: a tap drops the selected utility; holding it for a second stuffs the selected power stein into the sack (anywhere). Stones can never be dropped.</summary>
@@ -621,26 +716,52 @@ public partial class Miner : CharacterBody3D
 
     void UpdateTarget()
     {
-        Target = null; PromptText = ""; LootTarget = null;
+        Target = null; PromptText = ""; LootTarget = null; DownedTarget = null; PickTarget = null; PickReachable = false; PromptRows = System.Array.Empty<string>();
+        var g = Game.I;
+        if (g.Phase == GamePhase.Round && !IsDowned && g.World != null)
+        {
+            // pickpocket: right behind a standing miner (120 degree arc behind their facing, 1.3 m), looking at them; crouching is what makes it possible
+            var look = new Vector3(LookDir.X, 0, LookDir.Z);
+            look = look.LengthSquared() > 0.01f ? look.Normalized() : look;
+            foreach (var o in g.World.Miners())
+            {
+                if (o == this || o.IsDowned || !g.Alive.GetValueOrDefault(o.PeerId)) continue;
+                var d = new Vector3(o.GlobalPosition.X - GlobalPosition.X, 0, o.GlobalPosition.Z - GlobalPosition.Z);
+                float dist = d.Length();
+                if (dist > SocialTuning.PickRange || dist < 0.05f) continue;
+                if (look.Dot(d / dist) < 0.35f || !SocialTuning.IsBehind(o.GlobalPosition, o.Rotation.Y, GlobalPosition)) continue;
+                PickReachable = true;
+                if (_crouching) PickTarget = o;
+                break;
+            }
+        }
+        if (DebugRows != null) { PromptRows = DebugRows; return; }
         var space = GetWorld3D().DirectSpaceState;
         var q = Queries.Ray(EyePos, EyePos + LookDir * 3.2f, 1 | 2 | 4 | 8);
         q.CollideWithAreas = false;
         q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
         var r = space.IntersectRay(q);
-        if (r.Count == 0) return;
-        var hitObj = r["collider"].As<GodotObject>();
-        if (hitObj is Miner dm && dm != this && dm.IsDowned && !IsDowned && Game.I.Phase == GamePhase.Round)
+        if (r.Count > 0 && r["collider"].As<GodotObject>() is Miner dm && dm != this && dm.IsDowned && !IsDowned && g.Phase == GamePhase.Round
+            && new Vector2(dm.GlobalPosition.X - GlobalPosition.X, dm.GlobalPosition.Z - GlobalPosition.Z).Length() <= SocialTuning.ReviveRange)
         {
-            PromptText = "E  Loot " + dm.PlayerName; LootTarget = dm;
+            DownedTarget = dm; LootTarget = dm; PickTarget = null;
+            PromptRows = new[] { "Hold E\tHelp " + dm.PlayerName + " up", "C\tRob " + dm.PlayerName, "Hold RMB\tDrag" };
             return;
         }
-        if (IsDowned || Game.I.Phase != GamePhase.Round) return;
-        if (hitObj is NetObject o)
+        if (PickTarget != null)
         {
-            string p = o.Prompt(Game.I.OwnInv);
+            PromptRows = new[] { "Hold E\t— pick the sack" };
+            return;
+        }
+        if (r.Count == 0) return;
+        var hitObj = r["collider"].As<GodotObject>();
+        if (IsDowned || g.Phase != GamePhase.Round) return;
+        if (hitObj is NetObject o2)
+        {
+            string p = o2.Prompt(g.OwnInv);
             if (p == null) return;
             PromptText = p;
-            if (p.StartsWith("E")) Target = o;
+            if (p.StartsWith("E")) Target = o2;
         }
     }
 }

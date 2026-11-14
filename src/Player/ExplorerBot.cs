@@ -12,6 +12,7 @@ namespace AppStein;
 /// </summary>
 public class ExplorerBot : IMinerController
 {
+    SocialBot _social;
     readonly bool _brave;
     readonly string _name;
     float _yaw, _pitch;
@@ -45,6 +46,8 @@ public class ExplorerBot : IMinerController
         _clock += dt; _actT -= dt;
         if (g.World != _world) NewRound(g);
         Tick(m, ref inp, g);
+        _social ??= new SocialBot(Net.I.MyId);
+        _social.Run(m, ref inp, g, dt);
         _yaw = inp.Yaw; _pitch = inp.Pitch;
         if (_unstick > 0) { _unstick -= dt; inp.Jump = true; inp.Move = new Vector2((float)_unstickDir, 0.6f); }
         return inp;
