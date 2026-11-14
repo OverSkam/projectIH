@@ -90,7 +90,12 @@ public partial class MenuUI : CanvasLayer
 {
     public static MenuUI I;
     Control _root;
-    LineEdit _name, _code, _joinPw, _hostPw;
+    LineEdit _name, _code, _joinPw, _hostPw, _sHostPw, _sCode, _sJoinPw;
+    VBoxContainer _steamBox, _directBox;
+    CheckBox _anyone;
+    Label _steamNote, _directHead;
+    Button _directToggle;
+    bool _advanced;
     Label _status;
     Button _start;
     VBoxContainer _menuBox, _lobbyBox, _playerList, _connectingBox;
@@ -109,6 +114,8 @@ public partial class MenuUI : CanvasLayer
         UserSettings.Load();
         UserSettings.Apply(GetWindow());
         if (!Util.HasArg("name") && !Util.HasArg("bot") && UserSettings.PlayerName != "") Net.I.LocalName = UserSettings.PlayerName;
+        else if (!Util.HasArg("name") && !Util.HasArg("bot") && SteamService.Available && SteamService.PersonaName != "")
+            Net.I.LocalName = SteamService.PersonaName.Length > 16 ? SteamService.PersonaName.Substring(0, 16) : SteamService.PersonaName;   // Steam mode: your Steam name unless you typed another
 
         _root = UiTheme.Apply(new Control());
         UiKit.FullRect(_root);
@@ -137,27 +144,75 @@ public partial class MenuUI : CanvasLayer
         _name.TextChanged += t => { UserSettings.PlayerName = t; UserSettings.Save(); };
         _menuBox.AddChild(_name);
         _menuBox.AddChild(UiKit.Rule());
-        _menuBox.AddChild(UiKit.MakeLabel("HOST A ROOM", 14, UiTheme.Brass));
+
+        // Steam flow (the default when Steam is running): host / join through Steam, invites do the rest
+        _steamBox = UiKit.VBox(8);
+        _menuBox.AddChild(_steamBox);
+        var hostHead = UiKit.HBox(8);
+        var hl = UiKit.MakeLabel("HOST A ROOM", 14, UiTheme.Brass); hl.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill; hl.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+        hostHead.AddChild(hl);
+        _anyone = new CheckBox { Text = "Open to anyone with the code", FocusMode = Control.FocusModeEnum.None, TooltipText = "Off: only your Steam friends can join (invite or code)." };
+        _anyone.AddThemeFontSizeOverride("font_size", 14);
+        hostHead.AddChild(_anyone);
+        _steamBox.AddChild(hostHead);
+        var shRow = UiKit.HBox(10);
+        _sHostPw = new LineEdit { PlaceholderText = "Password (optional)", Secret = true, MaxLength = 32, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        _sHostPw.TextSubmitted += _ => OnHostSteam();
+        shRow.AddChild(_sHostPw);
+        shRow.AddChild(UiKit.MakeButton("Host game", OnHostSteam, 150, true));
+        _steamBox.AddChild(shRow);
+        _steamBox.AddChild(UiKit.Rule());
+        _steamBox.AddChild(UiKit.MakeLabel("JOIN A ROOM", 14, UiTheme.Brass));
+        var scRow = UiKit.HBox(10);
+        _sCode = new LineEdit { PlaceholderText = "Room code", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        _sCode.TextSubmitted += _ => OnJoinSteam();
+        scRow.AddChild(_sCode);
+        scRow.AddChild(UiKit.MakeButton("Paste", () => { _sCode.Text = DisplayServer.ClipboardGet().Trim(); _sCode.CaretColumn = _sCode.Text.Length; }, 90));
+        _steamBox.AddChild(scRow);
+        var sjRow = UiKit.HBox(10);
+        _sJoinPw = new LineEdit { PlaceholderText = "Password (if the room has one)", Secret = true, MaxLength = 32, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        _sJoinPw.TextSubmitted += _ => OnJoinSteam();
+        sjRow.AddChild(_sJoinPw);
+        sjRow.AddChild(UiKit.MakeButton("Join game", OnJoinSteam, 150));
+        _steamBox.AddChild(sjRow);
+        _steamBox.AddChild(UiKit.MakeLabel("or accept a Steam invite from a friend", 15, UiTheme.Dim, HorizontalAlignment.Center));
+
+        // Direct connection (room code with an IP address inside, UPnP): the only flow without Steam, "advanced" with it
+        _directBox = UiKit.VBox(10);
+        _menuBox.AddChild(_directBox);
+        _steamNote = UiKit.MakeLabel("Steam is not running — start Steam to invite friends", 16, new Color(1f, 0.72f, 0.4f), HorizontalAlignment.Center);
+        _steamNote.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        _directBox.AddChild(_steamNote);
+        _directHead = UiKit.MakeLabel("DIRECT CONNECTION", 14, UiTheme.Brass);
+        _directBox.AddChild(_directHead);
+        _directBox.AddChild(UiKit.MakeLabel("HOST A ROOM", 14, UiTheme.Brass));
         var hostRow = UiKit.HBox(10);
         _hostPw = new LineEdit { PlaceholderText = "Password (optional)", Secret = true, MaxLength = 32, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         _hostPw.TextSubmitted += _ => OnHost();
         hostRow.AddChild(_hostPw);
         hostRow.AddChild(UiKit.MakeButton("Host game", OnHost, 150, true));
-        _menuBox.AddChild(hostRow);
-        _menuBox.AddChild(UiKit.Rule());
-        _menuBox.AddChild(UiKit.MakeLabel("JOIN A ROOM", 14, UiTheme.Brass));
+        _directBox.AddChild(hostRow);
+        _directBox.AddChild(UiKit.Rule());
+        _directBox.AddChild(UiKit.MakeLabel("JOIN A ROOM", 14, UiTheme.Brass));
         var codeRow = UiKit.HBox(10);
         _code = new LineEdit { Text = UserSettings.LastIp == "127.0.0.1" ? "" : UserSettings.LastIp, PlaceholderText = "Room code", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         _code.TextSubmitted += _ => OnJoin();
         codeRow.AddChild(_code);
         codeRow.AddChild(UiKit.MakeButton("Paste", () => { _code.Text = DisplayServer.ClipboardGet().Trim(); _code.CaretColumn = _code.Text.Length; }, 90));
-        _menuBox.AddChild(codeRow);
+        _directBox.AddChild(codeRow);
         var joinRow = UiKit.HBox(10);
         _joinPw = new LineEdit { PlaceholderText = "Password (if the room has one)", Secret = true, MaxLength = 32, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         _joinPw.TextSubmitted += _ => OnJoin();
         joinRow.AddChild(_joinPw);
         joinRow.AddChild(UiKit.MakeButton("Join game", OnJoin, 150));
-        _menuBox.AddChild(joinRow);
+        _directBox.AddChild(joinRow);
+
+        _directToggle = new Button { Text = "Direct connection (advanced)", Flat = true, FocusMode = Control.FocusModeEnum.None, SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter, CustomMinimumSize = new Vector2(0, 28) };
+        _directToggle.AddThemeFontSizeOverride("font_size", 14);
+        _directToggle.AddThemeColorOverride("font_color", UiTheme.Brass);
+        _directToggle.AddThemeColorOverride("font_hover_color", UiTheme.Gold);
+        _directToggle.Pressed += () => { Sfx.Play(SfxNames.UiClick); _advanced = !_advanced; ApplyMode(); };
+        _menuBox.AddChild(_directToggle);
         _menuBox.AddChild(UiKit.Rule());
         var hb = UiKit.HBox(10);
         var sb = UiKit.MakeButton("Settings", () => ShowSettings(true), 100); sb.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -165,6 +220,7 @@ public partial class MenuUI : CanvasLayer
         var gb = UiKit.MakeButton("Guide", () => ShowGuide(true), 100); gb.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         hb.AddChild(gb); hb.AddChild(sb); hb.AddChild(qb);
         _menuBox.AddChild(hb);
+        ApplyMode();
 
         // ---- connecting
         _connectingBox = UiKit.VBox(12);
@@ -211,7 +267,13 @@ public partial class MenuUI : CanvasLayer
         sc.AddChild(_guide);
 
         Net.I.LobbyChanged += Refresh;
-        Net.I.ConnectionFailed += () => { _status.Text = Net.I.FailReason != "" ? Net.I.FailReason : "Could not connect to the host."; Refresh(); };
+        Net.I.ConnectionFailed += () =>
+        {
+            _status.Text = Net.I.FailReason != "" ? Net.I.FailReason : "Could not connect to the host.";
+            if (Net.I.LastSteamLobby != 0) { var c = SteamLobbyCode.Encode(Net.I.LastSteamLobby); if (c != null && _sCode.Text.Trim() == "") _sCode.Text = c; }   // an invite that needed a password: keep the code so the password can be typed
+            Refresh();
+        };
+        Net.I.Notice += msg => { _status.Text = msg; Refresh(); };
         Net.I.ServerLost += () => { _status.Text = "Lost connection to the host. The match is over."; Refresh(); };
         Game.I.PhaseChanged += Refresh;
         Game.I.ReturnedToMenu += Refresh;
@@ -231,6 +293,40 @@ public partial class MenuUI : CanvasLayer
         _mainPanel.GetParent<Control>().GetParent<Control>().Visible = !on;
     }
 
+    /// <summary>Which menu block shows: Steam flow by default when Steam is there; the direct (IP code) block when it is not, or on request.</summary>
+    void ApplyMode()
+    {
+        bool steam = SteamService.UiSteam;
+        _steamBox.Visible = steam && !_advanced;
+        _directBox.Visible = !steam || _advanced;
+        _steamNote.Visible = !steam;
+        _directHead.Visible = steam && _advanced;
+        _directToggle.Visible = steam;
+        _directToggle.Text = _advanced ? "Back to Steam" : "Direct connection (advanced)";
+    }
+
+    void SaveName() { Net.I.LocalName = _name.Text; UserSettings.PlayerName = _name.Text; UserSettings.Save(); }
+
+    void OnHostSteam()
+    {
+        SaveName();
+        _status.Text = "";
+        Net.I.HostSteam(_sHostPw.Text, _anyone.ButtonPressed);
+        Refresh();
+    }
+
+    void OnJoinSteam()
+    {
+        SaveName();
+        _status.Text = "";
+        string text = _sCode.Text;
+        if (text.Trim().Length == 0) { _status.Text = "Type the room code first."; return; }
+        if (!SteamLobbyCode.LooksLikeLobbyCode(text)) { _status.Text = "That is not a Steam room code. For an IP-address code use Direct connection (advanced)."; return; }
+        if (!SteamLobbyCode.TryDecode(text, out var lobby)) { _status.Text = "That code is not valid. Check it for typos and try again."; return; }
+        Net.I.JoinSteam(lobby, _sJoinPw.Text);
+        Refresh();
+    }
+
     void OnHost()
     {
         Net.I.LocalName = _name.Text; UserSettings.PlayerName = _name.Text; UserSettings.Save();
@@ -243,6 +339,12 @@ public partial class MenuUI : CanvasLayer
     {
         Net.I.LocalName = _name.Text; UserSettings.PlayerName = _name.Text; UserSettings.LastIp = _code.Text.Trim(); UserSettings.Save();
         _status.Text = "";
+        if (SteamLobbyCode.LooksLikeLobbyCode(_code.Text))   // a Steam room code typed into the direct field
+        {
+            if (!SteamService.Available) { _status.Text = "That is a Steam room code. Start Steam to join it."; return; }
+            if (!SteamLobbyCode.TryDecode(_code.Text, out var lobby)) { _status.Text = "That code is not valid. Check it for typos and try again."; return; }
+            Net.I.JoinSteam(lobby, _joinPw.Text); Refresh(); return;
+        }
         if (!RoomCode.Resolve(_code.Text, Net.DefaultPort, out var host, out var port, out var err)) { _status.Text = err; return; }
         if (Net.I.Join(host, port, _joinPw.Text) != Error.Ok) _status.Text = "That address does not look right.";
         Refresh();
@@ -251,7 +353,7 @@ public partial class MenuUI : CanvasLayer
     /// <summary>Screenshot staging (--screen=join): types an example into the join form.</summary>
     public void DebugFillJoin(string code, string password, string status)
     {
-        _code.Text = code; _joinPw.Text = password; _status.Text = status;
+        (_steamBox.Visible ? _sCode : _code).Text = code; (_steamBox.Visible ? _sJoinPw : _joinPw).Text = password; _status.Text = status;
     }
 
     public override void _Process(double delta)
@@ -269,8 +371,8 @@ public partial class MenuUI : CanvasLayer
         if (!Visible) return;
         if (DisplayServer.GetName() != "headless") Input.MouseMode = Input.MouseModeEnum.Visible;
         bool inLobby = Net.I.Online && Net.I.Names.Count > 0;
-        bool connecting = Net.I.Online && !inLobby;
-        _menuBox.Visible = !Net.I.Online;
+        bool connecting = (Net.I.Online && !inLobby) || Net.I.JoiningSteam;
+        _menuBox.Visible = !Net.I.Online && !Net.I.JoiningSteam;
         _connectingBox.Visible = connecting;
         _lobbyBox.Visible = inLobby;
         _titleBox.Visible = !inLobby;

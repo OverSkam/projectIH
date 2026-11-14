@@ -27,7 +27,12 @@ public partial class RoomInfoPanel : VBoxContainer
     readonly Label _netCap, _netCode, _lanCap, _lanCode, _status;
     readonly Button _netCopy, _lanCopy;
     readonly Control _netRow, _lanRow, _lockRow;
-    double _copiedNet, _copiedLan;
+    double _copiedNet, _copiedLan, _copiedSteam;
+    // Steam rooms: invite button + the Steam room code
+    readonly VBoxContainer _steamBox;
+    readonly Button _invite, _steamCopy;
+    readonly Label _steamCap, _steamCode;
+    readonly Control _steamRow;
 
     public RoomInfoPanel(int width = 440, int codeSize = 26)
     {
@@ -37,6 +42,13 @@ public partial class RoomInfoPanel : VBoxContainer
         lockRow.AddChild(new LockIcon(20) { SizeFlagsVertical = SizeFlags.ShrinkCenter });
         lockRow.AddChild(UiKit.MakeLabel("Room password is on", 15, UiTheme.Gold));
         _lockRow = lockRow; AddChild(lockRow);
+        _steamBox = UiKit.VBox(8);
+        AddChild(_steamBox);
+        _invite = UiKit.MakeButton("Invite friends", () => { Net.I.Lobby?.Invite(); }, 240, true);
+        _invite.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+        _steamBox.AddChild(_invite);
+        (_steamRow, _steamCap, _steamCode, _steamCopy) = Row("STEAM ROOM CODE", codeSize, _steamBox);
+        _steamCopy.Pressed += () => { var c = Net.I.SteamRoomCode; if (c != null) { DisplayServer.ClipboardSet(c); _copiedSteam = 1.6; } };
         (_netRow, _netCap, _netCode, _netCopy) = Row("INTERNET CODE  (friends anywhere)", codeSize);
         (_lanRow, _lanCap, _lanCode, _lanCopy) = Row("SAME WI-FI CODE  (friends in this home)", codeSize);
         _netCopy.Pressed += () => { var c = Net.I.Room.InternetCode; if (c != null) { DisplayServer.ClipboardSet(c); _copiedNet = 1.6; } };
@@ -49,7 +61,7 @@ public partial class RoomInfoPanel : VBoxContainer
 
     public bool ShowLock;
 
-    (Control row, Label cap, Label code, Button copy) Row(string caption, int codeSize)
+    (Control row, Label cap, Label code, Button copy) Row(string caption, int codeSize, Container parent = null)
     {
         var h = UiKit.HBox(10);
         var v = UiKit.VBox(0); v.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -59,7 +71,7 @@ public partial class RoomInfoPanel : VBoxContainer
         h.AddChild(v);
         var b = UiKit.MakeButton("Copy", () => { }, 90); b.SizeFlagsVertical = SizeFlags.ShrinkCenter;
         h.AddChild(b);
-        AddChild(h);
+        (parent ?? this).AddChild(h);
         return (h, cap, code, b);
     }
 
@@ -69,6 +81,26 @@ public partial class RoomInfoPanel : VBoxContainer
         var r = Net.I.Room;
         _copiedNet -= delta; _copiedLan -= delta;
         _lockRow.Visible = ShowLock && Net.I.HasPassword;
+        _copiedSteam -= delta;
+        bool steam = Net.I.SteamMode;
+        _steamBox.Visible = steam;
+        if (steam)
+        {
+            _netRow.Visible = false; _lanRow.Visible = false;
+            string sc = Net.I.SteamRoomCode;
+            _invite.Disabled = !Net.I.SteamRoomReady;
+            _steamRow.Visible = true;
+            _steamCap.Text = Net.I.SteamAnyone ? "STEAM ROOM CODE  (anyone with it can join)" : "STEAM ROOM CODE  (friends only)";
+            _steamCode.Text = sc ?? "...";
+            _steamCode.AddThemeColorOverride("font_color", sc != null ? UiTheme.Gold : UiTheme.Dim);
+            _steamCopy.Disabled = sc == null;
+            _steamCopy.Text = _copiedSteam > 0 ? "Copied" : "Copy";
+            if (sc == null) { _status.Text = "Creating the Steam room..."; _status.AddThemeColorOverride("font_color", UiTheme.Dim); }
+            else if (Net.I.SteamAnyone) { _status.Text = "Press Invite friends, or send the code to anyone you want in."; _status.AddThemeColorOverride("font_color", UiTheme.Good); }
+            else { _status.Text = "Press Invite friends. Friends on your Steam list can also join with the code."; _status.AddThemeColorOverride("font_color", UiTheme.Good); }
+            _status.Visible = true;
+            return;
+        }
         bool off = r.State == RoomNetState.Off;
         _netRow.Visible = !off;
         string ic = r.InternetCode, lc = r.LanCode;

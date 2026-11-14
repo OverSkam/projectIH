@@ -34,6 +34,12 @@ public partial class Main : Node
             Net.I.ConnectionFailed += () => { Util.Log("JOIN_REJECTED: " + Net.I.FailReason); Util.Fail("connected", Net.I.FailReason); GetTree().Quit(1); };
             Net.I.Join(ip, rport, Util.Arg("password", ""));
         }
+        else if (SteamService.Available)
+        {
+            // the game was started by accepting a Steam invite (or "Join Game" on the friends list): Steam passes "+connect_lobby <id>"
+            ulong lobby = SteamService.LaunchLobbyId();
+            if (lobby != 0) Net.I.JoinSteam(lobby, "");
+        }
         if (Util.HasArg("timeout") && double.TryParse(Util.Arg("timeout"), out var secs))
             GetTree().CreateTimer(secs).Timeout += () => { Util.Fail("timeout", "process hit --timeout"); GetTree().Quit(2); };
     }

@@ -3,7 +3,7 @@ using Godot;
 namespace AppStein;
 
 /// <summary>Screenshot helper: `--screen=<name>` stages a state so tools/screenshot.sh can capture it. Does nothing without the arg.
-/// goblin | goblin_happy | goblin_angry | miner | hands_pick | hands_lantern | hud | hud_idle | hud_pick | hud_full | dial | fuse | fuse10 | wicksdrain | downed | lootprompt | stuffprompt | lowoil | score | pause | matchend | settings | guide | ghost | join (join form with an example code; the host lobby is `--host --fakeupnp=ready|checking|failed --password=x`)
+/// goblin | goblin_happy | goblin_angry | miner | hands_pick | hands_lantern | hud | hud_idle | hud_pick | hud_full | dial | fuse | fuse10 | wicksdrain | downed | lootprompt | stuffprompt | lowoil | score | pause | matchend | settings | guide | ghost | steamroom | steampause (Steam-mode host lobby / pause menu, need --fakesteam) | join (join form with an example code; the host lobby is `--host --fakeupnp=ready|checking|failed --password=x`)
 /// (the minimal-HUD screens: hud_idle = nothing happened for a while, hud_pick = a ruby was just picked up, hud_full = heavy sack, dial = 55% of the round left (use --roundsecs=360), fuse = 34 s left, fuse10 = 6.5 s left, wicksdrain = Wicks drinking the oil)</summary>
 public partial class UiDebug : Node
 {
@@ -73,6 +73,13 @@ public partial class UiDebug : Node
             case "join":   // the join form filled in, with a refusal showing
                 if (_t > 0.5) { MenuUI.I?.DebugFillJoin("K7QM-4T2P-9XDA", "hunter2", "Wrong password."); _done = true; }
                 break;
+            case "steamroom":   // host lobby as it looks in Steam mode (use with --host --fakesteam; --anyone for the open-room wording)
+                if (_t > 0.5) { Net.I.DebugSteamRoom(SteamLobbyCode.Encode(109775241012345678UL), Util.HasArg("anyone")); _done = true; }
+                break;
+            case "steampause":   // pause menu as the host of a Steam room (use with --host --fakesteam --autostart=1 --preset=debug --bot=idle)
+                if (!inRound || _t < 1.0) return;
+                Net.I.DebugSteamRoom(SteamLobbyCode.Encode(109775241012345678UL), false);
+                PauseMenu.I.Open(true); _done = true; break;
             case "guide":
                 if (_t > 0.5) { MenuUI.I?.ShowGuide(true); _done = true; }
                 break;
