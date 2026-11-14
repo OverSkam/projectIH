@@ -314,6 +314,7 @@ public static class SteamCheck
         Ok(SteamService.TryParseConnect("+connect_lobby 109775241012345678", out var l) && l == 109775241012345678UL, "connect string is parsed");
         Ok(!SteamService.TryParseConnect("+connect_lobby", out _) && !SteamService.TryParseConnect("", out _) && !SteamService.TryParseConnect("+connect_lobby abc", out _) && !SteamService.TryParseConnect(null, out _), "bad connect strings are refused");
         Ok(!SteamService.UiSteam || SteamService.FakeUi, "UI is in Steam mode only with Steam or --fakesteam");
+        Util.Log("STEAMCHECK: launch lobby id from the command line = " + SteamService.LaunchLobbyId());
         Ok(SteamConfig.AppId == 480, "App ID constant is the public test app 480");
         if (FileAccess.FileExists("res://steam_appid.txt")) Ok(FileAccess.GetFileAsString("res://steam_appid.txt").Trim() == SteamConfig.AppId.ToString(), "steam_appid.txt matches the constant");
         else Ok(false, "steam_appid.txt is missing from the project root");

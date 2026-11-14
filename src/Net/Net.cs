@@ -165,8 +165,9 @@ public partial class Net : Node
     {
         if (!SteamService.Available || Lobby == null) { Notice?.Invoke("Steam is not running — start Steam to invite friends."); return Error.Unavailable; }
         if (Online) return Error.Busy;
-        var peer = new SteamPeer();
-        var err = peer.CreateHost();
+        SteamPeer peer = null; Error err;
+        try { peer = new SteamPeer(); err = peer.CreateHost(); }
+        catch (Exception e) { Util.Log("ERROR: Steam host failed: " + e.Message); err = Error.CantCreate; }
         if (err != Error.Ok) { Util.Log("ERROR: Steam host failed " + err); Notice?.Invoke("Could not create the Steam room."); return err; }
         Multiplayer.MultiplayerPeer = peer;
         RoomPassword = password ?? ""; HasPassword = RoomPassword != ""; RoomPort = 0;
@@ -222,8 +223,9 @@ public partial class Net : Node
         { FailJoin($"Could not join: the host runs game version {j.Version} and you have {SteamConfig.GameVersion}. Both need the same version."); return; }
         if (j.HasPassword && _joinPassword == "")
         { HasPassword = true; FailJoin("This room needs a password. Type it under Join and press Join game."); return; }
-        var peer = new SteamPeer();
-        var err = peer.CreateClient(j.Host);
+        SteamPeer peer = null; Error err;
+        try { peer = new SteamPeer(); err = peer.CreateClient(j.Host); }
+        catch (Exception e) { Util.Log("ERROR: Steam join failed: " + e.Message); err = Error.CantConnect; }
         if (err != Error.Ok) { FailJoin("Could not connect to the host through Steam."); return; }
         Multiplayer.MultiplayerPeer = peer;
         _joinStart = Now;

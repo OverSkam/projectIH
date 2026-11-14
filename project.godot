@@ -12,6 +12,10 @@ config/icon="res://icon.svg"
 Net="*res://src/Net/Net.cs"
 Game="*res://src/Core/Game.cs"
 
+[debug]
+
+file_logging/enable_file_logging=true
+
 [display]
 
 window/size/viewport_width=1280
