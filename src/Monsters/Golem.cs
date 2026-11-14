@@ -254,7 +254,7 @@ public partial class GolemObj : MonsterObj
     void Footfall()
     {
         Sfx.Play(SfxNames.GolemStep, GlobalPosition, 3f);
-        var me = Game.I?.LocalMiner;
+        var me = Game.I?.LocalMiner; if (!GodotObject.IsInstanceValid(me)) return;
         if (me == null) return;
         float d = me.GlobalPosition.DistanceTo(GlobalPosition);
         if (d < 8f) me.AddShake(Mathf.Lerp(1f, 0.15f, d / 8f));

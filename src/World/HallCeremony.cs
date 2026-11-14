@@ -79,7 +79,7 @@ public partial class HallCeremony : Node3D
             toC = toC.LengthSquared() < 0.01f ? Vector3.Forward : toC.Normalized();
             cart.GlobalPosition = new Vector3(spot.X, spot.Y - 0.3f, spot.Z);
             cart.Rotation = new Vector3(0, Mathf.Atan2(-toC.X, -toC.Z), 0);   // local -Z (the open end) faces the Goblin
-            CartModel.Build(cart, i < peers.Length ? PlayerColors.Of(peer) : PlayerColors.Palette[i % 8], i < peers.Length && fakeN == 0 ? Net.I.NameOf(peer) : fakeNames[i % 8]);
+            CartModel.Build(cart, i < peers.Length ? PlayerColors.Of(peer) : PlayerColors.Palette[i % 8], i < peers.Length && fakeN == 0 ? Net.I.NameOf(peer) : fakeNames[i % 8], ModularCave.Last != null);
         }
         AddChild(new HallCandle { Name = "Candle", TopLevel = true, Position = cave.GoblinSeat + new Vector3(7.0f, 0, -0.3f) });
     }

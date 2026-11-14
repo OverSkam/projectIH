@@ -16,7 +16,7 @@ public static class CartModel
     static readonly Color Rust = new(0.36f, 0.24f, 0.16f), Iron = new(0.17f, 0.17f, 0.19f), Wood = new(0.33f, 0.22f, 0.13f), Brass = new(0.78f, 0.6f, 0.2f);
 
     /// <summary>Builds the cart (and its rail, collision and lantern light) under <paramref name="parent"/>, local origin on the ground at the cart centre.</summary>
-    public static Node3D Build(Node3D parent, Color trim, string name)
+    public static Node3D Build(Node3D parent, Color trim, string name, bool solid = true)
     {
         var root = new Node3D { Name = "Model" };
         parent.AddChild(root);
@@ -111,6 +111,7 @@ public static class CartModel
         });
 
         // collision: the bucket and chassis are solid (miners can not walk through, may stand on the rim)
+        if (!solid) return root;   // the legacy grey-box test cave: carts are decoration only (its straight nav lines run through the Hall)
         var body = new StaticBody3D { Name = "CartBody", CollisionLayer = Layers.World, CollisionMask = 0 };
         body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(Width, Height, Length) }, Position = new Vector3(0, Height * 0.5f, 0) });
         parent.AddChild(body);

@@ -174,7 +174,7 @@ public partial class WicksObj : MonsterObj
         {
             if (!Sfx.IsLooping(key)) Sfx.Loop(key, SfxNames.WicksChitter, this, 0f);
             // the chitter rises in pitch and loudness as they come closer
-            var me = Game.I.LocalMiner as Node3D ?? Game.I.LocalGhost;
+            Node3D me = GodotObject.IsInstanceValid(Game.I.LocalMiner) ? Game.I.LocalMiner : (GodotObject.IsInstanceValid(Game.I.LocalGhost) ? Game.I.LocalGhost : null);
             float d = me != null ? GlobalPosition.DistanceTo(me.GlobalPosition) : 40f;
             float near = 1f - Mathf.Clamp(d / 24f, 0f, 1f);
             Sfx.TuneLoop(key, 0.8f + 0.75f * near * near + (latched ? 0.15f : 0f), -5f + 9f * near);
@@ -183,6 +183,6 @@ public partial class WicksObj : MonsterObj
         // while they drink: whichever miner they sit on has a guttering flame (everyone sees it)
         if (latched && Game.I.World != null)
             foreach (var m in Game.I.World.Miners())
-                if (m.GlobalPosition.DistanceTo(GlobalPosition) < 2.4f) m.GutterUntil = Time.GetTicksMsec() / 1000.0 + 0.35;
+                if (GodotObject.IsInstanceValid(m) && m.GlobalPosition.DistanceTo(GlobalPosition) < 2.4f) m.GutterUntil = Time.GetTicksMsec() / 1000.0 + 0.35;
     }
 }
