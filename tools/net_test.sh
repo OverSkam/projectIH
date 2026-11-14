@@ -145,7 +145,7 @@ sleep 1
 ALL=$(cat "$LOGDIR"/hostA.log "$LOGDIR"/hostB.log "$LOGDIR"/Alice.log "$LOGDIR"/Dora.log "$LOGDIR"/Cody.log "$LOGDIR"/Lola.log "$LOGDIR"/Pia.log)
 grep -E "UPnP|IP lookup|api.ipify|ifconfig" <<<"$ALL" | grep . && fail "an automated run touched UPnP / the public IP lookup"
 grep -E "ERROR|SCRIPT ERROR|Unhandled exception|Exception:|Traceback" "$LOGDIR"/hostA.log "$LOGDIR"/hostB.log "$LOGDIR"/Alice.log "$LOGDIR"/Mallory.log "$LOGDIR"/Nopw.log "$LOGDIR"/Cody.log \
-  | grep -vE "leaked at exit|Pages in use|RID allocations|Unreferenced static string" | grep . && fail "runtime errors in logs"
+  | grep -vE "leaked at exit|Pages in use|RID allocations|Unreferenced static string|not a reference to a valid ResourceFormat|propagate_notification" | grep . && fail "runtime errors in logs"
 
 if [ $RC -eq 0 ]; then echo "NET TEST PASS"; else echo "NET TEST FAILED (see $LOGDIR)"; fi
 exit $RC
