@@ -12,6 +12,7 @@ namespace AppStein;
 /// </summary>
 public class BotBrain : IMinerController
 {
+    SocialBot _social;
     readonly string _routine;
     float _yaw, _pitch;
     List<Vector3> _path = new();
@@ -39,7 +40,7 @@ public class BotBrain : IMinerController
 
         switch (_routine)
         {
-            case "miner": Miner(m, ref inp, g); break;
+            case "miner": Miner(m, ref inp, g); _social ??= new SocialBot(Net.I.MyId); _social.Run(m, ref inp, g, dt); break;
             case "killer": Killer(m, ref inp, g); break;
             case "pit": Pit(m, ref inp, g); break;
             default: if (_routine.StartsWith("trap")) TrapBots.Run(_routine, m, ref inp, g); break; // idle / trap test routines (src/Traps)

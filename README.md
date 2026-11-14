@@ -50,8 +50,12 @@ Without the editor you can also start two copies of the Godot program with `--pa
 | Jump | Space |
 | Sprint | Left Shift |
 | Crouch / crawl | Left Ctrl |
-| Use / pick up / loot a downed miner. **Hold** E for 2.5 s to open a bright chest | E |
-| Take the stone / pour the bag / rob the downed miner under the crosshair (one item per press) | E |
+| Use / take the stone / pour the bag. **Hold** E for 2.5 s to open a bright chest | E |
+| **Shove** the miner in front of you (no damage, 1.6 m, once per 1.2 s; from behind it knocks their top stone out of the sack) | R |
+| **Pickpocket**: crouched, right behind a miner (1.3 m), **hold** E for 1.6 s to lift one random stone from their sack | Ctrl + hold E |
+| **Help up** a downed miner (3 s, both exposed) | hold E |
+| **Rob** a downed miner (one stone per press, the most valuable first) | C |
+| **Drag** a downed miner slowly (they drop when you let go) | hold right mouse button |
 | Lantern on / off (saves oil) | L |
 | Mine veins, crack geodes (3 hits) with the pickaxe / strike | Left mouse button |
 | Use the held item (place dynamite, bear trap or rope; look at the map) | Right mouse button |
@@ -66,6 +70,8 @@ Without the editor you can also start two copies of the Godot program with `--pa
 | As a ghost: knock a pebble (noise) | E |
 
 Mouse sensitivity and field of view are in **Settings** (main menu or pause menu).
+
+Other miners carry their sack on their back: it bulges in four steps with how HEAVY it is (burden), never with what it is worth. Nobody can see anyone's tribute.
 
 The screen is deliberately quiet: thin health / oil / run bars bottom-left (they fade when nothing changes), your two steins and two tools bottom-centre, your sack bottom-right (it bulges with its weight; the tribute number is yours alone). The round clock is a **pocket-watch dial without digits**; in the **last minute** a **burning rope fuse** replaces it, and a big candle beside the Goblin burns down with the round.
 

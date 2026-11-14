@@ -629,6 +629,7 @@ public static class SfxRecipes
             }
             return o;
         }, 0.5f, "Ambience");
+        SocialSfx.Register(Table);   // v2.3: shove, spill, pickpocket
         LootSfx.Register(Table);   // step 2 (src/Loot2): geodes, bright chests, mimics
     }
 }

@@ -29,7 +29,8 @@ public partial class Hud : CanvasLayer
     Control _sackBox; SackIcon _sackIcon; Label _tribute, _toast;
     // centre
     Control _cross, _promptBox;
-    PanelContainer _promptPanel; Label _promptKey, _promptText;
+    PanelContainer _promptPanel; Label _promptKey, _promptText; HBoxContainer _promptHBox; VBoxContainer _promptRowsBox; string _promptRowsKey = "";
+    Label _downedWho; bool _twitching;
     ThinBar _holdBar;
     VBoxContainer _feed;
     readonly List<(Control node, double born)> _feedNodes = new();
@@ -175,6 +176,9 @@ void fragment(){
         _root.AddChild(_promptPanel);
         var h = UiKit.HBox(8);
         _promptPanel.AddChild(h);
+        _promptHBox = h;
+        _promptRowsBox = UiKit.VBox(4);
+        _promptPanel.AddChild(_promptRowsBox);
         _promptKey = UiKit.MakeLabel("E", 15, UiTheme.Gold, HorizontalAlignment.Center, 3);
         var cap = new PanelContainer { CustomMinimumSize = new Vector2(26, 26), MouseFilter = Control.MouseFilterEnum.Ignore };
         cap.AddThemeStyleboxOverride("panel", UiTheme.Box(new Color(0.12f, 0.1f, 0.08f, 0.8f), new Color(UiTheme.Gold, 0.8f), 4, 1, 6, 1));
@@ -348,7 +352,9 @@ void fragment(){
         box.AddChild(UiKit.MakeTitle("YOU ARE DOWN", 40, UiTheme.Danger));
         _downedLabel = UiKit.MakeLabel("Bleeding out in 30 s", 20, new Color(1f, 0.8f, 0.75f), HorizontalAlignment.Center, 5);
         box.AddChild(_downedLabel);
-        box.AddChild(UiKit.MakeLabel("You can only crawl. Anyone may rob you. Any hit finishes you.", 14, UiTheme.Dim, HorizontalAlignment.Center, 4));
+        _downedWho = UiKit.MakeLabel("", 20, new Color(1f, 0.85f, 0.5f), HorizontalAlignment.Center, 5);
+        box.AddChild(_downedWho);
+        box.AddChild(UiKit.MakeLabel("You can only crawl. Anyone may help you up, rob you or drag you. Any hit finishes you.", 14, UiTheme.Dim, HorizontalAlignment.Center, 4));
     }
 
     static readonly (string key, string what)[] Controls =
@@ -356,6 +362,8 @@ void fragment(){
         ("W A S D", "move"), ("Shift", "run (tires you)"), ("Ctrl", "crouch"), ("Space", "jump"),
         ("E", "take / open / use"), ("LMB", "mine / strike"), ("RMB", "use the tool in hand"), ("1  2", "choose tool"),
         ("L", "lantern on / off"), ("F", "choose stein slot"), ("Q", "stein power"), ("G", "drop tool  (hold: stuff stein into sack)"),
+        ("R", "shove (back: spills)"), ("Crouch+hold E", "behind: pick sack"),
+        ("hold E", "help up downed"), ("C", "rob a downed miner"), ("hold RMB", "drag a downed miner"), ("", ""),
         ("Tab", "this screen (hold)"), ("Esc", "menu, guide, settings"),
     };
 
@@ -386,7 +394,7 @@ void fragment(){
             grid.AddChild(kl); grid.AddChild(wl);
         }
         v.AddChild(grid);
-        v.AddChild(UiKit.MakeLabel("Nobody's sack or tribute is public. Until the weighing.", 13, UiTheme.Dim, HorizontalAlignment.Center, 3));
+        v.AddChild(UiKit.MakeLabel("Nobody's tribute is public (only the size of a sack shows). Until the weighing.", 13, UiTheme.Dim, HorizontalAlignment.Center, 3));
     }
 
     // ------------------------------------------------------------------ events
@@ -465,9 +473,12 @@ void fragment(){
             var cart = HallCeremony.I.CartPos(Net.I.MyId); var me = g.LocalMiner.GlobalPosition;
             if (new Vector2(cart.X - me.X, cart.Z - me.Z).Length() < 2.6f && g.Phase == GamePhase.Round) prompt = "Your cart - be here when the fuse burns out";
         }
-        _promptPanel.Visible = prompt != "";
+        var rows = alive && !PauseMenu.I.IsOpen ? g.LocalMiner.PromptRows : System.Array.Empty<string>();
+        _promptPanel.Visible = prompt != "" || rows.Length > 0;
+        _promptHBox.Visible = rows.Length == 0; _promptRowsBox.Visible = rows.Length > 0;
         _cross.Visible = alive && !PauseMenu.I.IsOpen;
-        if (prompt != "")
+        if (rows.Length > 0) UpdatePromptRows(rows);
+        else if (prompt != "")
         {
             if (prompt.StartsWith("E ")) { _promptKey.Text = "E"; _promptText.Text = prompt.Substring(1).Trim(); _promptKey.GetParent<Control>().Visible = true; _promptText.Modulate = Colors.White; }
             else { _promptKey.GetParent<Control>().Visible = false; _promptText.Text = prompt; _promptText.Modulate = new Color(1, 1, 1, 0.8f); }
@@ -479,7 +490,9 @@ void fragment(){
         {
             double left = System.Math.Max(0, g.OwnDownedUntil - _timeNow);
             _downedLabel.Text = $"Bleeding out in {Mathf.CeilToInt((float)left)} s";
+            _downedWho.Text = DownedActorsText(g);
         }
+        UpdateOtherMinersHints(g, alive);
         _holdBar.Visible = alive && g.LocalMiner.HoldProgress > 0f;
         if (_holdBar.Visible) { _holdBar.Target = g.LocalMiner.HoldProgress; _holdBar.Snap(); }
         _deathOverlay.Visible = ghost;
@@ -614,6 +627,15 @@ void fragment(){
                 string nm = sack.Count - _prevSack == 1 && od != null ? od.Name.ToUpper() : "STONES";
                 PopToast(d > 0 ? $"+{d} {nm}" : $"+{nm}", true);
             }
+            else if (sack.Count < _prevSack && _timeNow - g.StolenAt < 1.5 && g.StolenOre != "")
+            {
+                var sd = Ores.Get(g.StolenOre);
+                PopToast($"\u2212{sd?.TributeWeight ?? -d} {(sd?.Name ?? "STONE").ToUpper()}", false);   // "−10 RUBY" in red; the sack icon twitches
+                g.StolenAt = -100;
+                Twitch();
+                if (g.ShovesFelt > 0 && !UserSettings.SeenSpillHint)   // hint 2 of 3: the first time a shove knocks a stone out of your sack
+                { UserSettings.SeenSpillHint = true; UserSettings.Save(); ShowHint("Shoved from behind, a stone spills out of your sack. Watch your back."); }
+            }
             else if (d != 0) PopToast((d > 0 ? "+" : "") + d, d > 0);
         }
         else if (_prevSack >= 0 && tribute != _prevTribute) { _chgSack = _timeNow; PopToast((tribute - _prevTribute > 0 ? "+" : "") + (tribute - _prevTribute), tribute > _prevTribute); }
@@ -621,6 +643,63 @@ void fragment(){
         bool slow = spd < 0.85f;
         float a = slow ? Mathf.Max(0.55f, Fade(_timeNow - _chgSack, 4f, 1.5f, 0.35f)) : Fade(_timeNow - _chgSack, 4f, 1.5f, 0.32f);
         _sackBox.Visible = alive; _sackBox.Modulate = new Color(1, 1, 1, a);
+    }
+
+    void Twitch()
+    {
+        if (_twitching) return;
+        _twitching = true;
+        var tw = CreateTween();
+        var baseOff = _sackBox.Position;
+        for (int i = 0; i < 4; i++) { tw.TweenProperty(_sackBox, "position", baseOff + new Vector2(i % 2 == 0 ? 7f : -7f, i % 2 == 0 ? -4f : 3f), 0.045f); }
+        tw.TweenProperty(_sackBox, "position", baseOff, 0.06f);
+        tw.TweenCallback(Callable.From(() => _twitching = false));
+        _chgSack = _timeNow;
+    }
+
+    /// <summary>Rows "KEY\ttext" in the centre prompt (a downed miner under the crosshair: help up / rob / drag).</summary>
+    void UpdatePromptRows(string[] rows)
+    {
+        string key = string.Join("|", rows);
+        if (key == _promptRowsKey) return;
+        _promptRowsKey = key;
+        foreach (var c in _promptRowsBox.GetChildren()) c.QueueFree();
+        for (int i = 0; i < rows.Length; i++)
+        {
+            var parts = rows[i].Split('\t');
+            var row = UiKit.HBox(8);
+            var cap = new PanelContainer { CustomMinimumSize = new Vector2(26, 26), MouseFilter = Control.MouseFilterEnum.Ignore };
+            cap.AddThemeStyleboxOverride("panel", UiTheme.Box(new Color(0.12f, 0.1f, 0.08f, 0.8f), new Color(UiTheme.Gold, 0.8f), 4, 1, 6, 1));
+            cap.AddChild(UiKit.MakeLabel(parts[0], 15, UiTheme.Gold, HorizontalAlignment.Center, 3));
+            row.AddChild(cap);
+            var t = UiKit.MakeLabel(parts.Length > 1 ? parts[1] : "", 16, i == 2 ? new Color(1, 1, 1, 0.7f) : UiTheme.Parchment, HorizontalAlignment.Left, 4);
+            t.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+            row.AddChild(t);
+            _promptRowsBox.AddChild(row);
+        }
+    }
+
+    /// <summary>"Anna is helping you up" / "Ben is robbing you" in the downed overlay.</summary>
+    string DownedActorsText(Game g)
+    {
+        var lines = new List<string>();
+        foreach (var kv in g.DownedActors)
+        {
+            if (kv.Value.until < _timeNow) continue;
+            string n = Net.I.NameOf(kv.Key);
+            lines.Add(kv.Value.mode switch { 1 => $"{n} is helping you up", 2 => $"{n} is robbing you", _ => $"{n} is dragging you" });
+        }
+        return string.Join("\n", lines);
+    }
+
+    /// <summary>At most three one-time hints for the other-miner actions (like the Wicks hint).</summary>
+    void UpdateOtherMinersHints(Game g, bool alive)
+    {
+        var m = g.LocalMiner; if (!alive || m == null) return;
+        if (!UserSettings.SeenPickHint && m.PickReachable && !m.IsCrouching && !m.IsDowned)
+        { UserSettings.SeenPickHint = true; UserSettings.Save(); ShowHint("Crouch (Ctrl), then hold E to pick their sack. R shoves."); }
+        else if (!UserSettings.SeenDownedHint && m.DownedTarget != null)
+        { UserSettings.SeenDownedHint = true; UserSettings.Save(); ShowHint("Hold E helps them up, C robs them, hold right mouse drags them."); }
     }
 
     void PopToast(string text, bool good)

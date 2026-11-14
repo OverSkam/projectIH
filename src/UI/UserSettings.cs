@@ -20,6 +20,7 @@ public static class UserSettings
     /// <summary>Volume of other players' voices, 0..1.5 (1 = as received).</summary>
     public static float VoiceVolume = 1f;
     public static bool SeenVoiceHint;
+    public static bool SeenPickHint, SeenSpillHint, SeenDownedHint;
 
     public static float SensitivityRad => 0.0025f * MouseSens;
 
@@ -40,6 +41,9 @@ public static class UserSettings
         SeenVoiceHint = (bool)cf.GetValue("hints", "voice", false);
         VoiceMode = Mathf.Clamp((int)cf.GetValue("voice", "mode", 0), 0, 2);
         VoiceVolume = Mathf.Clamp((float)(double)cf.GetValue("voice", "volume", 1.0), 0f, 1.5f);
+        SeenPickHint = (bool)cf.GetValue("hints", "pick", false);
+        SeenSpillHint = (bool)cf.GetValue("hints", "spill", false);
+        SeenDownedHint = (bool)cf.GetValue("hints", "downed", false);
     }
 
     public static void Save()
@@ -53,6 +57,9 @@ public static class UserSettings
         cf.SetValue("hints", "voice", SeenVoiceHint);
         cf.SetValue("voice", "mode", VoiceMode);
         cf.SetValue("voice", "volume", (double)VoiceVolume);
+        cf.SetValue("hints", "pick", SeenPickHint);
+        cf.SetValue("hints", "spill", SeenSpillHint);
+        cf.SetValue("hints", "downed", SeenDownedHint);
         cf.SetValue("audio", "volume", (double)Volume);
         cf.SetValue("video", "fullscreen", Fullscreen);
         cf.Save(Path);

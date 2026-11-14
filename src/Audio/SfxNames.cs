@@ -43,6 +43,9 @@ public static class SfxNames
     public const string ChestCreak = "chest_creak", ChestBurst = "chest_burst";
     public const string ChestPing1 = "chest_ping1", ChestPing2 = "chest_ping2", ChestPing3 = "chest_ping3", ChestPing4 = "chest_ping4", ChestPing5 = "chest_ping5", ChestPing6 = "chest_ping6";
     public const string MimicBreath = "mimic_breath", MimicSnap = "mimic_snap", MimicShriek = "mimic_shriek", MimicScuttle = "mimic_scuttle", Bats = "bats", GasPuff = "gas_puff";
+    // other miners (v2.3, recipes in src/Social/SocialSfx.cs)
+    public const string Shove = "shove", ShoveHit = "shove_hit", StoneClatter = "stone_clatter", Rustle = "rustle", PickFumble = "pick_fumble";
+    public const string Revive = "revive";
     // ambience
     public const string AmbDrone = "amb_drone", AmbDrip = "amb_drip", AmbCreak = "amb_creak", AmbSettle = "amb_settle", Campfire = "campfire", WaterLap = "water_lap";
 

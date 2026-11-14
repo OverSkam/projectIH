@@ -62,6 +62,7 @@ public partial class Game
         if (Phase != GamePhase.Round) return;
         Phase = GamePhase.Weighing;
         var contenders = Contenders();
+        SocialAtFuse(contenders);
         // the tribute of a miner is the content of their sack at timer end IF they are inside the Hall. Outside: zero, and the sack is emptied (lost).
         foreach (var p in contenders)
         {

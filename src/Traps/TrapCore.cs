@@ -42,13 +42,13 @@ public static class TrapUtil
     public static string F(float v) => v.ToString("0.###", Inv);
     public static float ToF(string s, float def = 0f) => float.TryParse(s, NumberStyles.Float, Inv, out var v) ? v : def;
 
-    /// <summary>Alive (or downed) round participants outside the Hall (traps never hurt or trigger inside the Hall).</summary>
+    /// <summary>Alive (or downed) round participants outside the Hall (traps never hurt or trigger inside the Hall, except in the scripted --itest scenarios).</summary>
     public static IEnumerable<ServerPlayer> Miners()
     {
         var g = Game.I;
         if (g?.World?.Cave == null) yield break;
         foreach (var p in g.Players.Values)
-            if (p.Participant && p.Alive && !g.World.Cave.InHall(p.Pos)) yield return p;
+            if (p.Participant && p.Alive && (!g.World.Cave.InHall(p.Pos) || Util.HasArg("itest"))) yield return p;   // the item / interaction tests stage hazards in the Hall
     }
 
     public static float Hurt(ServerPlayer v, float amount, ServerPlayer by, string cause, string kind)

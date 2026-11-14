@@ -165,6 +165,7 @@ public partial class Game : Node
             p.Health = ServerPlayer.MaxHealth;
             p.Oil = Config.LanternOilSeconds; p.LanternOn = true;
             p.Inv.Sack.Clear(); p.TributeAdj = 0; p.KillsThisRound = 0;
+            SocialResetPlayer(p);
             ApplyDebugTribute(p);
             p.RecalcStats();
         }
@@ -244,6 +245,7 @@ public partial class Game : Node
                 {
                     if (!p.Participant) continue;
                     p.Tick(dt);
+                    SocialTickPlayer(p);
                     if (p.Dirty && Now - p.LastOwnSend > 0.1) SendOwnState(p);
                 }
                 TickLoiter(dt);
@@ -316,6 +318,7 @@ public partial class Game : Node
             {
                 RpcId(peer, nameof(ClientSpawnMiner), p.Peer, p.Pos, p.Name, p.Inv.Held);
                 if (p.Downed) RpcId(peer, nameof(ClientDowned), p.Peer, true, p.DownedLeft);
+                RpcId(peer, nameof(ClientSackStep), p.Peer, p.SackStep);
             }
         foreach (var p in Players.Values) if (p.Participant && !p.Alive) RpcId(peer, nameof(ClientStatus), p.Peer, (int)MinerStatus.Dead);
     }
@@ -414,6 +417,7 @@ public partial class Game : Node
 
     void SendOwnState(ServerPlayer p)
     {
+        if (Now < p.HoldOwnUntil && Phase == GamePhase.Round) { p.Dirty = true; return; }   // a pickpocketed victim hears about it late (src/Social)
         p.Dirty = false; p.LastOwnSend = Now;
         if (!Net.I.Names.ContainsKey(p.Peer)) return;
         // HIDDEN INFORMATION: only the owner ever receives tribute weight / inventory / oil.
@@ -427,7 +431,7 @@ public partial class Game : Node
     void SyncHeld(ServerPlayer p) => Rpc(nameof(ClientHeld), p.Peer, p.Inv.Held);
 
     /// <summary>A miner that may act: alive, not downed, round in progress.</summary>
-    public bool CanAct(ServerPlayer p) => p != null && p.Alive && !p.Downed && Phase == GamePhase.Round;
+    public bool CanAct(ServerPlayer p) => p != null && p.Alive && !p.Downed && Phase == GamePhase.Round && Now >= p.StaggerUntil;
 
     ServerPlayer Sender()
     {
@@ -452,7 +456,7 @@ public partial class Game : Node
         if (!Net.I.IsServer) return;
         var p = Sender();
         if (p == null || !p.Alive || (Phase != GamePhase.Round && Phase != GamePhase.Weighing)) return;
-        p.Pos = pos; p.Yaw = yaw; p.Pitch = pitch;
+        p.Pos = pos; p.Yaw = yaw; p.Pitch = pitch; p.Flags = flags;
         ItemsServer.OnState(p, flags);
         foreach (var other in Net.I.Names.Keys)
         {
@@ -559,7 +563,7 @@ public partial class Game : Node
         FreeWorld();
         RoundPeers = minerPeers;
         Round = round; TimeLeft = time; RoundTotal = Mathf.Max(1f, time); TotalRounds = totalRounds; Weigh = null; OwnDowned = false;
-        Alive.Clear(); Status.Clear();
+        Alive.Clear(); Status.Clear(); SackSteps.Clear(); DownedActors.Clear();
         foreach (var id in Net.I.Names.Keys)
         {
             bool out_ = Array.IndexOf(eliminated, id) >= 0;
@@ -594,6 +598,7 @@ public partial class Game : Node
         World.MinersRoot.AddChild(m);
         m.GlobalPosition = pos;
         m.SetHeld(held);
+        if (SackSteps.TryGetValue(peer, out var sackStep)) m.SetSackStep(sackStep);
         Alive[peer] = true;
         if (Status.GetValueOrDefault(peer) != MinerStatus.Eliminated) Status[peer] = MinerStatus.Alive;
         if (local)
