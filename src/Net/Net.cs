@@ -45,6 +45,10 @@ public partial class Net : Node
     public bool SteamAnyone;
     /// <summary>Steam lobby of the current room (host and joiners); null while Steam is not available.</summary>
     public SteamLobby Lobby;
+    /// <summary>Friends list and invites (real Steam, or the fake for --fakesteam screenshots); null without Steam.</summary>
+    public IFriendsSource Friends;
+    /// <summary>The Steam lobby of the current room (0 = none yet). Invites go to this lobby.</summary>
+    public ulong CurrentLobbyId => Lobby != null && Lobby.Active ? Lobby.Id : (DebugFakeCode != null ? 1UL : 0UL);
     /// <summary>Host: the lobby is created and the room code exists.</summary>
     public bool SteamRoomReady => SteamMode && ((Lobby != null && Lobby.Active) || DebugFakeCode != null);
     public string SteamRoomCode => DebugFakeCode ?? (SteamRoomReady ? SteamLobbyCode.Encode(Lobby.Id) : null);
@@ -95,7 +99,9 @@ public partial class Net : Node
             AddChild(new SteamService { Name = "Steam" });
             Lobby = new SteamLobby();
             Lobby.JoinRequested += id => JoinSteam(id, "");
+            Friends = new SteamFriendsSource();
         }
+        else if (SteamService.FakeUi) Friends = FakeFriendsSource.Demo();   // --fakesteam screenshots only
     }
 
     public override void _Notification(int what)
@@ -116,6 +122,7 @@ public partial class Net : Node
         bool hadSteam = SteamMode;
         if (SteamMode) { try { Multiplayer.MultiplayerPeer?.Close(); } catch { } }
         Lobby?.Dispose();
+        (Friends as IDisposable)?.Dispose();
         if (hadSteam) { SteamService.RunCallbacksNow(); System.Threading.Thread.Sleep(150); }   // let the "room closed" messages leave before Steam shuts down
         Room?.Stop();
         Room?.WaitForCleanup(1500);

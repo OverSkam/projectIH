@@ -392,6 +392,7 @@ public partial class MenuUI : CanvasLayer
                 row.AddChild(n);
                 if (kv.Key == 1) { var h = UiKit.MakeLabel("HOST", 14, UiTheme.Gold, HorizontalAlignment.Center); h.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter; row.AddChild(h); }
                 if (kv.Key == Net.I.MyId) { var y = UiKit.MakeLabel("you", 14, UiTheme.Dim, HorizontalAlignment.Center); y.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter; row.AddChild(y); }
+                VoiceUi.ScoreExtras(row, kv.Key);
                 _playerList.AddChild(row);
             }
             _start.Visible = Net.I.IsServer;

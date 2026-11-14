@@ -508,7 +508,7 @@ void fragment(){
         // hold-Tab overlay (miners, miners remaining, key help)
         bool score = (Input.IsActionPressed("scoreboard") || ForceScoreboard) && !PauseMenu.I.IsOpen;
         _scorePanel.Visible = score;
-        if (score && _timeNow - _scoreT > 0.2) { _scoreT = _timeNow; RebuildScoreboard(g); }
+        if (score && _timeNow - _scoreT > 0.2 && !VoiceHud.CursorOver(_scorePanel)) { _scoreT = _timeNow; RebuildScoreboard(g); }
     }
 
     // ---- timer: dial (digit-free), then the burning fuse in the last minute
@@ -785,6 +785,7 @@ void fragment(){
             var st = UiKit.MakeLabel(stText, 15, stCol, HorizontalAlignment.Center, 3);
             st.CustomMinimumSize = new Vector2(110, 0); st.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
             row.AddChild(st);
+            VoiceUi.ScoreExtras(row, kv.Key);
             _scoreRows.AddChild(row);
         }
     }

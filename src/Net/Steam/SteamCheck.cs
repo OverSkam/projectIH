@@ -29,10 +29,79 @@ public static class SteamCheck
         Transport();
         Codes();
         Service();
+        Friends();
         OverSceneMultiplayer();
         Util.Log($"STEAMCHECK: {_checks} checks, {_fails} failed");
         if (_fails == 0) Util.Pass("steamcheck", $"{_checks} checks");
         return _fails;
+    }
+
+    // ------------------------------------------------------------ (e) friends list + invite banner logic over the fake source
+    static void Friends()
+    {
+        double t = 100; ulong lobby = 555;
+        var src = new FakeFriendsSource()
+            .Add(1, "bob", FriendState.Online).Add(2, "Alice", FriendState.Online).Add(3, "Zed", FriendState.InGame).Add(4, "carl", FriendState.Away)
+            .Add(5, "dan", FriendState.Offline).Add(6, "Eve", FriendState.Offline).Add(7, "Amy", FriendState.Away);
+        var m = new FriendsModel(src, () => t, () => lobby);
+        m.Refresh();
+        var rows = m.Rows();
+        Ok(rows.Select(r => r.Friend.Name).SequenceEqual(new[] { "Zed", "Alice", "bob", "Amy", "carl" }), "friends: in this game, then online, then away, by name (ignoring case); offline hidden: " + string.Join(",", rows.Select(r => r.Friend.Name)));
+        Ok(m.HiddenOffline == 2, "friends: two offline friends are hidden");
+        m.ShowOffline = true;
+        Ok(m.Rows().Select(r => r.Friend.Name).SequenceEqual(new[] { "Zed", "Alice", "bob", "Amy", "carl", "dan", "Eve" }), "friends: with Show offline the offline ones come last");
+        m.Filter = "AL";
+        Ok(m.Rows().Select(r => r.Friend.Name).SequenceEqual(new[] { "Alice" }), "friends: filter is a case-insensitive substring match");
+        m.Filter = "e";   // Alice, Zed, Eve (offline shown), no 'e' in bob/Amy/carl/dan
+        Ok(m.Rows().Select(r => r.Friend.Name).SequenceEqual(new[] { "Zed", "Alice", "Eve" }), "friends: filter 'e' with offline shown");
+        m.ShowOffline = false;
+        Ok(m.Rows().Select(r => r.Friend.Name).SequenceEqual(new[] { "Zed", "Alice" }) && m.HiddenOffline == 1, "friends: filter respects the offline toggle and counts what it hides");
+        m.Filter = "nobody";
+        Ok(m.Rows().Count == 0, "friends: a filter that matches nothing gives an empty list");
+        m.Filter = "";
+        Ok(FriendsModel.DetailFor(FriendState.InGame, false) == "In this game" && FriendsModel.DetailFor(FriendState.Online, true) == "In another game" && FriendsModel.DetailFor(FriendState.Away, false) == "Away", "friends: status texts");
+
+        // invite button: Invite -> Invited for 10 s -> Invite again
+        Ok(m.Rows().All(r => r.Button == FriendsModel.Btn.Invite), "invite buttons start as Invite");
+        string sig0 = FriendsModel.Signature(m.Rows());
+        Ok(m.Invite(2) && src.Invited.Count == 1 && src.Invited[0] == (555UL, 2UL), "Invite sends the lobby id and the friend id to Steam");
+        Ok(m.Rows().First(r => r.Friend.Id == 2).Button == FriendsModel.Btn.Invited && m.Rows().First(r => r.Friend.Id == 3).Button == FriendsModel.Btn.Invite, "that row shows Invited, the others stay Invite");
+        Ok(FriendsModel.Signature(m.Rows()) != sig0, "the panel's change signature changes with the button state");
+        Ok(!m.Invite(2) && src.Invited.Count == 1, "a second click while Invited sends nothing");
+        t += 9.9; Ok(m.Rows().First(r => r.Friend.Id == 2).Button == FriendsModel.Btn.Invited, "still Invited after 9.9 s");
+        t += 0.3; Ok(m.Rows().First(r => r.Friend.Id == 2).Button == FriendsModel.Btn.Invite, "back to Invite after 10 s");
+        Ok(m.Invite(2) && src.Invited.Count == 2, "can be invited again after the 10 s");
+        src.InviteResult = false;
+        Ok(!m.Invite(3) && m.Rows().First(r => r.Friend.Id == 3).Button == FriendsModel.Btn.Failed, "Steam refusing the invite shows Failed");
+        t += 3.1; Ok(m.Rows().First(r => r.Friend.Id == 3).Button == FriendsModel.Btn.Invite, "Failed lasts 3 s");
+        src.InviteResult = true;
+        lobby = 0; int sent = src.Invited.Count;
+        Ok(m.Rows().All(r => r.Button == FriendsModel.Btn.Disabled) && !m.Invite(3) && src.Invited.Count == sent, "no room yet: every button is disabled and nothing is sent");
+        lobby = 555;
+
+        // refresh on a timer and on a persona-state event
+        m.Refresh(); src.Add(8, "Newcomer", FriendState.Online);
+        Ok(!m.Tick() && !m.Rows().Any(r => r.Friend.Id == 8), "no refresh before the interval");
+        t += 3.1; Ok(m.Tick() && m.Rows().Any(r => r.Friend.Id == 8), "refreshes every 3 s while open");
+        int changed = 0; src.Changed += () => changed++; src.RaiseChanged();
+        Ok(changed == 1, "persona-state change event reaches listeners");
+        Ok(new FriendsModel(null, () => t, () => 1).Rows().Count == 0, "no friends source: empty list, no crash");
+
+        // invite banner
+        double bt = 10; var b = new InviteBannerModel(() => bt);
+        Ok(!b.Active && b.Join() == 0, "banner: nothing to show at first");
+        Ok(b.OnInvite(new InviteInfo { FromName = "Brynhild", Lobby = 77 }, 0) && b.Active && b.Current.FromName == "Brynhild" && Math.Abs(b.SecondsLeft - 30) < 0.01, "banner: an invite shows for 30 s");
+        bt += 29.9; Ok(b.Active, "banner: still there at 29.9 s");
+        bt += 0.2; Ok(!b.Active && b.Join() == 0, "banner: gone after 30 s");
+        bt = 50; b.OnInvite(new InviteInfo { FromName = "A", Lobby = 1 }, 0); b.OnInvite(new InviteInfo { FromName = "B", Lobby = 2 }, 0);
+        Ok(b.Current.FromName == "B", "banner: a newer invite replaces the older one");
+        b.Dismiss(); Ok(!b.Active, "banner: Dismiss hides it");
+        b.OnInvite(new InviteInfo { FromName = "C", Lobby = 3 }, 0);
+        Ok(b.Join() == 3 && !b.Active, "banner: Join returns the lobby and hides it");
+        Ok(!b.OnInvite(new InviteInfo { FromName = "D", Lobby = 9 }, 9) && !b.Active, "banner: an invite to the room we are already in is ignored");
+        Ok(!b.OnInvite(new InviteInfo { FromName = "E", Lobby = 0 }, 9) && !b.Active, "banner: an invite without a lobby is ignored");
+        var ex = new FakeFriendsSource(); InviteInfo? got = null; ex.InviteReceived += i => got = i; ex.RaiseInvite(new InviteInfo { FromName = "F", Lobby = 5 });
+        Ok(got != null && got.Value.Lobby == 5, "invite event reaches listeners");
     }
 
     // ------------------------------------------------------------ (a) transport core over the in-memory fake

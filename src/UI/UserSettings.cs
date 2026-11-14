@@ -15,6 +15,11 @@ public static class UserSettings
     public static bool Fullscreen;
     /// <summary>One-time hints already shown (the Wicks oil hint).</summary>
     public static bool SeenWicksHint;
+    /// <summary>Voice chat: 0 = open mic (default), 1 = push to talk (V), 2 = off.</summary>
+    public static int VoiceMode;
+    /// <summary>Volume of other players' voices, 0..1.5 (1 = as received).</summary>
+    public static float VoiceVolume = 1f;
+    public static bool SeenVoiceHint;
 
     public static float SensitivityRad => 0.0025f * MouseSens;
 
@@ -32,6 +37,9 @@ public static class UserSettings
         Volume = Mathf.Clamp((float)(double)cf.GetValue("audio", "volume", 0.8), 0f, 1f);
         Fullscreen = (bool)cf.GetValue("video", "fullscreen", false);
         SeenWicksHint = (bool)cf.GetValue("hints", "wicks", false);
+        SeenVoiceHint = (bool)cf.GetValue("hints", "voice", false);
+        VoiceMode = Mathf.Clamp((int)cf.GetValue("voice", "mode", 0), 0, 2);
+        VoiceVolume = Mathf.Clamp((float)(double)cf.GetValue("voice", "volume", 1.0), 0f, 1.5f);
     }
 
     public static void Save()
@@ -42,6 +50,9 @@ public static class UserSettings
         cf.SetValue("input", "sens", (double)MouseSens);
         cf.SetValue("video", "fov", (double)Fov);
         cf.SetValue("hints", "wicks", SeenWicksHint);
+        cf.SetValue("hints", "voice", SeenVoiceHint);
+        cf.SetValue("voice", "mode", VoiceMode);
+        cf.SetValue("voice", "volume", (double)VoiceVolume);
         cf.SetValue("audio", "volume", (double)Volume);
         cf.SetValue("video", "fullscreen", Fullscreen);
         cf.Save(Path);

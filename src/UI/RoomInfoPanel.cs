@@ -44,7 +44,7 @@ public partial class RoomInfoPanel : VBoxContainer
         _lockRow = lockRow; AddChild(lockRow);
         _steamBox = UiKit.VBox(8);
         AddChild(_steamBox);
-        _invite = UiKit.MakeButton("Invite friends", () => { Net.I.Lobby?.Invite(); }, 240, true);
+        _invite = UiKit.MakeButton("Invite friends", () => FriendsOverlay.Open(), 240, true);
         _invite.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
         _steamBox.AddChild(_invite);
         (_steamRow, _steamCap, _steamCode, _steamCopy) = Row("STEAM ROOM CODE", codeSize, _steamBox);
@@ -97,7 +97,7 @@ public partial class RoomInfoPanel : VBoxContainer
             _steamCopy.Text = _copiedSteam > 0 ? "Copied" : "Copy";
             if (sc == null) { _status.Text = "Creating the Steam room..."; _status.AddThemeColorOverride("font_color", UiTheme.Dim); }
             else if (Net.I.SteamAnyone) { _status.Text = "Press Invite friends, or send the code to anyone you want in."; _status.AddThemeColorOverride("font_color", UiTheme.Good); }
-            else { _status.Text = "Press Invite friends. Friends on your Steam list can also join with the code."; _status.AddThemeColorOverride("font_color", UiTheme.Good); }
+            else { _status.Text = "Friends-only room: press Invite friends, or friends can just paste this code under Join."; _status.AddThemeColorOverride("font_color", UiTheme.Good); }
             _status.Visible = true;
             return;
         }

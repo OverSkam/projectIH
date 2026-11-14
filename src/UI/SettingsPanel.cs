@@ -23,6 +23,7 @@ public partial class SettingsPanel : PanelContainer
         var fs = new CheckBox { Text = "  Fullscreen", ButtonPressed = UserSettings.Fullscreen, FocusMode = FocusModeEnum.None };
         fs.Toggled += on => { UserSettings.Fullscreen = on; UserSettings.Apply(GetWindow()); UserSettings.Save(); Sfx.Play(SfxNames.UiClick); };
         v.AddChild(fs);
+        VoiceUi.AddSettings(v);
         v.AddChild(UiKit.Spacer(4));
         var back = UiKit.MakeButton("Back", () => { UserSettings.Save(); OnBack?.Invoke(); }, 200, true);
         back.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
